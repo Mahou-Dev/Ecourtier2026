@@ -1,0 +1,32 @@
+spring:
+  application:
+    name: ecourtier-backend
+  profiles:
+    active: ${SPRING_PROFILES_ACTIVE:dev}
+
+  datasource:
+    url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://localhost:5432/ecourtier_db}
+    username: ${SPRING_DATASOURCE_USERNAME:ecourtier_user}
+    password: ${SPRING_DATASOURCE_PASSWORD:ecourtier_secure_pass_2026}
+    driver-class-name: org.postgresql.Driver
+
+  jpa:
+    open-in-view: false
+    properties:
+      hibernate:
+        jdbc:
+          time_zone: UTC
+
+server:
+  port: ${BACKEND_PORT:8080}
+  error:
+    include-message: always
+
+# Springdoc OpenAPI Configuration
+springdoc:
+  api-docs:
+    path: /v3/api-docs
+  swagger-ui:
+    path: /swagger-ui.html
+    tags-sorter: alpha
+    operations-sorter: alpha

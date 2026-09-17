@@ -1,0 +1,32 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  html {
+    scroll-behavior: smooth;
+  }
+  
+  h1, h2, h3, h4, h5, h6 {
+    font-family: theme('fontFamily.display');
+  }
+}
+
+@layer components {
+  /* Custom Senegal architectural card motif */
+  .card-architectural {
+    @apply bg-white border border-argile-200 rounded-2xl shadow-warm-card transition-all duration-300 hover:shadow-warm-hover;
+  }
+  
+  .gradient-terracotta {
+    background: linear-gradient(135deg, #C85A32 0%, #E09F3E 100%);
+  }
+
+  .gradient-sahel {
+    background: linear-gradient(135deg, #1D3E35 0%, #2F544A 100%);
+  }
+
+  .gradient-sand-hero {
+    background: radial-gradient(circle at 50% 0%, #FAF5EC 0%, #FDFBF7 100%);
+  }
+}

@@ -1,0 +1,66 @@
+services:
+  db:
+    image: postgres:16-alpine
+    container_name: ecourtier-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-ecourtier_db}
+      POSTGRES_USER: ${POSTGRES_USER:-ecourtier_user}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-ecourtier_secure_pass_2026}
+    ports:
+      - "${POSTGRES_PORT:-5435}:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-ecourtier_user} -d ${POSTGRES_DB:-ecourtier_db}"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: ecourtier-backend
+    restart: unless-stopped
+    environment:
+      SPRING_PROFILES_ACTIVE: ${SPRING_PROFILES_ACTIVE:-dev}
+      SPRING_DATASOURCE_URL: jdbc:postgresql://db:5432/${POSTGRES_DB:-ecourtier_db}
+      SPRING_DATASOURCE_USERNAME: ${POSTGRES_USER:-ecourtier_user}
+      SPRING_DATASOURCE_PASSWORD: ${POSTGRES_PASSWORD:-ecourtier_secure_pass_2026}
+    ports:
+      - "${BACKEND_PORT:-8080}:8080"
+    volumes:
+      # Bind-mount dev directory for live-reloading
+      - ./backend:/app
+      # Anonymous volume to preserve compiled target folder inside container
+      - /app/target
+      # Persist Maven dependency repository inside Docker volume
+      - m2_cache:/root/.m2
+    depends_on:
+      db:
+        condition: service_healthy
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: ecourtier-frontend
+    restart: unless-stopped
+    environment:
+      VITE_API_BASE_URL: ${VITE_API_BASE_URL:-http://localhost:8080}
+    ports:
+      - "${FRONTEND_PORT:-3000}:3000"
+    volumes:
+      # Bind-mount dev directory for Vite HMR (Hot Module Replacement)
+      - ./frontend:/app
+      # Anonymous volume to preserve installed node_modules inside container
+      - /app/node_modules
+    depends_on:
+      - backend
+
+volumes:
+  pgdata:
+    driver: local
+  m2_cache:
+    driver: local

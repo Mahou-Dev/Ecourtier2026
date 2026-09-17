@@ -1,0 +1,19 @@
+# OS & Editors
+.DS_Store
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Environment files
+.env
+.env.local
+
+# Logs
+*.log
+logs/
+
+# Build outputs
+dist/
+target/
+node_modules/
