@@ -251,6 +251,18 @@ public class AnnonceService {
     }
 
     @Transactional(readOnly = true)
+    public org.springframework.core.io.Resource obtenirFichierDocumentVerification(UUID annonceId, UUID documentId) {
+        DocumentVerificationEntity doc = documentVerificationRepository.findById(documentId)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Document introuvable"));
+
+        if (!doc.getAnnonce().getId().equals(annonceId)) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Le document n'appartient pas à cette annonce");
+        }
+
+        return fileStorageService.loadFileAsResource(doc.getUrl());
+    }
+
+    @Transactional(readOnly = true)
     public Page<AnnonceResponseDTO> listerAnnoncesEnAttenteVerification(Pageable pageable) {
         return annonceRepository.findByStatutVerificationAndSupprimeFalse(StatutVerification.EN_ATTENTE, pageable)
                 .map(annonceMapper::toResponseDTO);

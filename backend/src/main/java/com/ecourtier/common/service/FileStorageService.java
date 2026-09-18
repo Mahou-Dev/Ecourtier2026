@@ -77,6 +77,22 @@ public class FileStorageService {
         }
     }
 
+    public org.springframework.core.io.Resource loadFileAsResource(String relativeUrl) {
+        try {
+            String cleanPath = relativeUrl.replace("/api/v1/uploads/", "");
+            Path filePath = Paths.get(UPLOAD_ROOT_DIR, cleanPath).normalize();
+            org.springframework.core.io.Resource resource = new org.springframework.core.io.UrlResource(filePath.toUri());
+
+            if (resource.exists() && resource.isReadable()) {
+                return resource;
+            } else {
+                throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Fichier physique introuvable");
+            }
+        } catch (java.net.MalformedURLException e) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "URL du fichier invalide");
+        }
+    }
+
     private void validateFile(MultipartFile file) {
         if (file == null || file.isEmpty()) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Le fichier soumis est vide");
@@ -96,6 +112,36 @@ public class FileStorageService {
                     "Format de fichier non pris en charge. Formats acceptés : jpg, jpeg, png, webp"
             );
         }
+
+        // Inspection binaire des magic bytes pour valider le contenu réel du fichier
+        try {
+            byte[] header = new byte[12];
+            int bytesRead;
+            try (var is = file.getInputStream()) {
+                bytesRead = is.read(header);
+            }
+
+            if (bytesRead < 4 || !isContentValid(header, bytesRead)) {
+                throw new ResponseStatusException(
+                        HttpStatus.BAD_REQUEST,
+                        "Le contenu du fichier est invalide ou corrompu (signature binaire non reconnue)"
+                );
+            }
+        } catch (IOException e) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Impossible de lire le contenu du fichier");
+        }
+    }
+
+    private boolean isContentValid(byte[] h, int len) {
+        // 1. JPEG: FF D8 FF
+        boolean isJpeg = (h[0] & 0xFF) == 0xFF && (h[1] & 0xFF) == 0xD8 && (h[2] & 0xFF) == 0xFF;
+        // 2. PNG: 89 50 4E 47
+        boolean isPng = (h[0] & 0xFF) == 0x89 && h[1] == 'P' && h[2] == 'N' && h[3] == 'G';
+        // 3. WEBP: RIFF...WEBP
+        boolean isWebp = len >= 12 && h[0] == 'R' && h[1] == 'I' && h[2] == 'F' && h[3] == 'F'
+                && h[8] == 'W' && h[9] == 'E' && h[10] == 'B' && h[11] == 'P';
+
+        return isJpeg || isPng || isWebp;
     }
 
     private String getExtension(String filename) {

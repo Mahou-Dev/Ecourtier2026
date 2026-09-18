@@ -76,7 +76,7 @@ public class AnnonceMapper {
         return DocumentVerificationResponseDTO.builder()
                 .id(entity.getId())
                 .typeDocument(entity.getTypeDocument())
-                .url(entity.getUrl())
+                .url("/api/v1/annonces/" + entity.getAnnonce().getId() + "/documents/" + entity.getId() + "/fichier")
                 .statut(entity.getStatut())
                 .motifRejet(entity.getMotifRejet())
                 .dateCreation(entity.getDateCreation())

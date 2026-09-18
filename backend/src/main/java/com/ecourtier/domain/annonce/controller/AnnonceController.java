@@ -163,4 +163,18 @@ public class AnnonceController {
         DocumentVerificationResponseDTO response = annonceService.ajouterDocumentVerification(id, typeDocument, file);
         return ResponseEntity.status(HttpStatus.CREATED).body(response);
     }
+
+    @GetMapping("/{id}/documents/{documentId}/fichier")
+    @PreAuthorize("@annonceSecurityService.isOwnerOrAdmin(#id, authentication)")
+    @SecurityRequirement(name = "bearerAuth")
+    @Operation(summary = "Télécharger / consulter un document de vérification", description = "Accès sécurisé réservé à l'auteur de l'annonce ou un ADMIN.")
+    public ResponseEntity<org.springframework.core.io.Resource> obtenirFichierDocumentVerification(
+            @PathVariable UUID id,
+            @PathVariable UUID documentId
+    ) {
+        org.springframework.core.io.Resource resource = annonceService.obtenirFichierDocumentVerification(id, documentId);
+        return ResponseEntity.ok()
+                .header(org.springframework.http.HttpHeaders.CONTENT_DISPOSITION, "inline; filename=\"" + resource.getFilename() + "\"")
+                .body(resource);
+    }
 }

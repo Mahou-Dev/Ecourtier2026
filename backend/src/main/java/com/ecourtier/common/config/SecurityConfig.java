@@ -43,9 +43,14 @@ public class SecurityConfig {
                     "/v3/api-docs/**",
                     "/api/v1/health/**",
                     "/api/v1/auth/**",
-                    "/api/v1/uploads/**"
+                    "/api/v1/uploads/annonces/**",
+                    "/api/v1/ia/**"
                 ).permitAll()
-                .requestMatchers(HttpMethod.GET, "/api/v1/annonces", "/api/v1/annonces/**").permitAll()
+                .requestMatchers("/api/v1/annonces/*/documents/*/fichier").authenticated()
+                .requestMatchers("/api/v1/annonces/*/rendez-vous").authenticated()
+                .requestMatchers("/api/v1/rendez-vous/**").authenticated()
+                .requestMatchers("/api/v1/transactions/**").authenticated()
+                .requestMatchers(HttpMethod.GET, "/api/v1/annonces", "/api/v1/annonces/*").permitAll()
                 .requestMatchers("/api/v1/admin/**").hasRole("ADMIN")
                 .anyRequest().authenticated()
             )

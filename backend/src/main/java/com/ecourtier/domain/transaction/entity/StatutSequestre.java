@@ -1,8 +1,7 @@
 package com.ecourtier.domain.transaction.entity;
 
 public enum StatutSequestre {
-    EN_ATTENTE,
+    INITIALISE,
     BLOQUE,
-    LIBERE,
-    REMBOURSE
+    LIBERE
 }

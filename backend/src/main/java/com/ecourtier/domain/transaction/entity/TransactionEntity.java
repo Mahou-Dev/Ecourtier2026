@@ -19,6 +19,7 @@ import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
+import org.hibernate.annotations.CreationTimestamp;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
@@ -37,45 +38,67 @@ public class TransactionEntity {
     @GeneratedValue(strategy = GenerationType.UUID)
     private UUID id;
 
-    @ManyToOne(fetch = FetchType.LAZY, optional = false)
+    @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "annonce_id", nullable = false)
     private AnnonceEntity annonce;
 
-    @ManyToOne(fetch = FetchType.LAZY, optional = false)
-    @JoinColumn(name = "locataire_acheteur_id", nullable = false)
-    private UtilisateurEntity locataireAcheteur;
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "locataire_id", nullable = false)
+    private UtilisateurEntity locataire;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "proprietaire_id", nullable = false)
+    private UtilisateurEntity proprietaire;
 
     @Column(name = "montant_caution", nullable = false, precision = 15, scale = 2)
     private BigDecimal montantCaution;
 
-    @Enumerated(EnumType.STRING)
-    @Column(name = "statut_sequestre", nullable = false, length = 30)
-    private StatutSequestre statutSequestre = StatutSequestre.EN_ATTENTE;
-
-    @Enumerated(EnumType.STRING)
-    @Column(name = "statut_bail", nullable = false, length = 30)
-    private StatutBail statutBail = StatutBail.NON_SIGNE;
-
     @Column(name = "frais_dossier", nullable = false, precision = 15, scale = 2)
     @Builder.Default
-    private BigDecimal fraisDossier = new BigDecimal("5000.00");
+    private BigDecimal fraisDossier = BigDecimal.valueOf(5000);
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "statut_sequestre", nullable = false, length = 20)
+    @Builder.Default
+    private StatutSequestre statutSequestre = StatutSequestre.INITIALISE;
 
     @Column(name = "reference_wave", length = 100)
     private String referenceWave;
 
-    @Column(name = "date_creation", nullable = false, updatable = false)
-    private LocalDateTime dateCreation;
+    @Enumerated(EnumType.STRING)
+    @Column(name = "statut_bail", nullable = false, length = 20)
+    @Builder.Default
+    private StatutBail statutBail = StatutBail.NON_SIGNE;
+
+    @Column(name = "date_signature_locataire")
+    private LocalDateTime dateSignatureLocataire;
+
+    @Column(name = "date_signature_proprietaire")
+    private LocalDateTime dateSignatureProprietaire;
 
     @Column(name = "date_liberation")
     private LocalDateTime dateLiberation;
 
+    @Column(name = "pdf_bail_path", length = 500)
+    private String pdfBailPath;
+
+    @CreationTimestamp
+    @Column(name = "date_creation", nullable = false, updatable = false)
+    private LocalDateTime dateCreation;
+
     @PrePersist
-    public void prePersist() {
+    protected void onCreate() {
         if (dateCreation == null) {
             dateCreation = LocalDateTime.now();
         }
         if (fraisDossier == null) {
-            fraisDossier = new BigDecimal("5000.00");
+            fraisDossier = BigDecimal.valueOf(5000);
+        }
+        if (statutSequestre == null) {
+            statutSequestre = StatutSequestre.INITIALISE;
+        }
+        if (statutBail == null) {
+            statutBail = StatutBail.NON_SIGNE;
         }
     }
 }
