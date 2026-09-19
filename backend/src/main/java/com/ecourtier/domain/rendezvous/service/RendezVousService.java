@@ -1,6 +1,7 @@
 package com.ecourtier.domain.rendezvous.service;
 
 import com.ecourtier.domain.annonce.entity.AnnonceEntity;
+import com.ecourtier.domain.annonce.entity.StatutPublication;
 import com.ecourtier.domain.annonce.repository.AnnonceRepository;
 import com.ecourtier.domain.rendezvous.dto.RendezVousAnnulationDTO;
 import com.ecourtier.domain.rendezvous.dto.RendezVousRequestDTO;
@@ -40,6 +41,10 @@ public class RendezVousService {
 
         AnnonceEntity annonce = annonceRepository.findByIdAndSupprimeFalse(annonceId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Annonce introuvable"));
+
+        if (annonce.getStatutPublication() != StatutPublication.DISPONIBLE) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Ce bien n'est plus disponible");
+        }
 
         RendezVousEntity rdv = RendezVousEntity.builder()
                 .annonce(annonce)

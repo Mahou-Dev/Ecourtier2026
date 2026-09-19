@@ -184,4 +184,12 @@ public class TransactionService {
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Transaction introuvable"));
         return transactionMapper.toResponseDTO(tx);
     }
+
+    @Transactional(readOnly = true)
+    public java.util.List<TransactionResponseDTO> obtenirMesTransactions(String userEmail) {
+        UtilisateurEntity user = utilisateurRepository.findByEmail(userEmail)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Utilisateur introuvable"));
+        java.util.List<TransactionEntity> transactions = transactionRepository.findByLocataireIdOrProprietaireIdOrderByDateCreationDesc(user.getId(), user.getId());
+        return transactions.stream().map(transactionMapper::toResponseDTO).toList();
+    }
 }

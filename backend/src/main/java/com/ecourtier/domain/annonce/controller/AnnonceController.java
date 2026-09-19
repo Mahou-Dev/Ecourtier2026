@@ -105,12 +105,21 @@ public class AnnonceController {
             @RequestParam(required = false) Boolean meuble,
             @RequestParam(required = false) Boolean animauxAcceptes,
             @RequestParam(required = false) StatutVerification statutVerification,
-            @RequestParam(required = false) ProximiteTag proximite
+            @RequestParam(required = false) ProximiteTag proximite,
+            @RequestParam(name = "include_indisponibles", required = false, defaultValue = "false") Boolean includeIndisponibles,
+            @RequestParam(name = "mes_annonces", required = false, defaultValue = "false") Boolean mesAnnonces,
+            @RequestParam(name = "mes-annonces", required = false, defaultValue = "false") Boolean mesAnnoncesDash,
+            Authentication authentication
     ) {
+        String auteurEmail = null;
+        if ((Boolean.TRUE.equals(mesAnnonces) || Boolean.TRUE.equals(mesAnnoncesDash)) && authentication != null) {
+            auteurEmail = authentication.getName();
+        }
+
         Page<AnnonceResponseDTO> result = annonceService.rechercherAnnonces(
                 pageable, budgetMin, budgetMax, type, modeTransaction,
                 superficieMin, nombrePieces, quartier, ville, meuble,
-                animauxAcceptes, statutVerification, proximite
+                animauxAcceptes, statutVerification, proximite, includeIndisponibles, auteurEmail
         );
         return ResponseEntity.ok(result);
     }

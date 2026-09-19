@@ -65,6 +65,15 @@ public class TransactionController {
         return ResponseEntity.ok(response);
     }
 
+    @GetMapping("/transactions/mes-transactions")
+    @PreAuthorize("isAuthenticated()")
+    public ResponseEntity<java.util.List<TransactionResponseDTO>> listerMesTransactions(
+            Authentication authentication
+    ) {
+        java.util.List<TransactionResponseDTO> response = transactionService.obtenirMesTransactions(authentication.getName());
+        return ResponseEntity.ok(response);
+    }
+
     @GetMapping("/transactions/{id}")
     @PreAuthorize("@transactionSecurityService.isStakeholderOrAdmin(#id, authentication)")
     public ResponseEntity<TransactionResponseDTO> obtenirDetail(

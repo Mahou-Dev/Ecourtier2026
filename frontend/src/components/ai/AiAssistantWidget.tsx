@@ -1,41 +1,46 @@
 import React, { useState } from 'react';
-import { Sparkles, X, Send, Bot, User, ShieldCheck, CheckCircle2 } from 'lucide-react';
+import { Sparkles, X, Send, Bot, User, ShieldCheck, CheckCircle2, AlertCircle } from 'lucide-react';
 import { Button } from '../ui/Button';
-import { MOCK_PROPERTIES, Property } from '../../mocks/properties';
+import { apiFetch, getPhotoUrl } from '../../services/api';
+import { AnnonceDTO, MessageIAResponseDTO } from '../../types';
 import { Link } from 'react-router-dom';
 
-export interface ChatMessage {
+export interface ChatMessageItem {
   id: string;
   sender: 'user' | 'ai';
   text: string;
   timestamp: string;
-  suggestedProperties?: Property[];
+  questionDeRelance?: string;
+  suggestedProperties?: AnnonceDTO[];
+  isError?: boolean;
 }
 
 export const AiAssistantWidget: React.FC = () => {
   const [isOpen, setIsOpen] = useState(false);
   const [inputText, setInputText] = useState('');
-  const [messages, setMessages] = useState<ChatMessage[]>([
+  const [conversationId, setConversationId] = useState<string | null>(null);
+  const [isSending, setIsSending] = useState(false);
+
+  const [messages, setMessages] = useState<ChatMessageItem[]>([
     {
-      id: 'msg-1',
+      id: 'msg-welcome',
       sender: 'ai',
-      text: 'Na nga def ! Je suis Samba, votre assistant IA immobilier E-Courtier. Quel logement cherchez-vous au Sénégal (Dakar, Ziguinchor, Saly) ?',
-      timestamp: '12:00',
+      text: 'Na nga def ! Je suis Samba, votre assistant IA E-Courtier. Dites-moi quel logement vous cherchez (ville, budget, type, meublé)...',
+      timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
     },
   ]);
 
   const suggestions = [
-    '3 pièces à Nema < 160 000 FCFA',
-    'Studio meublé à Boucotte',
-    'Appartement vue mer aux Almadies',
-    'Comment fonctionne la caution séquestre ?',
+    'Appartement 3 pièces à Nema < 160 000 FCFA',
+    'Studio meublé à Dakar',
+    'Villa avec piscine à Saly',
   ];
 
-  const handleSendMessage = (textToSend?: string) => {
+  const handleSendMessage = async (textToSend?: string) => {
     const query = textToSend || inputText;
-    if (!query.trim()) return;
+    if (!query.trim() || isSending) return;
 
-    const userMsg: ChatMessage = {
+    const userMsg: ChatMessageItem = {
       id: `user-${Date.now()}`,
       sender: 'user',
       text: query,
@@ -44,32 +49,50 @@ export const AiAssistantWidget: React.FC = () => {
 
     setMessages((prev) => [...prev, userMsg]);
     if (!textToSend) setInputText('');
+    setIsSending(true);
 
-    // Simulate AI response logic with Senegal properties shortlist
-    setTimeout(() => {
-      let responseText = '';
-      let shortlisted: Property[] = [];
+    try {
+      let currentConvId = conversationId;
 
-      if (query.toLowerCase().includes('nema') || query.toLowerCase().includes('ziguinchor') || query.toLowerCase().includes('160')) {
-        responseText = 'J’ai trouvé 2 logements certifiés répondant exactement à votre critère à Nema / Boucotte Ziguinchor :';
-        shortlisted = MOCK_PROPERTIES.filter((p) => p.city === 'Ziguinchor');
-      } else if (query.toLowerCase().includes('séquestre') || query.toLowerCase().includes('caution')) {
-        responseText = 'La caution séquestre E-Courtier protège votre dépôt : vos fonds sont bloqués sur un compte bancaire sécurisé et débloqués au propriétaire seulement après état des lieux signé !';
-      } else {
-        responseText = 'Voici une sélection personnalisée d’annonces certifiées anti-arnaques au Sénégal :';
-        shortlisted = MOCK_PROPERTIES.slice(0, 2);
+      // 1. Create conversation on first user message if not already created
+      if (!currentConvId) {
+        const newConv = await apiFetch<{ conversationId: string; dateCreation: string }>('/api/v1/ia/conversations', {
+          method: 'POST',
+        });
+        currentConvId = newConv.conversationId;
+        setConversationId(currentConvId);
       }
 
-      const aiMsg: ChatMessage = {
-        id: `ai-${Date.now()}`,
+      // 2. Send message to conversation
+      const assistantMsg = await apiFetch<MessageIAResponseDTO>(`/api/v1/ia/conversations/${currentConvId}/messages`, {
+        method: 'POST',
+        body: JSON.stringify({ message: query }),
+      });
+      addAssistantMessage(assistantMsg);
+    } catch (err: any) {
+      const errorMsg: ChatMessageItem = {
+        id: `err-${Date.now()}`,
         sender: 'ai',
-        text: responseText,
+        text: "Désolé, l'assistant IA est actuellement indisponible ou rencontre un problème réseau. Vous pouvez utiliser la recherche classique.",
         timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-        suggestedProperties: shortlisted.length > 0 ? shortlisted : undefined,
+        isError: true,
       };
+      setMessages((prev) => [...prev, errorMsg]);
+    } finally {
+      setIsSending(false);
+    }
+  };
 
-      setMessages((prev) => [...prev, aiMsg]);
-    }, 800);
+  const addAssistantMessage = (msg: MessageIAResponseDTO) => {
+    const aiMsg: ChatMessageItem = {
+      id: msg.id || `ai-${Date.now()}`,
+      sender: 'ai',
+      text: msg.contenu,
+      timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+      questionDeRelance: msg.questionDeRelance,
+      suggestedProperties: msg.annoncesSuggeres && msg.annoncesSuggeres.length > 0 ? msg.annoncesSuggeres : undefined,
+    };
+    setMessages((prev) => [...prev, aiMsg]);
   };
 
   return (
@@ -128,8 +151,8 @@ export const AiAssistantWidget: React.FC = () => {
                 className={`flex gap-2.5 ${msg.sender === 'user' ? 'justify-end' : 'justify-start'}`}
               >
                 {msg.sender === 'ai' && (
-                  <div className="w-7 h-7 rounded-full bg-sahel-800 text-white flex items-center justify-center shrink-0 mt-1">
-                    <Bot className="w-4 h-4" />
+                  <div className={`w-7 h-7 rounded-full flex items-center justify-center shrink-0 mt-1 ${msg.isError ? 'bg-red-500 text-white' : 'bg-sahel-800 text-white'}`}>
+                    {msg.isError ? <AlertCircle className="w-4 h-4" /> : <Bot className="w-4 h-4" />}
                   </div>
                 )}
                 
@@ -138,10 +161,17 @@ export const AiAssistantWidget: React.FC = () => {
                     className={`p-3.5 rounded-2xl text-xs leading-relaxed ${
                       msg.sender === 'user'
                         ? 'bg-terracotta-500 text-white rounded-br-none shadow-terracotta-glow'
+                        : msg.isError
+                        ? 'bg-red-50 text-red-900 rounded-bl-none border border-red-200 shadow-sm'
                         : 'bg-white text-charcoal-800 rounded-bl-none border border-argile-200 shadow-warm-card'
                     }`}
                   >
                     <p>{msg.text}</p>
+                    {msg.questionDeRelance && (
+                      <p className="mt-2 pt-2 border-t border-argile-200 font-semibold text-terracotta-600">
+                        ❓ {msg.questionDeRelance}
+                      </p>
+                    )}
                     <span className={`block text-[10px] mt-1 text-right ${msg.sender === 'user' ? 'text-terracotta-200' : 'text-charcoal-400'}`}>
                       {msg.timestamp}
                     </span>
@@ -150,30 +180,33 @@ export const AiAssistantWidget: React.FC = () => {
                   {/* Shortlist Mini Cards inside Chat */}
                   {msg.suggestedProperties && (
                     <div className="space-y-2 pt-1">
-                      {msg.suggestedProperties.map((prop) => (
-                        <Link
-                          key={prop.id}
-                          to={`/annonce/${prop.id}`}
-                          onClick={() => setIsOpen(false)}
-                          className="block bg-white p-2.5 rounded-xl border border-argile-300 hover:border-terracotta-400 transition-all shadow-sm group"
-                        >
-                          <div className="flex gap-2.5 items-center">
-                            <img src={prop.images[0]} alt={prop.title} className="w-14 h-14 object-cover rounded-lg shrink-0" />
-                            <div className="flex-1 min-w-0 text-left">
-                              <h4 className="font-display font-bold text-xs text-charcoal-900 truncate group-hover:text-terracotta-600">
-                                {prop.title}
-                              </h4>
-                              <p className="text-[11px] font-extrabold text-terracotta-600">
-                                {prop.price.toLocaleString('fr-FR')} FCFA{prop.pricePeriod}
-                              </p>
-                              <div className="flex items-center gap-1 text-[10px] text-sahel-800 font-semibold mt-0.5">
-                                <CheckCircle2 className="w-3 h-3 text-sahel-600" />
-                                <span>{prop.neighborhood}, {prop.city}</span>
+                      {msg.suggestedProperties.map((prop) => {
+                        const firstPhoto = prop.photos && prop.photos.length > 0 ? getPhotoUrl(prop.photos[0].url) : getPhotoUrl();
+                        return (
+                          <Link
+                            key={prop.id}
+                            to={`/annonce/${prop.id}`}
+                            onClick={() => setIsOpen(false)}
+                            className="block bg-white p-2.5 rounded-xl border border-argile-300 hover:border-terracotta-400 transition-all shadow-sm group"
+                          >
+                            <div className="flex gap-2.5 items-center">
+                              <img src={firstPhoto} alt={prop.titre} className="w-14 h-14 object-cover rounded-lg shrink-0" />
+                              <div className="flex-1 min-w-0 text-left">
+                                <h4 className="font-display font-bold text-xs text-charcoal-900 truncate group-hover:text-terracotta-600">
+                                  {prop.titre}
+                                </h4>
+                                <p className="text-[11px] font-extrabold text-terracotta-600">
+                                  {prop.prix.toLocaleString('fr-FR')} FCFA {prop.modeTransaction === 'LOCATION' ? '/ mois' : ''}
+                                </p>
+                                <div className="flex items-center gap-1 text-[10px] text-sahel-800 font-semibold mt-0.5">
+                                  <CheckCircle2 className="w-3 h-3 text-sahel-600" />
+                                  <span>{prop.quartier}, {prop.ville}</span>
+                                </div>
                               </div>
                             </div>
-                          </div>
-                        </Link>
-                      ))}
+                          </Link>
+                        );
+                      })}
                     </div>
                   )}
                 </div>
@@ -185,6 +218,15 @@ export const AiAssistantWidget: React.FC = () => {
                 )}
               </div>
             ))}
+
+            {isSending && (
+              <div className="flex gap-2.5 items-center text-xs text-charcoal-500">
+                <div className="w-7 h-7 rounded-full bg-sahel-800 text-white flex items-center justify-center shrink-0">
+                  <Bot className="w-4 h-4 animate-spin" />
+                </div>
+                <span>Samba réfléchit...</span>
+              </div>
+            )}
           </div>
 
           {/* Suggestion Chips */}
@@ -213,9 +255,10 @@ export const AiAssistantWidget: React.FC = () => {
               placeholder="Posez votre question en français wolofisé..."
               value={inputText}
               onChange={(e) => setInputText(e.target.value)}
-              className="flex-1 px-3.5 py-2.5 bg-sand-100 text-xs text-charcoal-900 rounded-xl border border-argile-300 focus:outline-none focus:ring-2 focus:ring-terracotta-500/30"
+              disabled={isSending}
+              className="flex-1 px-3.5 py-2.5 bg-sand-100 text-xs text-charcoal-900 rounded-xl border border-argile-300 focus:outline-none focus:ring-2 focus:ring-terracotta-500/30 disabled:opacity-50"
             />
-            <Button type="submit" variant="primary" size="sm" className="rounded-xl px-3 py-2.5">
+            <Button type="submit" variant="primary" size="sm" disabled={isSending} className="rounded-xl px-3 py-2.5">
               <Send className="w-4 h-4" />
             </Button>
           </form>

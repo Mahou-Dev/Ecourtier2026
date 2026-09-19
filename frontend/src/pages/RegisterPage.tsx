@@ -3,18 +3,60 @@ import { Link, useNavigate } from 'react-router-dom';
 import { Home, UserCheck, Key, Building2, Mail, Lock, User, Phone, ArrowRight, ShieldCheck, Check } from 'lucide-react';
 import { Button } from '../components/ui/Button';
 import { Input } from '../components/ui/Input';
+import { apiFetch } from '../services/api';
+import { AuthResponseDTO } from '../types';
+import { useAuthStore } from '../store/useAuthStore';
+import { toast } from 'sonner';
+
+import { PatternClaustra } from '../components/ui/PatternClaustra';
 
 export const RegisterPage: React.FC = () => {
   const navigate = useNavigate();
-  const [role, setRole] = useState<'LOCATAIRE' | 'PROPRIETAIRE' | 'COURTIER'>('LOCATAIRE');
-  const [fullName, setFullName] = useState('');
-  const [email, setEmail] = useState('');
-  const [phone, setPhone] = useState('+221 ');
-  const [password, setPassword] = useState('');
+  const { setAuth } = useAuthStore();
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const [role, setRole] = useState<'LOCATAIRE' | 'PROPRIETAIRE' | 'AGENT'>('LOCATAIRE');
+  const [prenom, setPrenom] = useState('');
+  const [nom, setNom] = useState('');
+  const [email, setEmail] = useState('');
+  const [phone, setPhone] = useState('+221770000000');
+  const [password, setPassword] = useState('');
+  const [loading, setLoading] = useState(false);
+
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    navigate('/dashboard');
+    if (!nom || !prenom || !email || !password || !phone) {
+      toast.error('Veuillez remplir tous les champs obligatoires');
+      return;
+    }
+
+    setLoading(true);
+    try {
+      const data = await apiFetch<AuthResponseDTO>('/api/v1/auth/inscription', {
+        method: 'POST',
+        body: JSON.stringify({
+          nom,
+          prenom,
+          email,
+          motDePasse: password,
+          telephone: phone,
+          role,
+        }),
+      });
+
+      setAuth(data);
+      toast.success(`Compte créé avec succès ! Bienvenue ${data.utilisateur.prenom}`);
+
+      if (data.utilisateur.role === 'LOCATAIRE') {
+        navigate('/recherche');
+      } else {
+        navigate('/dashboard');
+      }
+    } catch (err: any) {
+      const msg = err.message || "Erreur lors de l'inscription";
+      toast.error(msg);
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -22,10 +64,11 @@ export const RegisterPage: React.FC = () => {
       
       {/* LEFT SPLIT: AMBIENT PHOTO & PROMISE */}
       <div className="hidden md:flex md:w-5/12 relative bg-sahel-900 text-white p-12 flex-col justify-between overflow-hidden">
+        <PatternClaustra variant="sand" opacity={0.06} scale={1.2} />
         <img
           src="https://images.unsplash.com/photo-1512917774080-9991f1c4c750?auto=format&fit=crop&w=1200&q=80"
           alt="Inscrivez-vous E-Courtier"
-          className="absolute inset-0 w-full h-full object-cover opacity-30"
+          className="absolute inset-0 w-full h-full object-cover opacity-25"
         />
         <div className="relative z-10 space-y-4">
           <div className="flex items-center gap-2.5">
@@ -41,7 +84,7 @@ export const RegisterPage: React.FC = () => {
             Inscription Rapide
           </span>
           <h2 className="font-display font-extrabold text-3xl leading-tight text-white">
-            Rejoignez la 1ère communauté immobilière certifiée du Sénégal
+            Rejoignez la 1ère communauté immobilière sécurisée du Sénégal
           </h2>
           <p className="text-sm text-sahel-200 leading-relaxed">
             Trouvez votre logement sans intermédiaire frauduleux ou publiez vos biens en bénéficiant de notre garantie séquestre.
@@ -69,7 +112,7 @@ export const RegisterPage: React.FC = () => {
 
           <form onSubmit={handleSubmit} className="space-y-6">
             
-            {/* RICH VISUAL ROLE SELECTION CARDS (NO BASIC SELECT) */}
+            {/* RICH VISUAL ROLE SELECTION CARDS */}
             <div className="space-y-2">
               <label className="block text-xs font-semibold text-charcoal-800">Je suis un :</label>
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
@@ -90,7 +133,7 @@ export const RegisterPage: React.FC = () => {
                     {role === 'LOCATAIRE' && <Check className="w-4 h-4 text-terracotta-600 font-bold" />}
                   </div>
                   <h4 className="font-display font-bold text-sm text-charcoal-900">Locataire / Acheteur</h4>
-                  <p className="text-[11px] text-charcoal-500 mt-1">Je cherche un logement certifié à louer ou acheter.</p>
+                  <p className="text-[11px] text-charcoal-500 mt-1">Je cherche un logement vérifié à louer ou acheter.</p>
                 </div>
 
                 {/* Role 2: Propriétaire */}
@@ -112,11 +155,11 @@ export const RegisterPage: React.FC = () => {
                   <p className="text-[11px] text-charcoal-500 mt-1">Je souhaite louer mon bien avec la garantie séquestre.</p>
                 </div>
 
-                {/* Role 3: Courtier Agréé */}
+                {/* Role 3: Courtier / Agent */}
                 <div
-                  onClick={() => setRole('COURTIER')}
+                  onClick={() => setRole('AGENT')}
                   className={`p-4 rounded-2xl border-2 cursor-pointer transition-all ${
-                    role === 'COURTIER'
+                    role === 'AGENT'
                       ? 'bg-ocher-50 border-ocher-500 ring-2 ring-ocher-500/20'
                       : 'bg-white border-argile-300 hover:border-argile-400'
                   }`}
@@ -125,10 +168,10 @@ export const RegisterPage: React.FC = () => {
                     <div className="w-8 h-8 rounded-lg bg-ocher-100 text-ocher-900 flex items-center justify-center">
                       <Building2 className="w-4 h-4" />
                     </div>
-                    {role === 'COURTIER' && <Check className="w-4 h-4 text-ocher-900 font-bold" />}
+                    {role === 'AGENT' && <Check className="w-4 h-4 text-ocher-900 font-bold" />}
                   </div>
                   <h4 className="font-display font-bold text-sm text-charcoal-900">Courtier / Agent</h4>
-                  <p className="text-[11px] text-charcoal-500 mt-1">Je suis un professionnel certifié du secteur immobilier.</p>
+                  <p className="text-[11px] text-charcoal-500 mt-1">Je suis un professionnel de l'immobilier.</p>
                 </div>
 
               </div>
@@ -137,13 +180,35 @@ export const RegisterPage: React.FC = () => {
             {/* Inputs */}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <Input
-                label="Nom et Prénom"
+                label="Prénom"
                 type="text"
                 required
-                placeholder="Ex: Babacar Ndiaye"
-                value={fullName}
-                onChange={(e) => setFullName(e.target.value)}
+                placeholder="Ex: Babacar"
+                value={prenom}
+                onChange={(e) => setPrenom(e.target.value)}
                 leftIcon={<User className="w-4 h-4" />}
+              />
+
+              <Input
+                label="Nom"
+                type="text"
+                required
+                placeholder="Ex: Ndiaye"
+                value={nom}
+                onChange={(e) => setNom(e.target.value)}
+                leftIcon={<User className="w-4 h-4" />}
+              />
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <Input
+                label="Adresse Email"
+                type="email"
+                required
+                placeholder="exemple@domaine.sn"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                leftIcon={<Mail className="w-4 h-4" />}
               />
 
               <Input
@@ -157,16 +222,6 @@ export const RegisterPage: React.FC = () => {
             </div>
 
             <Input
-              label="Adresse Email"
-              type="email"
-              required
-              placeholder="exemple@domaine.sn"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              leftIcon={<Mail className="w-4 h-4" />}
-            />
-
-            <Input
               label="Mot de passe"
               type="password"
               required
@@ -176,8 +231,15 @@ export const RegisterPage: React.FC = () => {
               leftIcon={<Lock className="w-4 h-4" />}
             />
 
-            <Button type="submit" variant="primary" size="lg" className="w-full justify-center" rightIcon={<ArrowRight className="w-4 h-4" />}>
-              S'inscrire et commencer
+            <Button
+              type="submit"
+              variant="primary"
+              size="lg"
+              className="w-full justify-center"
+              disabled={loading}
+              rightIcon={<ArrowRight className="w-4 h-4" />}
+            >
+              {loading ? 'Création du compte...' : "S'inscrire et commencer"}
             </Button>
           </form>
 

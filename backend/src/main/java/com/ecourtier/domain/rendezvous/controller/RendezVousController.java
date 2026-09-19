@@ -89,7 +89,7 @@ public class RendezVousController {
     }
 
     @PostMapping("/rendez-vous/simuler-rappels")
-    @PreAuthorize("hasRole('ADMIN') or isAuthenticated()")
+    @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<Map<String, Object>> simulerRappels() {
         int nbRappels = rendezVousService.simulerRappelsDemain();
         return ResponseEntity.ok(Map.of(

@@ -3,7 +3,7 @@ import { ShieldCheck } from 'lucide-react';
 import { cn } from '../../lib/cn';
 
 export interface AvatarProps {
-  src: string;
+  src?: string;
   name: string;
   size?: 'sm' | 'md' | 'lg' | 'xl';
   isVerified?: boolean;
@@ -33,10 +33,12 @@ export const Avatar: React.FC<AvatarProps> = ({
     xl: 'w-6 h-6',
   };
 
+  const avatarSrc = src || `https://ui-avatars.com/api/?name=${encodeURIComponent(name)}&background=334739&color=ffffff`;
+
   return (
     <div className={cn('relative inline-block shrink-0', className)}>
       <img
-        src={src}
+        src={avatarSrc}
         alt={name}
         className={cn('rounded-full object-cover border-2 border-white shadow-sm', sizes[size])}
       />

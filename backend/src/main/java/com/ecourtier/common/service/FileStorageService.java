@@ -70,7 +70,13 @@ public class FileStorageService {
         }
         try {
             String cleanPath = relativeUrl.replace("/api/v1/uploads/", "");
-            Path filePath = Paths.get(UPLOAD_ROOT_DIR, cleanPath);
+            Path baseDir = Paths.get(UPLOAD_ROOT_DIR).toAbsolutePath().normalize();
+            Path filePath = Paths.get(UPLOAD_ROOT_DIR, cleanPath).toAbsolutePath().normalize();
+
+            if (!filePath.startsWith(baseDir)) {
+                return false;
+            }
+
             return Files.deleteIfExists(filePath);
         } catch (IOException e) {
             return false;
@@ -80,7 +86,13 @@ public class FileStorageService {
     public org.springframework.core.io.Resource loadFileAsResource(String relativeUrl) {
         try {
             String cleanPath = relativeUrl.replace("/api/v1/uploads/", "");
-            Path filePath = Paths.get(UPLOAD_ROOT_DIR, cleanPath).normalize();
+            Path baseDir = Paths.get(UPLOAD_ROOT_DIR).toAbsolutePath().normalize();
+            Path filePath = Paths.get(UPLOAD_ROOT_DIR, cleanPath).toAbsolutePath().normalize();
+
+            if (!filePath.startsWith(baseDir)) {
+                throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Accès refusé : tentative de path traversal");
+            }
+
             org.springframework.core.io.Resource resource = new org.springframework.core.io.UrlResource(filePath.toUri());
 
             if (resource.exists() && resource.isReadable()) {

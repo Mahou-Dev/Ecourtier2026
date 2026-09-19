@@ -143,10 +143,53 @@ public class AnnonceService {
             StatutVerification statutVerification,
             ProximiteTag proximite
     ) {
+        return rechercherAnnonces(pageable, budgetMin, budgetMax, type, modeTransaction, superficieMin,
+                nombrePieces, quartier, ville, meuble, animauxAcceptes, statutVerification, proximite, false);
+    }
+
+    @Transactional(readOnly = true)
+    public Page<AnnonceResponseDTO> rechercherAnnonces(
+            Pageable pageable,
+            BigDecimal budgetMin,
+            BigDecimal budgetMax,
+            TypeBien type,
+            ModeTransaction modeTransaction,
+            Double superficieMin,
+            Integer nombrePieces,
+            String quartier,
+            String ville,
+            Boolean meuble,
+            Boolean animauxAcceptes,
+            StatutVerification statutVerification,
+            ProximiteTag proximite,
+            Boolean includeIndisponibles
+    ) {
+        return rechercherAnnonces(pageable, budgetMin, budgetMax, type, modeTransaction, superficieMin,
+                nombrePieces, quartier, ville, meuble, animauxAcceptes, statutVerification, proximite, includeIndisponibles, null);
+    }
+
+    @Transactional(readOnly = true)
+    public Page<AnnonceResponseDTO> rechercherAnnonces(
+            Pageable pageable,
+            BigDecimal budgetMin,
+            BigDecimal budgetMax,
+            TypeBien type,
+            ModeTransaction modeTransaction,
+            Double superficieMin,
+            Integer nombrePieces,
+            String quartier,
+            String ville,
+            Boolean meuble,
+            Boolean animauxAcceptes,
+            StatutVerification statutVerification,
+            ProximiteTag proximite,
+            Boolean includeIndisponibles,
+            String auteurEmail
+    ) {
         Specification<AnnonceEntity> spec = AnnonceSpecification.filterAnnonces(
                 budgetMin, budgetMax, type, modeTransaction, superficieMin,
                 nombrePieces, quartier, ville, meuble, animauxAcceptes,
-                statutVerification, proximite
+                statutVerification, proximite, includeIndisponibles, auteurEmail
         );
 
         return annonceRepository.findAll(spec, pageable)

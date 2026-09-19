@@ -1,17 +1,59 @@
 import React, { useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { Home, Lock, Mail, ArrowRight, ShieldCheck } from 'lucide-react';
 import { Button } from '../components/ui/Button';
 import { Input } from '../components/ui/Input';
+import { apiFetch } from '../services/api';
+import { AuthResponseDTO } from '../types';
+import { useAuthStore } from '../store/useAuthStore';
+import { toast } from 'sonner';
+
+import { PatternClaustra } from '../components/ui/PatternClaustra';
 
 export const LoginPage: React.FC = () => {
   const navigate = useNavigate();
+  const location = useLocation();
+  const { setAuth } = useAuthStore();
+
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [loading, setLoading] = useState(false);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const fromLocation = (location.state as any)?.from;
+
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    navigate('/dashboard');
+    if (!email || !password) {
+      toast.error('Veuillez remplir tous les champs');
+      return;
+    }
+
+    setLoading(true);
+    try {
+      const data = await apiFetch<AuthResponseDTO>('/api/v1/auth/connexion', {
+        method: 'POST',
+        body: JSON.stringify({
+          email,
+          motDePasse: password,
+        }),
+      });
+
+      setAuth(data);
+      toast.success(`Bienvenue, ${data.utilisateur.prenom} !`);
+
+      if (fromLocation) {
+        navigate(fromLocation);
+      } else if (data.utilisateur.role === 'LOCATAIRE') {
+        navigate('/recherche');
+      } else {
+        navigate('/dashboard');
+      }
+    } catch (err: any) {
+      const msg = err.message || 'Identifiants incorrects';
+      toast.error(msg);
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -19,10 +61,11 @@ export const LoginPage: React.FC = () => {
       
       {/* LEFT SPLIT: AMBIENT SENEGAL ARCHITECTURE PHOTO & BRAND PLEDGE */}
       <div className="hidden md:flex md:w-1/2 relative bg-sahel-900 text-white p-12 flex-col justify-between overflow-hidden">
+        <PatternClaustra variant="sand" opacity={0.06} scale={1.2} />
         <img
           src="https://images.unsplash.com/photo-1600585154340-be6161a56a0c?auto=format&fit=crop&w=1200&q=80"
           alt="Immobilier Sénégal"
-          className="absolute inset-0 w-full h-full object-cover opacity-30"
+          className="absolute inset-0 w-full h-full object-cover opacity-25"
         />
         <div className="relative z-10 space-y-4">
           <div className="flex items-center gap-2.5">
@@ -38,7 +81,7 @@ export const LoginPage: React.FC = () => {
             Espace Sécurisé
           </span>
           <h2 className="font-display font-extrabold text-3xl leading-tight text-white">
-            Connectez-vous à votre espace immobilier certifié
+            Connectez-vous à votre espace immobilier sécurisé
           </h2>
           <p className="text-sm text-sahel-200 leading-relaxed">
             Accédez à vos annonces, suivez l'avancement de vos dossiers sous séquestre et échangez directement avec les propriétaires vérifiés.
@@ -92,8 +135,15 @@ export const LoginPage: React.FC = () => {
               </div>
             </div>
 
-            <Button type="submit" variant="primary" size="lg" className="w-full justify-center" rightIcon={<ArrowRight className="w-4 h-4" />}>
-              Se connecter
+            <Button
+              type="submit"
+              variant="primary"
+              size="lg"
+              className="w-full justify-center"
+              disabled={loading}
+              rightIcon={<ArrowRight className="w-4 h-4" />}
+            >
+              {loading ? 'Connexion en cours...' : 'Se connecter'}
             </Button>
           </form>
 
