@@ -119,6 +119,20 @@ public class RuleBasedCriteriaExtractor {
             animauxAcceptes = true;
         }
 
+        Integer etage = null;
+        if (textLower.contains("rdc") || textLower.contains("rez-de-chaussée") || textLower.contains("rez de chaussee")) {
+            etage = 0;
+        } else {
+            Pattern etagePattern = Pattern.compile("(?:(\\d+)(?:er|ème|eme)?\\s*étage)|(?:étage\\s*(\\d+))", Pattern.CASE_INSENSITIVE);
+            Matcher etageMatcher = etagePattern.matcher(textLower);
+            if (etageMatcher.find()) {
+                String e1 = etageMatcher.group(1);
+                String e2 = etageMatcher.group(2);
+                if (e1 != null) etage = Integer.parseInt(e1);
+                else if (e2 != null) etage = Integer.parseInt(e2);
+            }
+        }
+
         // 7. Confiance & Question de relance
         int foundCount = 0;
         if (budgetMax != null || budgetMin != null) foundCount++;
@@ -126,6 +140,7 @@ public class RuleBasedCriteriaExtractor {
         if (modeTransaction != null) foundCount++;
         if (quartier != null) foundCount++;
         if (nombrePieces != null) foundCount++;
+        if (etage != null) foundCount++;
         if (meuble != null) foundCount++;
 
         double confiance = Math.min(1.0, 0.4 + (foundCount * 0.15));
@@ -143,6 +158,7 @@ public class RuleBasedCriteriaExtractor {
                 .quartier(quartier)
                 .ville(ville)
                 .nombrePieces(nombrePieces)
+                .etage(etage)
                 .meuble(meuble)
                 .animauxAcceptes(animauxAcceptes)
                 .superficieMin(superficieMin)

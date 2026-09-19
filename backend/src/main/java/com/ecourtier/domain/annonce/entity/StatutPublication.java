@@ -4,5 +4,7 @@ public enum StatutPublication {
     DISPONIBLE,
     RESERVEE,
     LOUEE,
-    VENDUE
+    VENDUE,
+    SUSPENDUE
 }
+

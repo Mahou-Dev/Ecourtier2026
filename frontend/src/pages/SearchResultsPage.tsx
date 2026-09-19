@@ -22,6 +22,7 @@ export const SearchResultsPage: React.FC = () => {
   const [cityFilter, setCityFilter] = useState<string>(searchParams.get('city') || searchParams.get('ville') || 'TOUS');
   const [typeFilter, setTypeFilter] = useState<string>('TOUS');
   const [modeTransactionFilter, setModeTransactionFilter] = useState<string>('TOUS');
+  const [proximiteFilter, setProximiteFilter] = useState<string>('TOUS');
   const [maxPrice, setMaxPrice] = useState<number>(800000);
   const [onlyVerified, setOnlyVerified] = useState<boolean>(false);
   const [onlyFurnished, setOnlyFurnished] = useState<boolean>(false);
@@ -34,6 +35,7 @@ export const SearchResultsPage: React.FC = () => {
       cityFilter,
       typeFilter,
       modeTransactionFilter,
+      proximiteFilter,
       maxPrice,
       onlyVerified,
       onlyFurnished,
@@ -49,7 +51,8 @@ export const SearchResultsPage: React.FC = () => {
       if (cityFilter !== 'TOUS') params.append('ville', cityFilter);
       if (typeFilter !== 'TOUS') params.append('type', typeFilter);
       if (modeTransactionFilter !== 'TOUS') params.append('modeTransaction', modeTransactionFilter);
-      if (maxPrice > 0) params.append('prixMax', maxPrice.toString());
+      if (proximiteFilter !== 'TOUS') params.append('proximite', proximiteFilter);
+      if (maxPrice > 0) params.append('budgetMax', maxPrice.toString());
       if (onlyFurnished) params.append('meuble', 'true');
 
       return apiFetch<PageResponse<AnnonceDTO>>(`/api/v1/annonces?${params.toString()}`);
@@ -66,6 +69,7 @@ export const SearchResultsPage: React.FC = () => {
     setCityFilter('TOUS');
     setTypeFilter('TOUS');
     setModeTransactionFilter('TOUS');
+    setProximiteFilter('TOUS');
     setMaxPrice(800000);
     setOnlyVerified(false);
     setOnlyFurnished(false);
@@ -331,6 +335,26 @@ export const SearchResultsPage: React.FC = () => {
             value={typeFilter}
             onChange={(val) => {
               setTypeFilter(val);
+              setPage(0);
+            }}
+          />
+
+          {/* Proximité */}
+          <Select
+            label="Proximité (Écoles, Hôpitaux, Transports...)"
+            options={[
+              { value: 'TOUS', label: 'Toutes proximités' },
+              { value: 'ECOLE', label: 'Écoles / Universités' },
+              { value: 'HOPITAL', label: 'Hôpitaux / Pharmacies' },
+              { value: 'MARCHE', label: 'Marchés / Commerces' },
+              { value: 'TRANSPORT', label: 'Transports en commun (BRT/TER)' },
+              { value: 'COMMERCE', label: 'Supermarchés' },
+              { value: 'PLAGE', label: 'Mer / Plage' },
+              { value: 'MOSQUEE', label: 'Lieu de culte / Mosquée' },
+            ]}
+            value={proximiteFilter}
+            onChange={(val) => {
+              setProximiteFilter(val);
               setPage(0);
             }}
           />

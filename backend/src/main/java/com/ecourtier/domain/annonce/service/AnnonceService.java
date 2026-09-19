@@ -65,6 +65,7 @@ public class AnnonceService {
                 .prix(dto.getPrix())
                 .superficie(dto.getSuperficie())
                 .nombrePieces(dto.getNombrePieces())
+                .etage(dto.getEtage())
                 .quartier(dto.getQuartier())
                 .ville(dto.getVille())
                 .latitude(dto.getLatitude())
@@ -103,6 +104,7 @@ public class AnnonceService {
         if (dto.getPrix() != null) annonce.setPrix(dto.getPrix());
         if (dto.getSuperficie() != null) annonce.setSuperficie(dto.getSuperficie());
         if (dto.getNombrePieces() != null) annonce.setNombrePieces(dto.getNombrePieces());
+        if (dto.getEtage() != null) annonce.setEtage(dto.getEtage());
         if (dto.getQuartier() != null) annonce.setQuartier(dto.getQuartier());
         if (dto.getVille() != null) annonce.setVille(dto.getVille());
         if (dto.getLatitude() != null) annonce.setLatitude(dto.getLatitude());

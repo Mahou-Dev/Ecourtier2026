@@ -1,23 +1,34 @@
-# Dev & Hot-Reload Spring Boot Environment
-FROM maven:3.9.9-eclipse-temurin-21-alpine
+# ==========================================
+# Multi-stage Production Dockerfile for Backend
+# ==========================================
+
+# --- Stage 1: Build Stage ---
+FROM maven:3.9.9-eclipse-temurin-21-alpine AS builder
 
 WORKDIR /app
 
-# Create non-root group and user
+# Copy configuration and source files
+COPY pom.xml .
+COPY src ./src
+
+# Build production executable standalone JAR
+RUN mvn clean package -DskipTests
+
+# --- Stage 2: Runtime Stage ---
+FROM eclipse-temurin:21-jre-alpine
+
+WORKDIR /app
+
+# Create non-root system user for security
 RUN addgroup -S appgroup && adduser -S appuser -G appgroup
 
-# Pre-fetch Maven dependencies to optimize Docker layer caching
-COPY pom.xml .
-RUN mvn dependency:go-offline -B
-
-# Copy source code and set ownership
-COPY src ./src
+# Copy compiled executable JAR from builder stage
+COPY --from=builder /app/target/*.jar /app/app.jar
 RUN chown -R appuser:appgroup /app
 
-# Run application as non-root user
 USER appuser
 
 EXPOSE 8080
 
-# Start Spring Boot application with live reloading (DevTools enabled)
-CMD ["mvn", "spring-boot:run", "-Dspring-boot.run.profiles=dev"]
+# Standalone execution (no DevTools, no Maven overhead)
+ENTRYPOINT ["java", "-Djava.security.egd=file:/dev/./urandom", "-jar", "/app/app.jar"]

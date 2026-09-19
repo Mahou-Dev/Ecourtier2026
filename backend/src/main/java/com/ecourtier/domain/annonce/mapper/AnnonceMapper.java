@@ -44,6 +44,7 @@ public class AnnonceMapper {
                 .prix(entity.getPrix())
                 .superficie(entity.getSuperficie())
                 .nombrePieces(entity.getNombrePieces())
+                .etage(entity.getEtage())
                 .quartier(entity.getQuartier())
                 .ville(entity.getVille())
                 .latitude(entity.getLatitude())

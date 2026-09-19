@@ -28,12 +28,20 @@ export const useAuthStore = create<AuthState>()(
           accessToken,
           refreshToken,
         }),
-      logout: () =>
+      logout: () => {
+        if (typeof window !== 'undefined' && 'caches' in window) {
+          caches.keys().then((names) => {
+            names.forEach((name) => {
+              caches.delete(name);
+            });
+          });
+        }
         set({
           utilisateur: null,
           accessToken: null,
           refreshToken: null,
-        }),
+        });
+      },
     }),
     {
       name: 'ecourtier-auth',

@@ -25,6 +25,8 @@ public interface RendezVousRepository extends JpaRepository<RendezVousEntity, UU
 
     Optional<RendezVousEntity> findFirstByAnnonceIdAndDemandeurIdAndStatut(UUID annonceId, UUID demandeurId, StatutRendezVous statut);
 
+    boolean existsByAnnonceIdAndDemandeurIdAndStatut(UUID annonceId, UUID demandeurId, StatutRendezVous statut);
+
     @Query("""
         SELECT r FROM RendezVousEntity r 
         WHERE r.annonce.id = :annonceId 

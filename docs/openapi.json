@@ -1,0 +1,307 @@
+{
+  "openapi": "3.0.3",
+  "info": {
+    "title": "E-Courtier Senegal API",
+    "description": "API REST officielle de la plateforme E-Courtier Senegal pour la recherche, publication et transactions immobilières certifiées.",
+    "version": "1.0.0",
+    "contact": {
+      "name": "E-Courtier Engineering Team",
+      "email": "support@ecourtier.sn"
+    }
+  },
+  "servers": [
+    {
+      "url": "http://localhost:8080",
+      "description": "Serveur Local / Développement"
+    }
+  ],
+  "components": {
+    "securitySchemes": {
+      "bearerAuth": {
+        "type": "http",
+        "scheme": "bearer",
+        "bearerFormat": "JWT",
+        "description": "Entez votre jeton JWT (obtenu via /api/v1/auth/connexion)"
+      }
+    },
+    "schemas": {
+      "ConnexionRequest": {
+        "type": "object",
+        "required": ["email", "motDePasse"],
+        "properties": {
+          "email": { "type": "string", "example": "locataire.demo@ecourtier.sn" },
+          "motDePasse": { "type": "string", "example": "LocatairePass123!" }
+        }
+      },
+      "InscriptionRequest": {
+        "type": "object",
+        "required": ["nom", "prenom", "email", "motDePasse", "telephone", "role"],
+        "properties": {
+          "nom": { "type": "string", "example": "Diop" },
+          "prenom": { "type": "string", "example": "Moussa" },
+          "email": { "type": "string", "example": "moussa.diop@example.sn" },
+          "motDePasse": { "type": "string", "example": "Pass1234!" },
+          "telephone": { "type": "string", "example": "+221771234567" },
+          "role": { "type": "string", "enum": ["LOCATAIRE", "PROPRIETAIRE", "AGENT"], "example": "LOCATAIRE" }
+        }
+      },
+      "AuthResponse": {
+        "type": "object",
+        "properties": {
+          "token": { "type": "string" },
+          "type": { "type": "string", "example": "Bearer" },
+          "utilisateur": { "$ref": "#/components/schemas/UtilisateurResponse" }
+        }
+      },
+      "UtilisateurResponse": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "string", "format": "uuid" },
+          "nom": { "type": "string" },
+          "prenom": { "type": "string" },
+          "email": { "type": "string" },
+          "telephone": { "type": "string" },
+          "role": { "type": "string" },
+          "dateCreation": { "type": "string", "format": "date-time" }
+        }
+      },
+      "AnnonceResponse": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "string", "format": "uuid" },
+          "titre": { "type": "string" },
+          "description": { "type": "string" },
+          "type": { "type": "string" },
+          "modeTransaction": { "type": "string" },
+          "prix": { "type": "number" },
+          "superficie": { "type": "number" },
+          "nombrePieces": { "type": "integer" },
+          "etage": { "type": "integer" },
+          "quartier": { "type": "string" },
+          "ville": { "type": "string" },
+          "latitude": { "type": "number" },
+          "longitude": { "type": "number" },
+          "meuble": { "type": "boolean" },
+          "animauxAcceptes": { "type": "boolean" },
+          "lienVisite360": { "type": "string" },
+          "statutVerification": { "type": "string" },
+          "statutPublication": { "type": "string" },
+          "dateCreation": { "type": "string", "format": "date-time" },
+          "equipements": { "type": "array", "items": { "type": "string" } },
+          "proximites": { "type": "array", "items": { "type": "string" } },
+          "photos": { "type": "array", "items": { "type": "string" } }
+        }
+      },
+      "RendezVousRequest": {
+        "type": "object",
+        "required": ["annonceId", "dateHeure"],
+        "properties": {
+          "annonceId": { "type": "string", "format": "uuid" },
+          "dateHeure": { "type": "string", "format": "date-time" },
+          "message": { "type": "string" }
+        }
+      },
+      "AvisRequest": {
+        "type": "object",
+        "required": ["note", "commentaire"],
+        "properties": {
+          "note": { "type": "integer", "minimum": 1, "maximum": 5 },
+          "commentaire": { "type": "string" }
+        }
+      },
+      "SignalementRequest": {
+        "type": "object",
+        "required": ["motif"],
+        "properties": {
+          "motif": { "type": "string", "enum": ["FAUSSE_ANNONCE", "PRIX_TROMPEUR", "PROPRIETAIRE_INJOIGNABLE", "ARNAQUE_SUSPECTEE", "AUTRE"] },
+          "description": { "type": "string" }
+        }
+      },
+      "IaChatRequest": {
+        "type": "object",
+        "required": ["prompt"],
+        "properties": {
+          "prompt": { "type": "string", "example": "Je cherche un studio à Boucotte pour 95 000 FCFA" }
+        }
+      }
+    }
+  },
+  "paths": {
+    "/api/v1/auth/connexion": {
+      "post": {
+        "summary": "Authentification d'un utilisateur",
+        "tags": ["Authentification"],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/ConnexionRequest" }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Connexion réussie",
+            "content": { "application/json": { "schema": { "$ref": "#/components/schemas/AuthResponse" } } }
+          },
+          "401": { "description": "Identifiants invalides" },
+          "429": { "description": "Trop de tentatives (Rate limiting)" }
+        }
+      }
+    },
+    "/api/v1/auth/inscription": {
+      "post": {
+        "summary": "Création d'un nouveau compte",
+        "tags": ["Authentification"],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/InscriptionRequest" }
+            }
+          }
+        },
+        "responses": {
+          "201": { "description": "Compte créé avec succès" },
+          "400": { "description": "Champs invalides ou mot de passe trop faible" },
+          "409": { "description": "Email déjà utilisé" }
+        }
+      }
+    },
+    "/api/v1/auth/me": {
+      "get": {
+        "summary": "Obtenir le profil de l'utilisateur connecté",
+        "tags": ["Authentification"],
+        "security": [{ "bearerAuth": [] }],
+        "responses": {
+          "200": { "description": "Profil utilisateur" },
+          "401": { "description": "Non authentifié" }
+        }
+      }
+    },
+    "/api/v1/annonces": {
+      "get": {
+        "summary": "Recherche d'annonces avec filtres avancés",
+        "tags": ["Annonces"],
+        "parameters": [
+          { "name": "ville", "in": "query", "schema": { "type": "string" } },
+          { "name": "quartier", "in": "query", "schema": { "type": "string" } },
+          { "name": "minPrix", "in": "query", "schema": { "type": "number" } },
+          { "name": "maxPrix", "in": "query", "schema": { "type": "number" } },
+          { "name": "proximite", "in": "query", "schema": { "type": "string" } },
+          { "name": "mes_annonces", "in": "query", "schema": { "type": "boolean" } }
+        ],
+        "responses": {
+          "200": { "description": "Liste paginée des annonces" }
+        }
+      },
+      "post": {
+        "summary": "Publier une nouvelle annonce",
+        "tags": ["Annonces"],
+        "security": [{ "bearerAuth": [] }],
+        "responses": {
+          "201": { "description": "Annonce créée" },
+          "403": { "description": "Accès refusé" }
+        }
+      }
+    },
+    "/api/v1/annonces/{id}": {
+      "get": {
+        "summary": "Consulter la fiche détaillée d'une annonce",
+        "tags": ["Annonces"],
+        "parameters": [{ "name": "id", "in": "path", "required": true, "schema": { "type": "string", "format": "uuid" } }],
+        "responses": {
+          "200": { "description": "Détails de l'annonce" },
+          "404": { "description": "Annonce non trouvée" }
+        }
+      }
+    },
+    "/api/v1/rendez-vous": {
+      "post": {
+        "summary": "Demander un rendez-vous de visite",
+        "tags": ["Rendez-vous"],
+        "security": [{ "bearerAuth": [] }],
+        "requestBody": {
+          "required": true,
+          "content": { "application/json": { "schema": { "$ref": "#/components/schemas/RendezVousRequest" } } }
+        },
+        "responses": {
+          "201": { "description": "Rendez-vous demandé" }
+        }
+      }
+    },
+    "/api/v1/rendez-vous/mes-rendez-vous": {
+      "get": {
+        "summary": "Obtenir l'agenda des rendez-vous de l'utilisateur",
+        "tags": ["Rendez-vous"],
+        "security": [{ "bearerAuth": [] }],
+        "responses": {
+          "200": { "description": "Liste des rendez-vous" }
+        }
+      }
+    },
+    "/api/v1/transactions": {
+      "post": {
+        "summary": "Initier une transaction immobilière",
+        "tags": ["Transactions"],
+        "security": [{ "bearerAuth": [] }],
+        "responses": {
+          "201": { "description": "Transaction créée" }
+        }
+      }
+    },
+    "/api/v1/annonces/{id}/avis": {
+      "post": {
+        "summary": "Poster un avis sur une annonce (LOCATAIRE avec RDV EFFECTUE)",
+        "tags": ["Avis & Signalements"],
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [{ "name": "id", "in": "path", "required": true, "schema": { "type": "string", "format": "uuid" } }],
+        "requestBody": {
+          "required": true,
+          "content": { "application/json": { "schema": { "$ref": "#/components/schemas/AvisRequest" } } }
+        },
+        "responses": {
+          "201": { "description": "Avis enregistré" },
+          "403": { "description": "Pas de RDV effectué préalable" },
+          "409": { "description": "Vous avez déjà noté cette annonce" }
+        }
+      },
+      "get": {
+        "summary": "Lister les avis d'une annonce et sa note moyenne",
+        "tags": ["Avis & Signalements"],
+        "parameters": [{ "name": "id", "in": "path", "required": true, "schema": { "type": "string", "format": "uuid" } }],
+        "responses": {
+          "200": { "description": "Avis et note moyenne" }
+        }
+      }
+    },
+    "/api/v1/annonces/{id}/signalements": {
+      "post": {
+        "summary": "Signaler une annonce suspecte",
+        "tags": ["Avis & Signalements"],
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [{ "name": "id", "in": "path", "required": true, "schema": { "type": "string", "format": "uuid" } }],
+        "requestBody": {
+          "required": true,
+          "content": { "application/json": { "schema": { "$ref": "#/components/schemas/SignalementRequest" } } }
+        },
+        "responses": {
+          "201": { "description": "Signalement enregistré" }
+        }
+      }
+    },
+    "/api/v1/ia/chat": {
+      "post": {
+        "summary": "Discuter avec l'assistant IA immobilier (Courtier Sénégalais)",
+        "tags": ["IA Assistant"],
+        "requestBody": {
+          "required": true,
+          "content": { "application/json": { "schema": { "$ref": "#/components/schemas/IaChatRequest" } } }
+        },
+        "responses": {
+          "200": { "description": "Réponse de l'IA et criteres/annonces identifiés" }
+        }
+      }
+    }
+  }
+}

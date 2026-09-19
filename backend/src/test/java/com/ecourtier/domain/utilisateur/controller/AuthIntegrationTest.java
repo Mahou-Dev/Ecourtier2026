@@ -24,8 +24,11 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+import org.springframework.test.context.ActiveProfiles;
+
 @SpringBootTest
 @AutoConfigureMockMvc
+@ActiveProfiles("test")
 class AuthIntegrationTest {
 
     @Autowired
@@ -38,10 +41,14 @@ class AuthIntegrationTest {
     private UtilisateurRepository utilisateurRepository;
 
     @Autowired
+    private com.ecourtier.domain.annonce.repository.AnnonceRepository annonceRepository;
+
+    @Autowired
     private PasswordEncoder passwordEncoder;
 
     @BeforeEach
     void setUp() {
+        annonceRepository.deleteAll();
         utilisateurRepository.deleteAll();
     }
 

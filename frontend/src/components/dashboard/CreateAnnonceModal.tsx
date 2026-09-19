@@ -18,6 +18,7 @@ const annonceSchema = z.object({
   prix: z.coerce.number().positive('Le prix doit être strictement positif'),
   superficie: z.coerce.number().positive('La superficie doit être positive'),
   nombrePieces: z.coerce.number().int().min(1, 'Au moins 1 pièce'),
+  etage: z.coerce.number().int().optional(),
   quartier: z.string().min(2, 'Le quartier est obligatoire'),
   ville: z.string().min(2, 'La ville est obligatoire'),
   latitude: z.coerce.number().default(14.7167),
@@ -191,7 +192,7 @@ export const CreateAnnonceModal: React.FC<CreateAnnonceModalProps> = ({
             />
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
             <Input
               label="Superficie (m²)"
               type="number"
@@ -205,6 +206,12 @@ export const CreateAnnonceModal: React.FC<CreateAnnonceModalProps> = ({
               {...register('nombrePieces')}
             />
             <Input
+              label="Étage (ex: 2, 0 pour RDC)"
+              type="number"
+              error={errors.etage?.message}
+              {...register('etage')}
+            />
+            <Input
               label="Quartier"
               placeholder="Almadies, Mermoz..."
               error={errors.quartier?.message}
@@ -216,6 +223,13 @@ export const CreateAnnonceModal: React.FC<CreateAnnonceModalProps> = ({
               {...register('ville')}
             />
           </div>
+
+          <Input
+            label="Lien Visite Virtuelle 360° (Optionnel - URL Matterport, YouTube 360, etc.)"
+            placeholder="https://my.matterport.com/show/..."
+            error={errors.lienVisite360?.message}
+            {...register('lienVisite360')}
+          />
 
           <div className="flex items-center gap-6 pt-2">
             <label className="flex items-center gap-2 text-xs font-semibold text-sahel-800 cursor-pointer">

@@ -79,8 +79,8 @@ public class AnnonceSpecification {
             if (auteurEmail != null && !auteurEmail.trim().isEmpty()) {
                 predicates.add(criteriaBuilder.equal(root.get("utilisateur").get("email"), auteurEmail));
             } else if (!Boolean.TRUE.equals(includeIndisponibles)) {
-                // Exclude unavailable (LOUEE, VENDUE) unless includeIndisponibles is true
-                predicates.add(root.get("statutPublication").in(StatutPublication.LOUEE, StatutPublication.VENDUE).not());
+                // Exclude unavailable (LOUEE, VENDUE, SUSPENDUE) unless includeIndisponibles is true
+                predicates.add(root.get("statutPublication").in(StatutPublication.LOUEE, StatutPublication.VENDUE, StatutPublication.SUSPENDUE).not());
             }
 
             // 2. Budget Min & Max

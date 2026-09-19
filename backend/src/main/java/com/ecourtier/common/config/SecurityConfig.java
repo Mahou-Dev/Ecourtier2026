@@ -71,7 +71,7 @@ public class SecurityConfig {
                 .requestMatchers("/api/v1/annonces/*/rendez-vous").authenticated()
                 .requestMatchers("/api/v1/rendez-vous/**").authenticated()
                 .requestMatchers("/api/v1/transactions/**").authenticated()
-                .requestMatchers(HttpMethod.GET, "/api/v1/annonces", "/api/v1/annonces/*").permitAll()
+                .requestMatchers(HttpMethod.GET, "/api/v1/annonces", "/api/v1/annonces/*", "/api/v1/annonces/*/avis", "/api/v1/utilisateurs/*/reputation").permitAll()
                 .requestMatchers("/api/v1/admin/**").hasRole("ADMIN")
                 .anyRequest().authenticated()
             )

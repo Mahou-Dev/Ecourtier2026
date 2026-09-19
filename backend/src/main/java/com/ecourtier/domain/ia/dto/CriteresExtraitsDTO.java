@@ -21,6 +21,7 @@ public class CriteresExtraitsDTO {
     private String quartier;
     private String ville;
     private Integer nombrePieces;
+    private Integer etage;
     private Boolean meuble;
     private Boolean animauxAcceptes;
     private Double superficieMin;

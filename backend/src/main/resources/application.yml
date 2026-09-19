@@ -43,6 +43,8 @@ ecourtier:
     api-key: ${IA_API_KEY:}
     provider: ${IA_PROVIDER:gemini}
     base-url: ${IA_BASE_URL:}
+  cors:
+    allowed-origins: ${ECOURTIER_CORS_ALLOWED_ORIGINS:http://localhost:3000,http://127.0.0.1:3000,http://localhost:5173}
 
 
 # Springdoc OpenAPI Configuration

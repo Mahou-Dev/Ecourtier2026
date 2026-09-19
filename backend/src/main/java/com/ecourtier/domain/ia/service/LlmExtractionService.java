@@ -104,6 +104,7 @@ public class LlmExtractionService {
                             Map.entry("quartier", Map.of("type", "STRING", "nullable", true)),
                             Map.entry("ville", Map.of("type", "STRING", "nullable", true)),
                             Map.entry("nombrePieces", Map.of("type", "INTEGER", "nullable", true)),
+                            Map.entry("etage", Map.of("type", "INTEGER", "nullable", true)),
                             Map.entry("meuble", Map.of("type", "BOOLEAN", "nullable", true)),
                             Map.entry("animauxAcceptes", Map.of("type", "BOOLEAN", "nullable", true)),
                             Map.entry("superficieMin", Map.of("type", "NUMBER", "nullable", true)),

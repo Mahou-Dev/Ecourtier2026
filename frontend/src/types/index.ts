@@ -55,6 +55,7 @@ export interface AnnonceDTO {
   prix: number;
   superficie: number;
   nombrePieces: number;
+  etage?: number;
   quartier: string;
   ville: string;
   latitude: number;
@@ -63,7 +64,7 @@ export interface AnnonceDTO {
   animauxAcceptes: boolean;
   lienVisite360?: string;
   statutVerification: 'EN_ATTENTE' | 'VERIFIEE' | 'REJETEE';
-  statutPublication: 'DISPONIBLE' | 'RESERVEE' | 'LOUEE' | 'VENDUE';
+  statutPublication: 'DISPONIBLE' | 'RESERVEE' | 'LOUEE' | 'VENDUE' | 'SUSPENDUE';
   dateCreation: string;
   auteur: UtilisateurDTO;
   photos: PhotoAnnonceDTO[];
@@ -152,6 +153,7 @@ export interface AnnonceCreateInput {
   prix: number;
   superficie: number;
   nombrePieces: number;
+  etage?: number;
   quartier: string;
   ville: string;
   latitude: number;
@@ -166,4 +168,53 @@ export interface AnnonceCreateInput {
 export interface VerificationDecisionDTO {
   statutVerification: 'VERIFIEE' | 'REJETEE';
   motifRejet?: string;
+}
+
+export interface AvisDTO {
+  id: string;
+  annonceId: string;
+  note: number;
+  commentaire?: string;
+  auteurId: string;
+  auteurPrenom: string;
+  auteurNom: string;
+  dateCreation: string;
+}
+
+export interface AvisSummaryDTO {
+  noteMoyenne?: number;
+  nombreAvis: number;
+  avis: AvisDTO[];
+}
+
+export interface ReputationDTO {
+  utilisateurId: string;
+  noteMoyenne?: number;
+  nombreAvis: number;
+}
+
+export type MotifSignalement =
+  | 'FAUSSE_ANNONCE'
+  | 'PRIX_TROMPEUR'
+  | 'PROPRIETAIRE_INJOIGNABLE'
+  | 'ARNAQUE_SUSPECTEE'
+  | 'AUTRE';
+
+export type StatutSignalement = 'EN_ATTENTE' | 'TRAITE' | 'REJETE';
+
+export interface SignalementDTO {
+  id: string;
+  annonceId: string;
+  annonceTitre: string;
+  auteurId: string;
+  auteurEmail: string;
+  motif: MotifSignalement;
+  description?: string;
+  statut: StatutSignalement;
+  dateCreation: string;
+}
+
+export interface TraiterSignalementInput {
+  statut: StatutSignalement;
+  suspendreAnnonce?: boolean;
 }
