@@ -39,8 +39,6 @@ services:
       - ./backend:/app
       # Anonymous volume to preserve compiled target folder inside container
       - /app/target
-      # Persist Maven dependency repository inside Docker volume
-      - m2_cache:/root/.m2
     depends_on:
       db:
         condition: service_healthy
@@ -65,6 +63,4 @@ services:
 
 volumes:
   pgdata:
-    driver: local
-  m2_cache:
     driver: local
