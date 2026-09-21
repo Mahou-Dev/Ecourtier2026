@@ -15,6 +15,9 @@ const PropertyDetailPage = lazy(() => import('./pages/PropertyDetailPage').then(
 const LoginPage = lazy(() => import('./pages/LoginPage').then(m => ({ default: m.LoginPage })));
 const RegisterPage = lazy(() => import('./pages/RegisterPage').then(m => ({ default: m.RegisterPage })));
 const DashboardPage = lazy(() => import('./pages/DashboardPage').then(m => ({ default: m.DashboardPage })));
+const AdminVerificationPage = lazy(() => import('./pages/AdminVerificationPage').then(m => ({ default: m.AdminVerificationPage })));
+const AdminSignalementsPage = lazy(() => import('./pages/AdminSignalementsPage').then(m => ({ default: m.AdminSignalementsPage })));
+import { OfflineIndicator } from './components/ui/OfflineIndicator';
 
 // Design System Skeleton Fallback
 const PageSkeletonFallback: React.FC = () => (
@@ -43,6 +46,8 @@ export const App: React.FC = () => {
                 <Route path="/connexion" element={<LoginPage />} />
                 <Route path="/inscription" element={<RegisterPage />} />
                 <Route path="/dashboard" element={<DashboardPage />} />
+                <Route path="/admin/verification" element={<AdminVerificationPage />} />
+                <Route path="/admin/signalements" element={<AdminSignalementsPage />} />
               </Routes>
             </Suspense>
           </main>
@@ -50,6 +55,9 @@ export const App: React.FC = () => {
 
           {/* GLOBAL FLOATING CONVERSATIONAL AI WIDGET */}
           <AiAssistantWidget />
+
+          {/* OFFLINE STATUS INDICATOR */}
+          <OfflineIndicator />
 
           {/* SONNER TOASTER */}
           <Toaster />

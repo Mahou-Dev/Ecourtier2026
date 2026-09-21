@@ -19,6 +19,7 @@ import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
+import org.hibernate.annotations.CreationTimestamp;
 
 import java.time.LocalDateTime;
 import java.util.UUID;
@@ -36,11 +37,11 @@ public class RendezVousEntity {
     @GeneratedValue(strategy = GenerationType.UUID)
     private UUID id;
 
-    @ManyToOne(fetch = FetchType.LAZY, optional = false)
+    @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "annonce_id", nullable = false)
     private AnnonceEntity annonce;
 
-    @ManyToOne(fetch = FetchType.LAZY, optional = false)
+    @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "demandeur_id", nullable = false)
     private UtilisateurEntity demandeur;
 
@@ -48,19 +49,31 @@ public class RendezVousEntity {
     private LocalDateTime dateHeure;
 
     @Enumerated(EnumType.STRING)
-    @Column(nullable = false, length = 30)
+    @Column(nullable = false, length = 20)
+    @Builder.Default
     private StatutRendezVous statut = StatutRendezVous.DEMANDE;
 
-    @Column(name = "rappel_envoye", nullable = false)
-    private boolean rappelEnvoye = false;
+    @Column(name = "motif_annulation", columnDefinition = "TEXT")
+    private String motifAnnulation;
 
+    @Column(name = "rappel_envoye", nullable = false)
+    @Builder.Default
+    private Boolean rappelEnvoye = false;
+
+    @CreationTimestamp
     @Column(name = "date_creation", nullable = false, updatable = false)
     private LocalDateTime dateCreation;
 
     @PrePersist
-    public void prePersist() {
+    protected void onCreate() {
         if (dateCreation == null) {
             dateCreation = LocalDateTime.now();
+        }
+        if (rappelEnvoye == null) {
+            rappelEnvoye = false;
+        }
+        if (statut == null) {
+            statut = StatutRendezVous.DEMANDE;
         }
     }
 }

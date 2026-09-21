@@ -25,6 +25,7 @@ public class AnnonceUpdateDTO {
     private BigDecimal prix;
     private Double superficie;
     private Integer nombrePieces;
+    private Integer etage;
     private String quartier;
     private String ville;
     private Double latitude;

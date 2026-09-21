@@ -67,6 +67,9 @@ public class AnnonceEntity {
     @Column(name = "nombre_pieces", nullable = false)
     private Integer nombrePieces;
 
+    @Column(name = "etage")
+    private Integer etage;
+
     @Column(nullable = false, length = 100)
     private String quartier;
 

@@ -20,14 +20,14 @@ export const Button: React.FC<ButtonProps> = ({
   disabled,
   ...props
 }) => {
-  const baseStyles = 'inline-flex items-center justify-center font-display font-semibold transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2 active:scale-[0.98] disabled:opacity-60 disabled:pointer-events-none rounded-xl';
+  const baseStyles = 'inline-flex items-center justify-center font-display font-semibold transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2 disabled:opacity-60 disabled:pointer-events-none rounded-full';
 
   const variants = {
-    primary: 'bg-terracotta-500 text-white hover:bg-terracotta-600 shadow-terracotta-glow focus:ring-terracotta-400',
-    secondary: 'bg-sahel-800 text-white hover:bg-sahel-900 shadow-sahel-glow focus:ring-sahel-500',
-    accent: 'bg-ocher-500 text-charcoal-900 hover:bg-ocher-600 focus:ring-ocher-400',
-    outline: 'border-2 border-terracotta-500 text-terracotta-600 hover:bg-terracotta-50 focus:ring-terracotta-400',
-    ghost: 'text-charcoal-700 hover:bg-sand-200 focus:ring-charcoal-300',
+    primary: 'bg-terracotta-500 text-white hover:bg-terracotta-600 hover:-translate-y-0.5 shadow-terracotta-glow active:translate-y-0 active:scale-[0.98] focus:ring-terracotta-400',
+    secondary: 'bg-sahel-800 text-white hover:bg-sahel-900 hover:-translate-y-0.5 shadow-sahel-glow active:translate-y-0 active:scale-[0.98] focus:ring-sahel-500',
+    accent: 'bg-ocher-500 text-charcoal-900 hover:bg-ocher-600 hover:-translate-y-0.5 shadow-sand-glow active:translate-y-0 active:scale-[0.98] focus:ring-ocher-400',
+    outline: 'border-2 border-terracotta-500 text-terracotta-600 hover:bg-terracotta-50 hover:border-terracotta-600 focus:ring-terracotta-400',
+    ghost: 'text-charcoal-700 hover:bg-sand-200/80 focus:ring-charcoal-300',
   };
 
   const sizes = {

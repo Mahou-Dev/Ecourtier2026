@@ -1,0 +1,278 @@
+{
+  "info": {
+    "_postman_id": "ecourtier-senegal-collection-2026",
+    "name": "E-Courtier Senegal API",
+    "description": "Collection d'API complète pour E-Courtier Sénégal avec gestion automatique du token JWT {{accessToken}} sur l'authentification.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "http://localhost:8080",
+      "type": "string"
+    },
+    {
+      "key": "accessToken",
+      "value": "",
+      "type": "string"
+    }
+  ],
+  "item": [
+    {
+      "name": "1. Authentification & Session",
+      "item": [
+        {
+          "name": "Connexion (Auto-extract token)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Connexion réussie 200', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "var jsonData = pm.response.json();",
+                  "if (jsonData && jsonData.token) {",
+                  "    pm.collectionVariables.set('accessToken', jsonData.token);",
+                  "    console.log('Jeton JWT sauvegardé dans {{accessToken}}');",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"locataire.demo@ecourtier.sn\",\n  \"motDePasse\": \"LocatairePass123!\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/auth/connexion",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "auth", "connexion"]
+            }
+          }
+        },
+        {
+          "name": "Inscription Nouveau Compte",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"nom\": \"Diop\",\n  \"prenom\": \"Moussa\",\n  \"email\": \"moussa.test@ecourtier.sn\",\n  \"motDePasse\": \"Pass1234!\",\n  \"telephone\": \"+221770009999\",\n  \"role\": \"LOCATAIRE\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/auth/inscription",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "auth", "inscription"]
+            }
+          }
+        },
+        {
+          "name": "Profil Utilisateur Connecté (/me)",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{accessToken}}" }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/auth/me",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "auth", "me"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "2. Annonces Immobilières",
+      "item": [
+        {
+          "name": "Recherche Filtrée d'Annonces",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/annonces?ville=Dakar&minPrix=100000&maxPrix=2000000",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "annonces"],
+              "query": [
+                { "key": "ville", "value": "Dakar" },
+                { "key": "minPrix", "value": "100000" },
+                { "key": "maxPrix", "value": "2000000" }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Mes Annonces (Propriétaire)",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{accessToken}}" }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/annonces?mes_annonces=true",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "annonces"],
+              "query": [
+                { "key": "mes_annonces", "value": "true" }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Fiche Détail Annonce",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/annonces/{{annonceId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "annonces", "{{annonceId}}"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "3. Agenda & Visites (RDV)",
+      "item": [
+        {
+          "name": "Demander un RDV",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{accessToken}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"annonceId\": \"{{annonceId}}\",\n  \"dateHeure\": \"2026-10-15T10:00:00\",\n  \"message\": \"Bonjour, je souhaite visiter la villa ce samedi.\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/rendez-vous",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "rendez-vous"]
+            }
+          }
+        },
+        {
+          "name": "Mes Rendez-vous",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{accessToken}}" }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/rendez-vous/mes-rendez-vous",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "rendez-vous", "mes-rendez-vous"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "4. Transactions & Séquestre",
+      "item": [
+        {
+          "name": "Initier Transaction",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{accessToken}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"annonceId\": \"{{annonceId}}\",\n  \"montantCaution\": 450000,\n  \"dateDebutBail\": \"2026-11-01T00:00:00\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/transactions",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "transactions"]
+            }
+          }
+        },
+        {
+          "name": "Mes Transactions",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{accessToken}}" }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/transactions/mes-transactions",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "transactions", "mes-transactions"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "5. Avis & Reputation",
+      "item": [
+        {
+          "name": "Déposer un Avis sur une Annonce",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{accessToken}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"note\": 5,\n  \"commentaire\": \"Excellente visite, logement totalement conforme aux photos et propriétaire très réactif.\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/annonces/{{annonceId}}/avis",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "annonces", "{{annonceId}}", "avis"]
+            }
+          }
+        },
+        {
+          "name": "Réputation du Propriétaire",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/utilisateurs/{{ownerId}}/reputation",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "utilisateurs", "{{ownerId}}", "reputation"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "6. Assistant IA Immobilier",
+      "item": [
+        {
+          "name": "Conversation IA",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"prompt\": \"Je cherche un appartement meublé à Mermoz pour environ 450 000 FCFA avec parking et réserve d'eau.\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/ia/chat",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "ia", "chat"]
+            }
+          }
+        }
+      ]
+    }
+  ]
+}

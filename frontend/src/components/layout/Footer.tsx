@@ -27,7 +27,7 @@ export const Footer: React.FC = () => {
             Nos Engagements
           </h4>
           <ul className="space-y-2 text-sm text-sahel-200/90">
-            <li>✔ Annonces certifiées anti-arnaques</li>
+            <li>✔ Annonces vérifiées anti-arnaques</li>
             <li>✔ Caution bloquée sous séquestre bancaire</li>
             <li>✔ Signature de bail conforme au code sénégalais</li>
             <li>✔ Assistant IA de recherche personnalisé</li>

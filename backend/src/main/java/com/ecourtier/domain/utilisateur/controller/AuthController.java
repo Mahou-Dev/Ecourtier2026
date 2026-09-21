@@ -16,6 +16,9 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
+import com.ecourtier.common.security.LoginRateLimiterService;
+import jakarta.servlet.http.HttpServletRequest;
+
 @RestController
 @RequestMapping("/api/v1/auth")
 @RequiredArgsConstructor
@@ -23,6 +26,7 @@ import org.springframework.web.bind.annotation.RestController;
 public class AuthController {
 
     private final AuthService authService;
+    private final LoginRateLimiterService loginRateLimiterService;
 
     @PostMapping("/inscription")
     @Operation(summary = "Inscription d'un nouvel utilisateur", description = "Création d'un compte utilisateur avec le rôle PROPRIETAIRE ou LOCATAIRE.")
@@ -33,9 +37,24 @@ public class AuthController {
 
     @PostMapping("/connexion")
     @Operation(summary = "Connexion utilisateur", description = "Authentification par email/mot de passe et génération d'un couple de tokens JWT (access + refresh).")
-    public ResponseEntity<TokenResponseDTO> connexion(@Valid @RequestBody ConnexionRequestDTO request) {
+    public ResponseEntity<TokenResponseDTO> connexion(
+            @Valid @RequestBody ConnexionRequestDTO request,
+            HttpServletRequest httpRequest
+    ) {
+        String clientIp = getClientIp(httpRequest);
+        loginRateLimiterService.checkAndRecordAttempt(clientIp, request.getEmail());
+
         TokenResponseDTO response = authService.connexion(request);
+        loginRateLimiterService.resetAttempts(clientIp, request.getEmail());
         return ResponseEntity.ok(response);
+    }
+
+    private String getClientIp(HttpServletRequest request) {
+        String xForwardedFor = request.getHeader("X-Forwarded-For");
+        if (xForwardedFor != null && !xForwardedFor.isEmpty()) {
+            return xForwardedFor.split(",")[0].trim();
+        }
+        return request.getRemoteAddr();
     }
 
     @PostMapping("/rafraichir")

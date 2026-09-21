@@ -46,6 +46,8 @@ public class AnnonceCreateDTO {
     @Min(value = 1, message = "Le nombre de pièces doit être d'au moins 1")
     private Integer nombrePieces;
 
+    private Integer etage;
+
     @NotBlank(message = "Le quartier est obligatoire")
     private String quartier;
 

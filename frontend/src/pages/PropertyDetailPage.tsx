@@ -1,307 +1,507 @@
 import React, { useState } from 'react';
-import { useParams, Link } from 'react-router-dom';
+import { useParams, Link, useNavigate, useLocation } from 'react-router-dom';
 import { 
   ShieldCheck, 
   MapPin, 
-  Sparkles, 
   CheckCircle2, 
-  Zap, 
-  Droplet, 
-  Shield, 
-  Wind, 
-  Car, 
-  Wifi, 
   ArrowLeft,
-  Share2,
-  Heart
+  Calendar,
+  Clock,
+  FileCheck,
+  Star,
+  AlertTriangle,
+  Compass,
+  UserCheck
 } from 'lucide-react';
-import { MOCK_PROPERTIES } from '../mocks/properties';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { apiFetch, getPhotoUrl } from '../services/api';
+import { 
+  AnnonceDTO, 
+  RendezVousResponseDTO, 
+  TransactionResponseDTO, 
+  AvisSummaryDTO, 
+  ReputationDTO 
+} from '../types';
+import { useAuthStore } from '../store/useAuthStore';
 import { LeafletMap } from '../components/map/LeafletMap';
 import { Button } from '../components/ui/Button';
 import { Badge } from '../components/ui/Badge';
 import { Card, CardBody } from '../components/ui/Card';
 import { Modal } from '../components/ui/Modal';
 import { Avatar } from '../components/ui/Avatar';
+import { Skeleton } from '../components/ui/Skeleton';
 import Lightbox from 'yet-another-react-lightbox';
 import 'yet-another-react-lightbox/styles.css';
+import { toast } from 'sonner';
+import { TransactionDetailsModal } from '../components/transaction/TransactionDetailsModal';
+import { SignalementModal } from '../components/ui/SignalementModal';
 
 export const PropertyDetailPage: React.FC = () => {
   const { id } = useParams<{ id: string }>();
-  const property = MOCK_PROPERTIES.find((p) => p.id === id) || MOCK_PROPERTIES[0];
+  const navigate = useNavigate();
+  const location = useLocation();
+  const queryClient = useQueryClient();
+  const { utilisateur } = useAuthStore();
 
   const [isLightboxOpen, setIsLightboxOpen] = useState(false);
   const [selectedPhotoIndex, setSelectedPhotoIndex] = useState(0);
-  const [isProofModalOpen, setIsProofModalOpen] = useState(false);
   const [isVisitModalOpen, setIsVisitModalOpen] = useState(false);
-  const [visitSubmitted, setVisitSubmitted] = useState(false);
+  const [visitDate, setVisitDate] = useState('');
+  const [visitTime, setVisitTime] = useState('10:00');
+  const [isSubmittingVisit, setIsSubmittingVisit] = useState(false);
+
+  const [isTxModalOpen, setIsTxModalOpen] = useState(false);
+  const [selectedTx, setSelectedTx] = useState<TransactionResponseDTO | null>(null);
+  const [isInitiatingTx, setIsInitiatingTx] = useState(false);
+
+  const [isSignalementModalOpen, setIsSignalementModalOpen] = useState(false);
+  const [is360ModalOpen, setIs360ModalOpen] = useState(false);
+
+  // Avis Form state
+  const [newRating, setNewRating] = useState<number>(5);
+  const [newComment, setNewComment] = useState('');
+  const [isSubmittingAvis, setIsSubmittingAvis] = useState(false);
+
+  // Fetch listing details
+  const { data: property, isLoading, isError } = useQuery<AnnonceDTO>({
+    queryKey: ['annonce', id],
+    queryFn: () => apiFetch<AnnonceDTO>(`/api/v1/annonces/${id}`),
+    enabled: !!id,
+  });
+
+  // Fetch listing reviews
+  const { data: avisSummary, refetch: refetchAvis } = useQuery<AvisSummaryDTO>({
+    queryKey: ['annonce-avis', id],
+    queryFn: () => apiFetch<AvisSummaryDTO>(`/api/v1/annonces/${id}/avis`),
+    enabled: !!id,
+  });
+
+  // Fetch landlord reputation
+  const { data: landlordReputation } = useQuery<ReputationDTO>({
+    queryKey: ['reputation-utilisateur', property?.auteur?.id],
+    queryFn: () => apiFetch<ReputationDTO>(`/api/v1/utilisateurs/${property?.auteur?.id}/reputation`),
+    enabled: !!property?.auteur?.id,
+  });
+
+  // Fetch user visits
+  const { data: userVisits } = useQuery<RendezVousResponseDTO[]>({
+    queryKey: ['my-visites'],
+    queryFn: () => apiFetch<RendezVousResponseDTO[]>('/api/v1/rendez-vous/mes-rendez-vous'),
+    enabled: !!utilisateur,
+  });
+
+  // Fetch user transactions
+  const { data: userTransactions } = useQuery<TransactionResponseDTO[]>({
+    queryKey: ['my-transactions'],
+    queryFn: () => apiFetch<TransactionResponseDTO[]>('/api/v1/transactions/mes-transactions'),
+    enabled: !!utilisateur,
+  });
+
+  const hasEffectueVisit = userVisits?.some(
+    (v) => v.annonceId === id && v.statut === 'EFFECTUE'
+  );
+
+  const existingTx = userTransactions?.find((tx) => tx.annonceId === id);
+
+  const handleDemanderVisiteClick = () => {
+    if (!utilisateur) {
+      toast.info('Veuillez vous connecter pour planifier une visite');
+      navigate('/connexion', { state: { from: location.pathname } });
+      return;
+    }
+
+    if (utilisateur.role !== 'LOCATAIRE') {
+      toast.warning('Seuls les utilisateurs inscrits comme Locataire peuvent demander une visite');
+      return;
+    }
+
+    setIsVisitModalOpen(true);
+  };
+
+  const handleConfirmVisit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!visitDate || !visitTime || !id) {
+      toast.error('Veuillez sélectionner une date et une heure');
+      return;
+    }
+
+    setIsSubmittingVisit(true);
+    try {
+      const dateHeureIso = `${visitDate}T${visitTime}:00`;
+      const res = await apiFetch<RendezVousResponseDTO>(`/api/v1/annonces/${id}/rendez-vous`, {
+        method: 'POST',
+        body: JSON.stringify({
+          dateHeure: dateHeureIso,
+        }),
+      });
+
+      toast.success(`Demande de visite transmise avec succès ! (RDV #${res.id.slice(0, 8)})`);
+      queryClient.invalidateQueries({ queryKey: ['my-visites'] });
+      setIsVisitModalOpen(false);
+    } catch (err: any) {
+      toast.error(err.message || 'Échec de la réservation de visite');
+    } finally {
+      setIsSubmittingVisit(false);
+    }
+  };
+
+  const handleInitierTransaction = async () => {
+    if (!id || !property) return;
+    setIsInitiatingTx(true);
+    try {
+      const tx = await apiFetch<TransactionResponseDTO>(`/api/v1/annonces/${id}/transactions`, {
+        method: 'POST',
+        body: JSON.stringify({ montantCaution: property.prix }),
+      });
+      toast.success('Transaction de location initiée avec succès !');
+      queryClient.invalidateQueries({ queryKey: ['my-transactions'] });
+      setSelectedTx(tx);
+      setIsTxModalOpen(true);
+    } catch (err: any) {
+      toast.error(err.message || 'Impossible d\'initier la transaction');
+    } finally {
+      setIsInitiatingTx(false);
+    }
+  };
+
+  const handleSoumettreAvis = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!id) return;
+    setIsSubmittingAvis(true);
+    try {
+      await apiFetch(`/api/v1/annonces/${id}/avis`, {
+        method: 'POST',
+        body: JSON.stringify({ note: newRating, commentaire: newComment }),
+      });
+      toast.success('Avis publié avec succès ! Merci pour votre retour.');
+      setNewComment('');
+      refetchAvis();
+    } catch (err: any) {
+      if (err.status === 409 || err.message?.includes('déjà noté')) {
+        toast.warning('Vous avez déjà noté cette annonce');
+      } else if (err.status === 403 || err.message?.includes('visite validée')) {
+        toast.error('Seuls les locataires ayant effectué une visite validée peuvent déposer un avis');
+      } else {
+        toast.error(err.message || 'Erreur lors de la publication de l\'avis');
+      }
+    } finally {
+      setIsSubmittingAvis(false);
+    }
+  };
+
+  if (isLoading) {
+    return (
+      <div className="max-w-7xl mx-auto px-4 py-8 space-y-6">
+        <Skeleton variant="rect" className="w-full h-80 rounded-3xl" />
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+          <div className="lg:col-span-2 space-y-4">
+            <Skeleton variant="text" className="w-1/2 h-8" />
+            <Skeleton variant="text" className="w-full h-24" />
+          </div>
+          <Skeleton variant="card" className="h-64" />
+        </div>
+      </div>
+    );
+  }
+
+  if (isError || !property) {
+    return (
+      <div className="max-w-md mx-auto my-16 p-8 text-center space-y-4 bg-white rounded-3xl border border-argile-200">
+        <h2 className="font-display font-bold text-xl text-charcoal-900">Annonce introuvable</h2>
+        <p className="text-xs text-charcoal-600">Cette annonce n'existe plus ou a été retirée de la publication.</p>
+        <Button variant="primary" onClick={() => navigate('/recherche')}>
+          Retourner aux recherches
+        </Button>
+      </div>
+    );
+  }
+
+  const photosList = property.photos && property.photos.length > 0
+    ? property.photos.map(p => getPhotoUrl(p.url))
+    : ['https://images.unsplash.com/photo-1600585154340-be6161a56a0c?auto=format&fit=crop&w=1200&q=80'];
 
   return (
-    <div className="max-w-7xl mx-auto px-4 xs:px-6 lg:px-8 py-6 space-y-8 pb-24">
+    <div className="max-w-7xl mx-auto px-4 py-6 space-y-8">
       
-      {/* Top Back Nav & Share */}
+      {/* NAVIGATION BAR & DISCRETE REPORT BUTTON */}
       <div className="flex items-center justify-between">
-        <Link to="/recherche" className="inline-flex items-center gap-2 text-xs font-bold text-charcoal-700 hover:text-terracotta-600 transition-colors">
+        <Link
+          to="/recherche"
+          className="inline-flex items-center gap-2 text-xs font-semibold text-sahel-700 hover:text-terracotta-600 transition-colors"
+        >
           <ArrowLeft className="w-4 h-4" />
-          <span>Retour à la recherche</span>
+          <span>Retour aux résultats</span>
         </Link>
-        <div className="flex items-center gap-2">
-          <Button variant="ghost" size="sm" leftIcon={<Share2 className="w-4 h-4" />}>Partager</Button>
-          <Button variant="ghost" size="sm" leftIcon={<Heart className="w-4 h-4 text-terracotta-500" />}>Favoris</Button>
+
+        <button
+          onClick={() => {
+            if (!utilisateur) {
+              toast.info('Veuillez vous connecter pour signaler une annonce');
+              navigate('/connexion', { state: { from: location.pathname } });
+              return;
+            }
+            setIsSignalementModalOpen(true);
+          }}
+          className="inline-flex items-center gap-1.5 text-xs text-charcoal-500 hover:text-rose-600 transition-colors py-1 px-2.5 rounded-lg border border-transparent hover:border-rose-200"
+        >
+          <AlertTriangle className="w-3.5 h-3.5 text-rose-500" />
+          <span>Signaler cette annonce</span>
+        </button>
+      </div>
+
+      {/* HEADER TITLE & BADGES & RATING SUMMARY */}
+      <div className="space-y-3">
+        <div className="flex flex-wrap items-center gap-2">
+          <Badge variant="terracotta">{property.modeTransaction}</Badge>
+          <Badge variant="sahel">{property.type}</Badge>
+          {property.statutVerification === 'VERIFIEE' && (
+            <Badge variant="success" className="flex items-center gap-1">
+              <ShieldCheck className="w-3.5 h-3.5 text-emerald-600" />
+              <span>Contrôle Cadastral Effectué</span>
+            </Badge>
+          )}
+
+          {/* Average Rating Star Badge */}
+          {avisSummary?.noteMoyenne ? (
+            <div className="flex items-center gap-1 text-xs font-bold bg-amber-50 text-amber-900 border border-amber-300 px-2.5 py-1 rounded-full shadow-xs">
+              <Star className="w-3.5 h-3.5 fill-amber-400 text-amber-500" />
+              <span>{avisSummary.noteMoyenne.toFixed(1)} / 5</span>
+              <span className="text-amber-700 text-[10px]">({avisSummary.nombreAvis} avis)</span>
+            </div>
+          ) : (
+            <span className="text-[11px] text-charcoal-400 bg-sand-200 px-2.5 py-0.5 rounded-full font-medium">
+              Aucun avis
+            </span>
+          )}
+        </div>
+
+        <h1 className="font-display font-extrabold text-2xl md:text-4xl text-charcoal-900 tracking-tight">
+          {property.titre}
+        </h1>
+
+        <div className="flex flex-wrap items-center gap-4 text-xs font-semibold text-charcoal-600">
+          <span className="flex items-center gap-1">
+            <MapPin className="w-4 h-4 text-terracotta-500" />
+            {property.quartier}, {property.ville}
+          </span>
+
+          {property.lienVisite360 && (
+            <button
+              onClick={() => setIs360ModalOpen(true)}
+              className="flex items-center gap-1.5 text-terracotta-600 hover:text-terracotta-700 bg-terracotta-50 hover:bg-terracotta-100 px-3 py-1 rounded-full border border-terracotta-200 font-bold transition-all"
+            >
+              <Compass className="w-4 h-4 animate-spin-slow" />
+              <span>Visite Virtuelle 360°</span>
+            </button>
+          )}
         </div>
       </div>
 
-      {/* AIRBNB-STYLE ASYMMETRICAL PHOTO GALLERY */}
-      <div className="space-y-3">
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-3 h-[360px] sm:h-[460px] rounded-3xl overflow-hidden border border-argile-200 shadow-warm-card">
-          
-          {/* Main Large Photo */}
-          <div
-            className="md:col-span-2 relative cursor-pointer group overflow-hidden bg-sand-200"
-            onClick={() => {
-              setSelectedPhotoIndex(0);
-              setIsLightboxOpen(true);
-            }}
-          >
-            <img
-              src={property.images[0]}
-              alt={property.title}
-              className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
-            />
-            <div className="absolute inset-0 bg-charcoal-900/10 group-hover:bg-transparent transition-colors" />
-          </div>
-
-          {/* Secondary Photos */}
-          <div className="hidden md:grid col-span-2 grid-cols-2 gap-3">
-            {property.images.slice(1, 5).map((img, idx) => (
-              <div
-                key={idx}
-                className="relative cursor-pointer group overflow-hidden bg-sand-200 h-full"
-                onClick={() => {
-                  setSelectedPhotoIndex(idx + 1);
-                  setIsLightboxOpen(true);
-                }}
-              >
-                <img
-                  src={img}
-                  alt={`${property.title} - photo ${idx + 2}`}
-                  className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
-                />
-                {idx === 3 && property.images.length > 4 && (
-                  <div className="absolute inset-0 bg-charcoal-900/60 flex items-center justify-center text-white font-display font-bold text-sm">
-                    +{property.images.length - 4} photos
-                  </div>
-                )}
+      {/* GALLERY GRID WITH LAZY LOADING */}
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-3 h-[380px] rounded-3xl overflow-hidden shadow-warm-card">
+        <div className="md:col-span-2 h-full cursor-pointer relative group" onClick={() => { setSelectedPhotoIndex(0); setIsLightboxOpen(true); }}>
+          <img src={photosList[0]} alt="Principal" loading="eager" className="w-full h-full object-cover group-hover:scale-102 transition-transform duration-300" />
+        </div>
+        <div className="hidden md:grid grid-cols-1 gap-3 h-full col-span-2">
+          <div className="grid grid-cols-2 gap-3 h-full">
+            {photosList.slice(1, 5).map((photo, idx) => (
+              <div key={idx} className="h-full cursor-pointer overflow-hidden relative group" onClick={() => { setSelectedPhotoIndex(idx + 1); setIsLightboxOpen(true); }}>
+                <img src={photo} alt={`Photo ${idx + 2}`} loading="lazy" className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" />
               </div>
             ))}
           </div>
-
         </div>
       </div>
 
-      {/* MAIN CONTENT GRID (LEFT DETAILS + RIGHT STICKY BOOKING CARD) */}
+      {/* DETAILS GRID */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
         
-        {/* LEFT COLUMN: PROPERTY INFORMATION */}
+        {/* LEFT COLUMN */}
         <div className="lg:col-span-2 space-y-8">
           
-          {/* Title, Badge & Location Header */}
-          <div className="space-y-3 border-b border-argile-200 pb-6">
-            <div className="flex flex-wrap items-center gap-2">
-              <Badge variant="terracotta" className="text-xs">
-                <ShieldCheck className="w-4 h-4 mr-1 inline" />
-                Vérifié Niveau {property.verificationLevel}
-              </Badge>
-              <Badge variant="sahel">Caution Séquestre Garantie</Badge>
-              {property.isFurnished && <Badge variant="ocher">Meublé</Badge>}
+          {/* Key Specifications (Including Étage) */}
+          <div className="p-6 rounded-2xl bg-white border border-argile-200 shadow-warm-card grid grid-cols-2 sm:grid-cols-5 gap-4 text-center">
+            <div>
+              <p className="text-xs text-charcoal-500 font-medium">Superficie</p>
+              <p className="font-display font-bold text-lg text-charcoal-900">{property.superficie} m²</p>
             </div>
-
-            <h1 className="font-display font-extrabold text-2xl sm:text-3xl text-charcoal-900 leading-tight">
-              {property.title}
-            </h1>
-
-            <div className="flex items-center gap-2 text-sm text-sahel-800 font-semibold">
-              <MapPin className="w-4 h-4 text-terracotta-500" />
-              <span>{property.address} ({property.neighborhood}, {property.city})</span>
+            <div>
+              <p className="text-xs text-charcoal-500 font-medium">Nombre de pièces</p>
+              <p className="font-display font-bold text-lg text-charcoal-900">{property.nombrePieces}</p>
+            </div>
+            <div>
+              <p className="text-xs text-charcoal-500 font-medium">Étage</p>
+              <p className="font-display font-bold text-lg text-charcoal-900">
+                {property.etage !== undefined && property.etage !== null
+                  ? property.etage === 0 ? 'RDC' : `${property.etage}e`
+                  : 'N/A'}
+              </p>
+            </div>
+            <div>
+              <p className="text-xs text-charcoal-500 font-medium">Meublé</p>
+              <p className="font-display font-bold text-lg text-charcoal-900">{property.meuble ? 'Oui' : 'Non'}</p>
+            </div>
+            <div>
+              <p className="text-xs text-charcoal-500 font-medium">Animaux</p>
+              <p className="font-display font-bold text-lg text-charcoal-900">{property.animauxAcceptes ? 'Acceptés' : 'Refusés'}</p>
             </div>
           </div>
 
-          {/* VERIFICATION & PROOF BADGE BLOCK */}
-          <div className="p-5 rounded-2xl bg-sahel-50 border border-sahel-200 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-xl bg-sahel-800 text-white flex items-center justify-center shrink-0">
-                <ShieldCheck className="w-6 h-6 text-ocher-400" />
+          {/* Description */}
+          <div className="space-y-3">
+            <h3 className="font-display font-bold text-lg text-charcoal-900">Description du bien</h3>
+            <p className="text-sm text-charcoal-700 leading-relaxed whitespace-pre-line">{property.description}</p>
+          </div>
+
+          {/* Location Map */}
+          {property.latitude && property.longitude && (
+            <div className="space-y-3 border-t border-argile-200 pt-6">
+              <h3 className="font-display font-bold text-lg text-charcoal-900">Emplacement & Carte</h3>
+              <div className="h-72 rounded-2xl overflow-hidden border border-argile-200 shadow-sm">
+                <LeafletMap
+                  properties={[property]}
+                  selectedPropertyId={property.id}
+                  center={[property.latitude, property.longitude]}
+                  zoom={14}
+                />
               </div>
+            </div>
+          )}
+
+          {/* Landlord Info & Calculated Owner Reputation */}
+          {property.auteur && (
+            <div className="p-6 rounded-2xl bg-white border border-argile-200 shadow-warm-card space-y-4">
+              <h3 className="font-display font-bold text-base text-charcoal-900">Proposé par un propriétaire identifié</h3>
+              <div className="flex items-center justify-between gap-4">
+                <div className="flex items-center gap-4">
+                  <Avatar src={property.auteur.photoProfilUrl} name={`${property.auteur.prenom} ${property.auteur.nom}`} size="lg" isVerified />
+                  <div className="space-y-1">
+                    <div className="flex items-center gap-2">
+                      <h4 className="font-display font-bold text-base text-charcoal-900">{property.auteur.prenom} {property.auteur.nom}</h4>
+                      <Badge variant="sahel">{property.auteur.role}</Badge>
+                    </div>
+                    <p className="text-xs text-charcoal-600">Tel: {property.auteur.telephone}</p>
+                  </div>
+                </div>
+
+                {/* Landlord Reputation Badge */}
+                <div className="text-right bg-sand-100 p-3 rounded-xl border border-argile-300">
+                  <p className="text-[11px] text-charcoal-500 font-semibold uppercase tracking-wider">Réputation Propriétaire</p>
+                  {landlordReputation?.noteMoyenne ? (
+                    <div className="flex items-center justify-end gap-1.5 mt-0.5">
+                      <Star className="w-4 h-4 fill-amber-400 text-amber-500" />
+                      <span className="font-display font-extrabold text-base text-charcoal-900">
+                        {landlordReputation.noteMoyenne.toFixed(1)} / 5
+                      </span>
+                      <span className="text-xs text-charcoal-500 font-medium">
+                        ({landlordReputation.nombreAvis} avis)
+                      </span>
+                    </div>
+                  ) : (
+                    <p className="text-xs text-charcoal-500 mt-0.5">Aucun avis encore</p>
+                  )}
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* REVIEWS SECTION */}
+          <div className="space-y-6 border-t border-argile-200 pt-6">
+            <div className="flex items-center justify-between">
               <div>
-                <h4 className="font-display font-bold text-sm text-sahel-900">
-                  {property.verificationDetails.verificationBadgeLabel}
-                </h4>
-                <p className="text-xs text-sahel-700">
-                  Titre foncier cadastré N° <span className="font-mono font-bold">{property.verificationDetails.cadastralNumber}</span>
+                <h3 className="font-display font-bold text-xl text-charcoal-900">
+                  Avis et Évaluations ({avisSummary?.nombreAvis ?? 0})
+                </h3>
+                <p className="text-xs text-charcoal-500">
+                  Avis vérifiés déposés exclusivement par des locataires ayant effectué une visite.
                 </p>
               </div>
             </div>
-            <Button
-              variant="outline"
-              size="sm"
-              className="bg-white border-sahel-300 text-sahel-900 hover:bg-sahel-100 shrink-0"
-              onClick={() => setIsProofModalOpen(true)}
-            >
-              Voir la preuve cadastrale
-            </Button>
-          </div>
 
-          {/* KEY AMENITIES & SPECS GRID */}
-          <div className="space-y-4">
-            <h3 className="font-display font-bold text-lg text-charcoal-900">
-              Caractéristiques du bien
-            </h3>
-            
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs font-semibold text-charcoal-800">
-              <div className="p-3.5 rounded-xl bg-sand-200/80 border border-argile-200">
-                <span className="text-charcoal-500 block text-[11px]">Surface</span>
-                <span className="text-base font-bold text-charcoal-900">{property.surface} m²</span>
-              </div>
-              <div className="p-3.5 rounded-xl bg-sand-200/80 border border-argile-200">
-                <span className="text-charcoal-500 block text-[11px]">Pièces</span>
-                <span className="text-base font-bold text-charcoal-900">{property.rooms} pièces</span>
-              </div>
-              <div className="p-3.5 rounded-xl bg-sand-200/80 border border-argile-200">
-                <span className="text-charcoal-500 block text-[11px]">Chambres</span>
-                <span className="text-base font-bold text-charcoal-900">{property.bedrooms}</span>
-              </div>
-              <div className="p-3.5 rounded-xl bg-sand-200/80 border border-argile-200">
-                <span className="text-charcoal-500 block text-[11px]">Salles de bain</span>
-                <span className="text-base font-bold text-charcoal-900">{property.bathrooms}</span>
-              </div>
-            </div>
-          </div>
-
-          {/* SENEGAL CONTEXT EQUIPMENT ICONS BLOCK */}
-          <div className="space-y-4 border-t border-argile-200 pt-6">
-            <h3 className="font-display font-bold text-lg text-charcoal-900">
-              Équipements & Confort au Sénégal
-            </h3>
-            
-            <div className="grid grid-cols-2 sm:grid-cols-3 gap-4 text-xs">
-              {property.hasGenerator && (
-                <div className="flex items-center gap-3 p-3 rounded-xl bg-white border border-argile-200">
-                  <div className="w-8 h-8 rounded-lg bg-amber-100 text-amber-700 flex items-center justify-center">
-                    <Zap className="w-4 h-4" />
-                  </div>
-                  <div>
-                    <span className="font-bold text-charcoal-900 block">Groupe Électrogène</span>
-                    <span className="text-[11px] text-charcoal-500">Relais automatique en cas de délestage</span>
-                  </div>
-                </div>
-              )}
-
-              {property.hasWaterTank && (
-                <div className="flex items-center gap-3 p-3 rounded-xl bg-white border border-argile-200">
-                  <div className="w-8 h-8 rounded-lg bg-blue-100 text-blue-700 flex items-center justify-center">
-                    <Droplet className="w-4 h-4" />
-                  </div>
-                  <div>
-                    <span className="font-bold text-charcoal-900 block">Réserve d'eau & Surpresseur</span>
-                    <span className="text-[11px] text-charcoal-500">Pression constante garantie</span>
-                  </div>
-                </div>
-              )}
-
-              {property.hasSecurityGuard && (
-                <div className="flex items-center gap-3 p-3 rounded-xl bg-white border border-argile-200">
-                  <div className="w-8 h-8 rounded-lg bg-emerald-100 text-emerald-700 flex items-center justify-center">
-                    <Shield className="w-4 h-4" />
-                  </div>
-                  <div>
-                    <span className="font-bold text-charcoal-900 block">Gardiennage 24/7</span>
-                    <span className="text-[11px] text-charcoal-500">Sécurité de la résidence</span>
-                  </div>
-                </div>
-              )}
-
-              {property.hasAirConditioning && (
-                <div className="flex items-center gap-3 p-3 rounded-xl bg-white border border-argile-200">
-                  <div className="w-8 h-8 rounded-lg bg-cyan-100 text-cyan-700 flex items-center justify-center">
-                    <Wind className="w-4 h-4" />
-                  </div>
-                  <div>
-                    <span className="font-bold text-charcoal-900 block">Climatisation Inverter</span>
-                    <span className="text-[11px] text-charcoal-500">Dans toutes les chambres</span>
-                  </div>
-                </div>
-              )}
-
-              {property.hasParking && (
-                <div className="flex items-center gap-3 p-3 rounded-xl bg-white border border-argile-200">
-                  <div className="w-8 h-8 rounded-lg bg-purple-100 text-purple-700 flex items-center justify-center">
-                    <Car className="w-4 h-4" />
-                  </div>
-                  <div>
-                    <span className="font-bold text-charcoal-900 block">Parking Sécurisé</span>
-                    <span className="text-[11px] text-charcoal-500">Emplacement réservé</span>
-                  </div>
-                </div>
-              )}
-
-              {property.hasWifi && (
-                <div className="flex items-center gap-3 p-3 rounded-xl bg-white border border-argile-200">
-                  <div className="w-8 h-8 rounded-lg bg-indigo-100 text-indigo-700 flex items-center justify-center">
-                    <Wifi className="w-4 h-4" />
-                  </div>
-                  <div>
-                    <span className="font-bold text-charcoal-900 block">Fibre Optique Wifi</span>
-                    <span className="text-[11px] text-charcoal-500">Haut débit prêt</span>
-                  </div>
-                </div>
-              )}
-            </div>
-          </div>
-
-          {/* DESCRIPTION */}
-          <div className="space-y-3 border-t border-argile-200 pt-6">
-            <h3 className="font-display font-bold text-lg text-charcoal-900">Description du logement</h3>
-            <p className="text-sm text-charcoal-700 leading-relaxed whitespace-pre-line">
-              {property.description}
-            </p>
-          </div>
-
-          {/* LOCALISATION & NEIGHBORHOOD MAP */}
-          <div className="space-y-3 border-t border-argile-200 pt-6">
-            <h3 className="font-display font-bold text-lg text-charcoal-900">Emplacement & Quartier</h3>
-            <p className="text-xs text-charcoal-600">
-              Proximité immédiate : {property.nearbyPlaces.join(' • ')}
-            </p>
-            <div className="h-72 rounded-2xl overflow-hidden border border-argile-200 shadow-sm">
-              <LeafletMap
-                properties={[property]}
-                selectedPropertyId={property.id}
-                center={[property.lat, property.lng]}
-                zoom={14}
-              />
-            </div>
-          </div>
-
-          {/* AGENT / LANDLORD PROFILE SECTION */}
-          <div className="p-6 rounded-2xl bg-white border border-argile-200 shadow-warm-card space-y-4">
-            <h3 className="font-display font-bold text-base text-charcoal-900">Proposé par un partenaire certifié</h3>
-            <div className="flex items-center gap-4">
-              <Avatar src={property.owner.avatar} name={property.owner.name} size="lg" isVerified />
-              <div className="space-y-1">
+            {/* Leave a review form if LOCATAIRE with EFFECTUE visit */}
+            {utilisateur?.role === 'LOCATAIRE' && hasEffectueVisit && (
+              <form onSubmit={handleSoumettreAvis} className="p-5 rounded-2xl bg-sahel-50/50 border border-sahel-200 space-y-4">
+                <h4 className="font-display font-bold text-sm text-sahel-900 flex items-center gap-2">
+                  <UserCheck className="w-4 h-4 text-sahel-700" />
+                  Laisser un avis suite à votre visite
+                </h4>
+                
                 <div className="flex items-center gap-2">
-                  <h4 className="font-display font-bold text-base text-charcoal-900">{property.owner.name}</h4>
-                  <Badge variant="sahel">{property.owner.role === 'COURTIER_CERTIFIE' ? 'Courtier Agréé' : 'Propriétaire Direct'}</Badge>
+                  <span className="text-xs text-charcoal-700 font-medium">Votre note :</span>
+                  <div className="flex items-center gap-1">
+                    {[1, 2, 3, 4, 5].map((star) => (
+                      <button
+                        key={star}
+                        type="button"
+                        onClick={() => setNewRating(star)}
+                        className="p-1 transition-transform hover:scale-110 focus:outline-none"
+                      >
+                        <Star
+                          className={`w-5 h-5 ${
+                            star <= newRating ? 'fill-amber-400 text-amber-500' : 'text-argile-300'
+                          }`}
+                        />
+                      </button>
+                    ))}
+                  </div>
                 </div>
-                <div className="flex items-center gap-3 text-xs text-charcoal-600">
-                  <span>⭐ {property.owner.rating} ({property.owner.reviewCount} avis certifiés)</span>
-                  <span>⚡ Réponse : {property.owner.responseTime}</span>
-                </div>
+
+                <textarea
+                  rows={3}
+                  value={newComment}
+                  onChange={(e) => setNewComment(e.target.value)}
+                  placeholder="Partagez votre retour d'expérience sur ce logement et le propriétaire..."
+                  className="w-full text-xs p-3 rounded-xl border border-argile-300 focus:outline-none focus:ring-2 focus:ring-sahel-500/30 bg-white resize-none"
+                />
+
+                <Button variant="primary" size="sm" type="submit" isLoading={isSubmittingAvis}>
+                  Publier mon avis
+                </Button>
+              </form>
+            )}
+
+            {/* Reviews List */}
+            {avisSummary?.avis && avisSummary.avis.length > 0 ? (
+              <div className="space-y-3">
+                {avisSummary.avis.map((av) => (
+                  <div key={av.id} className="p-4 bg-white rounded-2xl border border-argile-200 shadow-xs space-y-2">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <span className="font-display font-bold text-xs text-charcoal-900">
+                          {av.auteurPrenom} {av.auteurNom}
+                        </span>
+                        <div className="flex items-center gap-0.5">
+                          {[1, 2, 3, 4, 5].map((s) => (
+                            <Star
+                              key={s}
+                              className={`w-3 h-3 ${s <= av.note ? 'fill-amber-400 text-amber-500' : 'text-argile-200'}`}
+                            />
+                          ))}
+                        </div>
+                      </div>
+                      <span className="text-[10px] text-charcoal-400">
+                        {new Date(av.dateCreation).toLocaleDateString('fr-FR')}
+                      </span>
+                    </div>
+
+                    {av.commentaire && (
+                      <p className="text-xs text-charcoal-700 leading-relaxed">
+                        "{av.commentaire}"
+                      </p>
+                    )}
+                  </div>
+                ))}
               </div>
-            </div>
+            ) : (
+              <p className="text-xs text-charcoal-500 italic p-4 bg-white rounded-2xl border border-argile-200 text-center">
+                Aucun commentaire n'a encore été déposé pour cette annonce.
+              </p>
+            )}
           </div>
 
         </div>
 
-        {/* RIGHT COLUMN: STICKY BOOKING & TRANSACTION CARD */}
+        {/* RIGHT COLUMN: STICKY BOOKING / TRANSACTION CARD */}
         <div className="lg:col-span-1">
           <div className="sticky top-24 space-y-4">
             
@@ -310,44 +510,82 @@ export const PropertyDetailPage: React.FC = () => {
                 
                 {/* Price Display */}
                 <div>
-                  <span className="text-xs font-semibold text-charcoal-500 uppercase tracking-wider">Loyer Mensuel</span>
+                  <span className="text-xs font-semibold text-charcoal-500 uppercase tracking-wider">
+                    {property.modeTransaction === 'LOCATION' ? 'Loyer Mensuel' : 'Prix de Vente'}
+                  </span>
                   <div className="flex items-baseline gap-1 mt-0.5">
                     <span className="font-display font-extrabold text-3xl text-terracotta-600">
-                      {property.price.toLocaleString('fr-FR')} FCFA
+                      {property.prix.toLocaleString('fr-FR')} FCFA
                     </span>
-                    <span className="text-xs text-charcoal-500">{property.pricePeriod}</span>
+                    <span className="text-xs text-charcoal-500">
+                      {property.modeTransaction === 'LOCATION' ? '/ mois' : ''}
+                    </span>
                   </div>
                   <p className="text-[11px] text-sahel-800 font-semibold mt-1 flex items-center gap-1">
                     <CheckCircle2 className="w-3.5 h-3.5 text-sahel-600" />
-                    <span>Caution 100% sécurisée sous séquestre bancaire</span>
+                    <span>Caution 100% sécurisée sous séquestre Wave</span>
                   </p>
                 </div>
 
                 {/* Primary Action Buttons */}
                 <div className="space-y-3 pt-2">
-                  <Button
-                    variant="primary"
-                    size="lg"
-                    className="w-full justify-center"
-                    onClick={() => setIsVisitModalOpen(true)}
-                  >
-                    Demander une visite certifiée
-                  </Button>
                   
-                  <Button
-                    variant="secondary"
-                    size="lg"
-                    className="w-full justify-center"
-                    leftIcon={<Sparkles className="w-4 h-4 text-ocher-400" />}
-                  >
-                    Discuter avec l'IA E-Courtier
-                  </Button>
+                  {/* Case 1: Transaction already exists */}
+                  {existingTx ? (
+                    <div className="space-y-2 p-3.5 rounded-xl bg-emerald-50 border border-emerald-200">
+                      <p className="text-xs font-bold text-emerald-900 flex items-center gap-1.5">
+                        <FileCheck className="w-4 h-4 text-emerald-600" />
+                        Dossier de transaction en cours
+                      </p>
+                      <Button
+                        variant="primary"
+                        className="w-full justify-center bg-emerald-700 hover:bg-emerald-800 text-white"
+                        onClick={() => {
+                          setSelectedTx(existingTx);
+                          setIsTxModalOpen(true);
+                        }}
+                      >
+                        Gérer la caution & Signer le bail
+                      </Button>
+                    </div>
+                  ) : hasEffectueVisit ? (
+                    /* Case 2: Visit is EFFECTUE -> Option to initiate transaction */
+                    <div className="space-y-2 p-3.5 rounded-xl bg-sand-50 border border-terracotta-200">
+                      <p className="text-xs font-bold text-sahel-900 flex items-center gap-1.5">
+                        <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+                        Visite effectuée avec succès !
+                      </p>
+                      <p className="text-[11px] text-sahel-600">
+                        Vous pouvez dès maintenant réserver ce bien et consigner la caution sous séquestre.
+                      </p>
+                      <Button
+                        variant="primary"
+                        size="lg"
+                        className="w-full justify-center"
+                        isLoading={isInitiatingTx}
+                        onClick={handleInitierTransaction}
+                      >
+                        Initier la location / l'achat
+                      </Button>
+                    </div>
+                  ) : (
+                    /* Case 3: Request visit */
+                    <Button
+                      variant="primary"
+                      size="lg"
+                      className="w-full justify-center"
+                      onClick={handleDemanderVisiteClick}
+                    >
+                      Demander une visite du bien
+                    </Button>
+                  )}
+
                 </div>
 
                 <div className="text-[11px] text-charcoal-500 space-y-1.5 pt-2 border-t border-argile-200">
-                  <p>✔ Aucun frais de visite à l'avance</p>
-                  <p>✔ Déblocage des fonds après état des lieux signé</p>
-                  <p>✔ Bail généré conforme au code sénégalais</p>
+                  <p>✔ Aucun frais de visite préalable</p>
+                  <p>✔ Séquestre bloqué via Wave sandbox</p>
+                  <p>✔ Contrat de bail numérique avec double signature électronique</p>
                 </div>
 
               </CardBody>
@@ -358,90 +596,110 @@ export const PropertyDetailPage: React.FC = () => {
 
       </div>
 
-      {/* MOBILE STICKY BOTTOM BAR */}
-      <div className="lg:hidden fixed bottom-0 left-0 right-0 z-40 bg-white border-t border-argile-200 p-3 px-4 shadow-warm-hover flex items-center justify-between gap-3">
-        <div>
-          <span className="text-[10px] text-charcoal-500 font-semibold block">Loyer Mensuel</span>
-          <span className="font-display font-extrabold text-lg text-terracotta-600">
-            {property.price.toLocaleString('fr-FR')} F
-          </span>
-        </div>
-        <Button variant="primary" size="md" onClick={() => setIsVisitModalOpen(true)}>
-          Réserver une visite
-        </Button>
-      </div>
-
-      {/* MODAL: PROOF AUDIT DETAILS */}
-      <Modal
-        isOpen={isProofModalOpen}
-        onClose={() => setIsProofModalOpen(false)}
-        title="Audit & Preuves de Vérification Cadastrale"
-      >
-        <div className="space-y-4">
-          <div className="p-4 rounded-xl bg-sahel-50 border border-sahel-200 space-y-2 text-xs">
-            <h4 className="font-bold text-sahel-900 text-sm">Extrait du Registre Cadastral</h4>
-            <p><strong>Numéro de Parcelle :</strong> {property.verificationDetails.cadastralNumber}</p>
-            <p><strong>Propriétaire Légitime :</strong> {property.owner.name}</p>
-            <p><strong>Date d'Audit :</strong> {property.verificationDetails.titleProofDate}</p>
-          </div>
-          <p className="text-xs text-charcoal-600">
-            Cette annonce a fait l'objet d'un contrôle rigoureux. Les documents de propriété ainsi que l'identité de l'agent mandaté ont été validés par l'équipe juridique d'E-Courtier.
-          </p>
-        </div>
-      </Modal>
-
       {/* MODAL: VISIT REQUEST FORM */}
       <Modal
         isOpen={isVisitModalOpen}
         onClose={() => setIsVisitModalOpen(false)}
         title="Planifier une Visite du Logement"
       >
-        {!visitSubmitted ? (
-          <form
-            onSubmit={(e) => {
-              e.preventDefault();
-              setVisitSubmitted(true);
-            }}
-            className="space-y-4"
-          >
-            <p className="text-xs text-charcoal-600">
-              Choisissez le créneau qui vous convient. Un agent vous contactera pour confirmer le rendez-vous sur place à {property.neighborhood}.
-            </p>
-            
-            <div className="space-y-1.5">
-              <label className="text-xs font-semibold text-charcoal-800">Date souhaitée</label>
-              <input type="date" required className="w-full p-3 rounded-xl border border-argile-300 text-xs text-charcoal-900" />
-            </div>
-
-            <div className="space-y-1.5">
-              <label className="text-xs font-semibold text-charcoal-800">Votre Téléphone (WhatsApp)</label>
-              <input type="tel" required defaultValue="+221 " className="w-full p-3 rounded-xl border border-argile-300 text-xs text-charcoal-900" />
-            </div>
-
-            <Button type="submit" variant="primary" size="md" className="w-full justify-center">
-              Confirmer la demande de visite
-            </Button>
-          </form>
-        ) : (
-          <div className="text-center py-6 space-y-3">
-            <div className="w-12 h-12 rounded-full bg-sahel-100 text-sahel-700 flex items-center justify-center mx-auto">
-              <CheckCircle2 className="w-6 h-6" />
-            </div>
-            <h3 className="font-display font-bold text-base text-charcoal-900">Demande de visite transmise !</h3>
-            <p className="text-xs text-charcoal-600">
-              L'agent {property.owner.name} va valider votre rendez-vous sous 30 minutes via WhatsApp.
-            </p>
-            <Button variant="outline" size="sm" onClick={() => setIsVisitModalOpen(false)}>Fermer</Button>
+        <form onSubmit={handleConfirmVisit} className="space-y-4">
+          <p className="text-xs text-charcoal-600">
+            Sélectionnez la date et l'heure souhaitées pour visiter <strong>{property.titre}</strong>.
+          </p>
+          
+          <div className="space-y-1.5">
+            <label className="text-xs font-semibold text-charcoal-800 flex items-center gap-1">
+              <Calendar className="w-3.5 h-3.5 text-terracotta-500" /> Date souhaitée
+            </label>
+            <input
+              type="date"
+              required
+              min={new Date().toISOString().split('T')[0]}
+              value={visitDate}
+              onChange={(e) => setVisitDate(e.target.value)}
+              className="w-full p-3 rounded-xl border border-argile-300 text-xs text-charcoal-900 bg-sand-50"
+            />
           </div>
-        )}
+
+          <div className="space-y-1.5">
+            <label className="text-xs font-semibold text-charcoal-800 flex items-center gap-1">
+              <Clock className="w-3.5 h-3.5 text-terracotta-500" /> Heure de visite
+            </label>
+            <input
+              type="time"
+              required
+              value={visitTime}
+              onChange={(e) => setVisitTime(e.target.value)}
+              className="w-full p-3 rounded-xl border border-argile-300 text-xs text-charcoal-900 bg-sand-50"
+            />
+          </div>
+
+          <Button
+            type="submit"
+            variant="primary"
+            size="md"
+            className="w-full justify-center"
+            disabled={isSubmittingVisit}
+          >
+            {isSubmittingVisit ? 'Envoi en cours...' : 'Confirmer la demande de visite'}
+          </Button>
+        </form>
       </Modal>
 
-      {/* YET ANOTHER REACT LIGHTBOX */}
+      {/* MODAL: 360 VIRTUAL TOUR */}
+      {property.lienVisite360 && (
+        <Modal
+          isOpen={is360ModalOpen}
+          onClose={() => setIs360ModalOpen(false)}
+          title="Visite Virtuelle 360° du Logement"
+        >
+          <div className="space-y-4">
+            <div className="aspect-video w-full bg-charcoal-900 rounded-2xl overflow-hidden border border-argile-300 flex items-center justify-center">
+              <iframe
+                src={property.lienVisite360}
+                title="Visite 360"
+                className="w-full h-full border-0"
+                allowFullScreen
+              />
+            </div>
+            <div className="flex justify-end">
+              <a
+                href={property.lienVisite360}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-xs font-semibold text-terracotta-600 hover:text-terracotta-700 flex items-center gap-1"
+              >
+                Ouvrir en plein écran dans un nouvel onglet &rarr;
+              </a>
+            </div>
+          </div>
+        </Modal>
+      )}
+
+      {/* MODAL: SIGNALEMENT */}
+      <SignalementModal
+        annonceId={property.id}
+        annonceTitre={property.titre}
+        isOpen={isSignalementModalOpen}
+        onClose={() => setIsSignalementModalOpen(false)}
+      />
+
+      {/* MODAL: TRANSACTION DETAILS & LEASE SIGNATURE */}
+      <TransactionDetailsModal
+        isOpen={isTxModalOpen}
+        onClose={() => setIsTxModalOpen(false)}
+        transaction={selectedTx}
+        onRefresh={() => {
+          queryClient.invalidateQueries({ queryKey: ['my-transactions'] });
+        }}
+      />
+
+      {/* LIGHTBOX */}
       <Lightbox
         open={isLightboxOpen}
         close={() => setIsLightboxOpen(false)}
         index={selectedPhotoIndex}
-        slides={property.images.map((src) => ({ src }))}
+        slides={photosList.map((src) => ({ src }))}
       />
 
     </div>

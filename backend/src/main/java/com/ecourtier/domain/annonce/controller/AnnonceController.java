@@ -105,12 +105,21 @@ public class AnnonceController {
             @RequestParam(required = false) Boolean meuble,
             @RequestParam(required = false) Boolean animauxAcceptes,
             @RequestParam(required = false) StatutVerification statutVerification,
-            @RequestParam(required = false) ProximiteTag proximite
+            @RequestParam(required = false) ProximiteTag proximite,
+            @RequestParam(name = "include_indisponibles", required = false, defaultValue = "false") Boolean includeIndisponibles,
+            @RequestParam(name = "mes_annonces", required = false, defaultValue = "false") Boolean mesAnnonces,
+            @RequestParam(name = "mes-annonces", required = false, defaultValue = "false") Boolean mesAnnoncesDash,
+            Authentication authentication
     ) {
+        String auteurEmail = null;
+        if ((Boolean.TRUE.equals(mesAnnonces) || Boolean.TRUE.equals(mesAnnoncesDash)) && authentication != null) {
+            auteurEmail = authentication.getName();
+        }
+
         Page<AnnonceResponseDTO> result = annonceService.rechercherAnnonces(
                 pageable, budgetMin, budgetMax, type, modeTransaction,
                 superficieMin, nombrePieces, quartier, ville, meuble,
-                animauxAcceptes, statutVerification, proximite
+                animauxAcceptes, statutVerification, proximite, includeIndisponibles, auteurEmail
         );
         return ResponseEntity.ok(result);
     }
@@ -162,5 +171,19 @@ public class AnnonceController {
     ) {
         DocumentVerificationResponseDTO response = annonceService.ajouterDocumentVerification(id, typeDocument, file);
         return ResponseEntity.status(HttpStatus.CREATED).body(response);
+    }
+
+    @GetMapping("/{id}/documents/{documentId}/fichier")
+    @PreAuthorize("@annonceSecurityService.isOwnerOrAdmin(#id, authentication)")
+    @SecurityRequirement(name = "bearerAuth")
+    @Operation(summary = "Télécharger / consulter un document de vérification", description = "Accès sécurisé réservé à l'auteur de l'annonce ou un ADMIN.")
+    public ResponseEntity<org.springframework.core.io.Resource> obtenirFichierDocumentVerification(
+            @PathVariable UUID id,
+            @PathVariable UUID documentId
+    ) {
+        org.springframework.core.io.Resource resource = annonceService.obtenirFichierDocumentVerification(id, documentId);
+        return ResponseEntity.ok()
+                .header(org.springframework.http.HttpHeaders.CONTENT_DISPOSITION, "inline; filename=\"" + resource.getFilename() + "\"")
+                .body(resource);
     }
 }

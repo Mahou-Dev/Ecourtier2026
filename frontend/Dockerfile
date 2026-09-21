@@ -11,6 +11,9 @@ RUN npm install
 # Copy source code
 COPY . .
 
+# Run container as non-root node user
+USER node
+
 EXPOSE 3000
 
 # Run Vite dev server bound to 0.0.0.0 for container networking

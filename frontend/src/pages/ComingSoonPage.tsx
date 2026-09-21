@@ -57,7 +57,7 @@ export const ComingSoonPage: React.FC = () => {
 
         {/* Hero Subtitle */}
         <p className="text-base sm:text-xl text-charcoal-600 max-w-2xl mx-auto leading-relaxed">
-          Fini les arnaques sur WhatsApp et Facebook. <strong className="text-sahel-800 font-semibold">E-Courtier</strong> digitalise le marché immobilier avec un assistant IA, des annonces certifiées et une caution séquestre garantie.
+          Fini les arnaques sur WhatsApp et Facebook. <strong className="text-sahel-800 font-semibold">E-Courtier</strong> digitalise le marché immobilier avec un assistant IA, des annonces vérifiées et une caution séquestre garantie.
         </p>
 
         {/* Early Access Form */}
@@ -86,7 +86,7 @@ export const ComingSoonPage: React.FC = () => {
                   onClick={() => setRole('COURTIER')}
                   className={`flex-1 py-1.5 rounded-lg transition-all ${role === 'COURTIER' ? 'bg-white shadow-sm text-terracotta-600' : 'hover:text-charcoal-900'}`}
                 >
-                  Courtier Certifié
+                  Agent Pro
                 </button>
               </div>
 
@@ -260,7 +260,7 @@ export const ComingSoonPage: React.FC = () => {
               </p>
             </div>
             <Button variant="accent" size="sm">
-              Charte Certifiée
+              Charte Graphique
             </Button>
           </div>
 

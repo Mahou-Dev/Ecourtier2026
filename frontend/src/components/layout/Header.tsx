@@ -1,10 +1,20 @@
 import React from 'react';
-import { Link, useLocation } from 'react-router-dom';
-import { Home, Sparkles, Search, LayoutDashboard, User } from 'lucide-react';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
+import { Home, Sparkles, Search, LayoutDashboard, User, LogOut } from 'lucide-react';
 import { Button } from '../ui/Button';
+import { useAuthStore } from '../../store/useAuthStore';
+import { toast } from 'sonner';
 
 export const Header: React.FC = () => {
   const location = useLocation();
+  const navigate = useNavigate();
+  const { utilisateur, logout } = useAuthStore();
+
+  const handleLogout = () => {
+    logout();
+    toast.success('Déconnexion réussie');
+    navigate('/');
+  };
 
   return (
     <header className="sticky top-0 z-40 bg-sand-100/90 backdrop-blur-md border-b border-argile-200/80 transition-all">
@@ -42,24 +52,52 @@ export const Header: React.FC = () => {
             <span>Rechercher</span>
           </Link>
 
-          <Link
-            to="/dashboard"
-            className={`flex items-center gap-1.5 hover:text-terracotta-600 transition-colors ${
-              location.pathname === '/dashboard' ? 'text-terracotta-600 font-extrabold' : ''
-            }`}
-          >
-            <LayoutDashboard className="w-3.5 h-3.5 text-sahel-800" />
-            <span>Espace Partenaire</span>
-          </Link>
+          {(utilisateur?.role === 'PROPRIETAIRE' || utilisateur?.role === 'AGENT' || utilisateur?.role === 'ADMIN') && (
+            <Link
+              to="/dashboard"
+              className={`flex items-center gap-1.5 hover:text-terracotta-600 transition-colors ${
+                location.pathname === '/dashboard' ? 'text-terracotta-600 font-extrabold' : ''
+              }`}
+            >
+              <LayoutDashboard className="w-3.5 h-3.5 text-sahel-800" />
+              <span>Espace Partenaire</span>
+            </Link>
+          )}
         </nav>
 
         {/* Auth & Action Buttons */}
         <div className="flex items-center gap-2 xs:gap-3">
-          <Link to="/connexion">
-            <Button variant="ghost" size="sm" leftIcon={<User className="w-4 h-4" />}>
-              Connexion
-            </Button>
-          </Link>
+          {utilisateur ? (
+            <div className="flex items-center gap-2">
+              <div className="hidden sm:flex flex-col text-right">
+                <span className="text-xs font-bold text-charcoal-900">{utilisateur.prenom} {utilisateur.nom}</span>
+                <span className="text-[10px] text-terracotta-600 font-semibold">{utilisateur.role}</span>
+              </div>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={handleLogout}
+                title="Se déconnecter"
+                leftIcon={<LogOut className="w-4 h-4 text-charcoal-600" />}
+              >
+                Déconnexion
+              </Button>
+            </div>
+          ) : (
+            <>
+              <Link to="/connexion">
+                <Button variant="ghost" size="sm" leftIcon={<User className="w-4 h-4" />}>
+                  Connexion
+                </Button>
+              </Link>
+              
+              <Link to="/inscription">
+                <Button variant="outline" size="sm">
+                  Inscription
+                </Button>
+              </Link>
+            </>
+          )}
           
           <Link to="/recherche">
             <Button variant="primary" size="sm" leftIcon={<Sparkles className="w-4 h-4" />}>

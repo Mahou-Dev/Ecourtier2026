@@ -3,6 +3,7 @@ package com.ecourtier.domain.annonce.repository;
 import com.ecourtier.domain.annonce.entity.AnnonceEntity;
 import com.ecourtier.domain.annonce.entity.ModeTransaction;
 import com.ecourtier.domain.annonce.entity.ProximiteTag;
+import com.ecourtier.domain.annonce.entity.StatutPublication;
 import com.ecourtier.domain.annonce.entity.StatutVerification;
 import com.ecourtier.domain.annonce.entity.TypeBien;
 import jakarta.persistence.criteria.Join;
@@ -29,11 +30,58 @@ public class AnnonceSpecification {
             StatutVerification statutVerification,
             ProximiteTag proximite
     ) {
+        return filterAnnonces(budgetMin, budgetMax, type, modeTransaction, superficieMin,
+                nombrePieces, quartier, ville, meuble, animauxAcceptes, statutVerification, proximite, false);
+    }
+
+    public static Specification<AnnonceEntity> filterAnnonces(
+            BigDecimal budgetMin,
+            BigDecimal budgetMax,
+            TypeBien type,
+            ModeTransaction modeTransaction,
+            Double superficieMin,
+            Integer nombrePieces,
+            String quartier,
+            String ville,
+            Boolean meuble,
+            Boolean animauxAcceptes,
+            StatutVerification statutVerification,
+            ProximiteTag proximite,
+            Boolean includeIndisponibles
+    ) {
+        return filterAnnonces(budgetMin, budgetMax, type, modeTransaction, superficieMin,
+                nombrePieces, quartier, ville, meuble, animauxAcceptes, statutVerification, proximite, includeIndisponibles, null);
+    }
+
+    public static Specification<AnnonceEntity> filterAnnonces(
+            BigDecimal budgetMin,
+            BigDecimal budgetMax,
+            TypeBien type,
+            ModeTransaction modeTransaction,
+            Double superficieMin,
+            Integer nombrePieces,
+            String quartier,
+            String ville,
+            Boolean meuble,
+            Boolean animauxAcceptes,
+            StatutVerification statutVerification,
+            ProximiteTag proximite,
+            Boolean includeIndisponibles,
+            String auteurEmail
+    ) {
         return (root, query, criteriaBuilder) -> {
             List<Predicate> predicates = new ArrayList<>();
 
             // 1. Exclude soft deleted items by default
             predicates.add(criteriaBuilder.equal(root.get("supprime"), false));
+
+            // Filter by author email if requested (for landlord's own listings)
+            if (auteurEmail != null && !auteurEmail.trim().isEmpty()) {
+                predicates.add(criteriaBuilder.equal(root.get("utilisateur").get("email"), auteurEmail));
+            } else if (!Boolean.TRUE.equals(includeIndisponibles)) {
+                // Exclude unavailable (LOUEE, VENDUE, SUSPENDUE) unless includeIndisponibles is true
+                predicates.add(root.get("statutPublication").in(StatutPublication.LOUEE, StatutPublication.VENDUE, StatutPublication.SUSPENDUE).not());
+            }
 
             // 2. Budget Min & Max
             if (budgetMin != null) {

@@ -65,6 +65,7 @@ public class AnnonceService {
                 .prix(dto.getPrix())
                 .superficie(dto.getSuperficie())
                 .nombrePieces(dto.getNombrePieces())
+                .etage(dto.getEtage())
                 .quartier(dto.getQuartier())
                 .ville(dto.getVille())
                 .latitude(dto.getLatitude())
@@ -103,6 +104,7 @@ public class AnnonceService {
         if (dto.getPrix() != null) annonce.setPrix(dto.getPrix());
         if (dto.getSuperficie() != null) annonce.setSuperficie(dto.getSuperficie());
         if (dto.getNombrePieces() != null) annonce.setNombrePieces(dto.getNombrePieces());
+        if (dto.getEtage() != null) annonce.setEtage(dto.getEtage());
         if (dto.getQuartier() != null) annonce.setQuartier(dto.getQuartier());
         if (dto.getVille() != null) annonce.setVille(dto.getVille());
         if (dto.getLatitude() != null) annonce.setLatitude(dto.getLatitude());
@@ -143,10 +145,53 @@ public class AnnonceService {
             StatutVerification statutVerification,
             ProximiteTag proximite
     ) {
+        return rechercherAnnonces(pageable, budgetMin, budgetMax, type, modeTransaction, superficieMin,
+                nombrePieces, quartier, ville, meuble, animauxAcceptes, statutVerification, proximite, false);
+    }
+
+    @Transactional(readOnly = true)
+    public Page<AnnonceResponseDTO> rechercherAnnonces(
+            Pageable pageable,
+            BigDecimal budgetMin,
+            BigDecimal budgetMax,
+            TypeBien type,
+            ModeTransaction modeTransaction,
+            Double superficieMin,
+            Integer nombrePieces,
+            String quartier,
+            String ville,
+            Boolean meuble,
+            Boolean animauxAcceptes,
+            StatutVerification statutVerification,
+            ProximiteTag proximite,
+            Boolean includeIndisponibles
+    ) {
+        return rechercherAnnonces(pageable, budgetMin, budgetMax, type, modeTransaction, superficieMin,
+                nombrePieces, quartier, ville, meuble, animauxAcceptes, statutVerification, proximite, includeIndisponibles, null);
+    }
+
+    @Transactional(readOnly = true)
+    public Page<AnnonceResponseDTO> rechercherAnnonces(
+            Pageable pageable,
+            BigDecimal budgetMin,
+            BigDecimal budgetMax,
+            TypeBien type,
+            ModeTransaction modeTransaction,
+            Double superficieMin,
+            Integer nombrePieces,
+            String quartier,
+            String ville,
+            Boolean meuble,
+            Boolean animauxAcceptes,
+            StatutVerification statutVerification,
+            ProximiteTag proximite,
+            Boolean includeIndisponibles,
+            String auteurEmail
+    ) {
         Specification<AnnonceEntity> spec = AnnonceSpecification.filterAnnonces(
                 budgetMin, budgetMax, type, modeTransaction, superficieMin,
                 nombrePieces, quartier, ville, meuble, animauxAcceptes,
-                statutVerification, proximite
+                statutVerification, proximite, includeIndisponibles, auteurEmail
         );
 
         return annonceRepository.findAll(spec, pageable)
@@ -248,6 +293,18 @@ public class AnnonceService {
 
         DocumentVerificationEntity saved = documentVerificationRepository.save(doc);
         return annonceMapper.toDocumentDTO(saved);
+    }
+
+    @Transactional(readOnly = true)
+    public org.springframework.core.io.Resource obtenirFichierDocumentVerification(UUID annonceId, UUID documentId) {
+        DocumentVerificationEntity doc = documentVerificationRepository.findById(documentId)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Document introuvable"));
+
+        if (!doc.getAnnonce().getId().equals(annonceId)) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Le document n'appartient pas à cette annonce");
+        }
+
+        return fileStorageService.loadFileAsResource(doc.getUrl());
     }
 
     @Transactional(readOnly = true)

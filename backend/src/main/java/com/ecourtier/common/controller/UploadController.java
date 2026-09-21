@@ -23,15 +23,14 @@ public class UploadController {
 
     private final Path fileStorageLocation = Paths.get("uploads").toAbsolutePath().normalize();
 
-    @GetMapping("/{type}/{id}/{filename:.+}")
-    @Operation(summary = "Consulter un fichier téléversé", description = "Servir une image d'annonce ou un document de vérification.")
-    public ResponseEntity<Resource> getFile(
-            @PathVariable String type,
+    @GetMapping("/annonces/{id}/{filename:.+}")
+    @Operation(summary = "Consulter une photo d'annonce téléversée", description = "Servir une photo d'annonce publique.")
+    public ResponseEntity<Resource> getPhoto(
             @PathVariable String id,
             @PathVariable String filename
     ) {
         try {
-            Path filePath = fileStorageLocation.resolve(type).resolve(id).resolve(filename).normalize();
+            Path filePath = fileStorageLocation.resolve("annonces").resolve(id).resolve(filename).normalize();
             Resource resource = new UrlResource(filePath.toUri());
 
             if (resource.exists() && resource.isReadable()) {
@@ -51,7 +50,6 @@ public class UploadController {
     private String getContentType(String filename) {
         if (filename.toLowerCase().endsWith(".png")) return "image/png";
         if (filename.toLowerCase().endsWith(".webp")) return "image/webp";
-        if (filename.toLowerCase().endsWith(".pdf")) return "application/pdf";
         return "image/jpeg";
     }
 }

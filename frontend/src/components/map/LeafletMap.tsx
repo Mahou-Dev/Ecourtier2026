@@ -3,10 +3,11 @@ import { MapContainer, TileLayer, Marker, Popup, useMap } from 'react-leaflet';
 import MarkerClusterGroup from 'react-leaflet-cluster';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
-import { Property } from '../../mocks/properties';
+import { AnnonceDTO } from '../../types';
+import { getPhotoUrl } from '../../services/api';
 
 export interface LeafletMapProps {
-  properties: Property[];
+  properties: AnnonceDTO[];
   selectedPropertyId?: string | null;
   onSelectProperty?: (id: string) => void;
   center?: [number, number];
@@ -16,7 +17,7 @@ export interface LeafletMapProps {
 
 // Reactive controller component inside MapContainer to auto-pan and fit bounds
 const MapController: React.FC<{
-  properties: Property[];
+  properties: AnnonceDTO[];
   selectedPropertyId?: string | null;
   defaultCenter: [number, number];
   defaultZoom: number;
@@ -26,14 +27,19 @@ const MapController: React.FC<{
   useEffect(() => {
     if (selectedPropertyId) {
       const selected = properties.find((p) => p.id === selectedPropertyId);
-      if (selected) {
-        map.setView([selected.lat, selected.lng], 15, { animate: true });
+      if (selected && selected.latitude && selected.longitude) {
+        map.setView([selected.latitude, selected.longitude], 15, { animate: true });
       }
     } else if (properties.length > 1) {
-      const bounds = L.latLngBounds(properties.map((p) => [p.lat, p.lng]));
-      map.fitBounds(bounds, { padding: [40, 40], maxZoom: 15 });
-    } else if (properties.length === 1) {
-      map.setView([properties[0].lat, properties[0].lng], 14, { animate: true });
+      const validPoints = properties
+        .filter((p) => p.latitude && p.longitude)
+        .map((p) => [p.latitude, p.longitude] as [number, number]);
+      if (validPoints.length > 0) {
+        const bounds = L.latLngBounds(validPoints);
+        map.fitBounds(bounds, { padding: [40, 40], maxZoom: 15 });
+      }
+    } else if (properties.length === 1 && properties[0].latitude && properties[0].longitude) {
+      map.setView([properties[0].latitude, properties[0].longitude], 14, { animate: true });
     } else {
       map.setView(defaultCenter, defaultZoom);
     }
@@ -42,9 +48,9 @@ const MapController: React.FC<{
   return null;
 };
 
-// Custom E-Courtier Senegal Design System Price Badge Icon
-const createCustomIcon = (property: Property, isSelected: boolean) => {
-  const formattedPrice = (property.price / 1000).toLocaleString('fr-FR') + 'k FCFA';
+// Custom E-Courtier Senegal Price Badge Icon
+const createCustomIcon = (property: AnnonceDTO, isSelected: boolean) => {
+  const formattedPrice = (property.prix / 1000).toLocaleString('fr-FR') + 'k F';
   return L.divIcon({
     className: 'custom-map-pin',
     html: `
@@ -91,45 +97,44 @@ export const LeafletMap: React.FC<LeafletMapProps> = ({
           defaultZoom={zoom}
         />
 
-        <MarkerClusterGroup
-          chunkedLoading
-          maxClusterRadius={50}
-        >
-          {properties.map((property) => {
-            const isSelected = property.id === selectedPropertyId;
-            return (
-              <Marker
-                key={property.id}
-                position={[property.lat, property.lng]}
-                icon={createCustomIcon(property, isSelected)}
-                eventHandlers={{
-                  click: () => {
-                    if (onSelectProperty) onSelectProperty(property.id);
-                  },
-                }}
-              >
-                <Popup>
-                  <div className="p-1 max-w-[200px] font-body text-xs">
-                    <img
-                      src={property.images[0]}
-                      alt={property.title}
-                      className="w-full h-24 object-cover rounded-lg mb-2"
-                    />
-                    <div className="font-bold text-charcoal-900 line-clamp-1">
-                      {property.title}
+        <MarkerClusterGroup chunkedLoading maxClusterRadius={50}>
+          {properties
+            .filter((p) => p.latitude && p.longitude)
+            .map((property) => {
+              const isSelected = property.id === selectedPropertyId;
+              const photoUrl = property.photos && property.photos.length > 0 ? getPhotoUrl(property.photos[0].url) : getPhotoUrl();
+              return (
+                <Marker
+                  key={property.id}
+                  position={[property.latitude, property.longitude]}
+                  icon={createCustomIcon(property, isSelected)}
+                  eventHandlers={{
+                    click: () => {
+                      if (onSelectProperty) onSelectProperty(property.id);
+                    },
+                  }}
+                >
+                  <Popup>
+                    <div className="p-1 max-w-[200px] font-body text-xs">
+                      <img
+                        src={photoUrl}
+                        alt={property.titre}
+                        className="w-full h-24 object-cover rounded-lg mb-2"
+                      />
+                      <div className="font-bold text-charcoal-900 line-clamp-1">
+                        {property.titre}
+                      </div>
+                      <div className="text-terracotta-600 font-extrabold text-sm mt-1">
+                        {property.prix.toLocaleString('fr-FR')} FCFA
+                      </div>
+                      <div className="text-charcoal-500 text-[11px] mt-0.5">
+                        {property.quartier}, {property.ville}
+                      </div>
                     </div>
-                    <div className="text-terracotta-600 font-extrabold text-sm mt-1">
-                      {property.price.toLocaleString('fr-FR')} FCFA
-                      {property.pricePeriod || ''}
-                    </div>
-                    <div className="text-charcoal-500 text-[11px] mt-0.5">
-                      {property.neighborhood}, {property.city}
-                    </div>
-                  </div>
-                </Popup>
-              </Marker>
-            );
-          })}
+                  </Popup>
+                </Marker>
+              );
+            })}
         </MarkerClusterGroup>
       </MapContainer>
     </div>

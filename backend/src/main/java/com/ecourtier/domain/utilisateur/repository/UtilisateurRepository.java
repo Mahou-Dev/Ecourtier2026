@@ -7,8 +7,11 @@ import org.springframework.stereotype.Repository;
 import java.util.Optional;
 import java.util.UUID;
 
+import com.ecourtier.domain.utilisateur.entity.Role;
+
 @Repository
 public interface UtilisateurRepository extends JpaRepository<UtilisateurEntity, UUID> {
     Optional<UtilisateurEntity> findByEmail(String email);
     boolean existsByEmail(String email);
+    boolean existsByRole(Role role);
 }
