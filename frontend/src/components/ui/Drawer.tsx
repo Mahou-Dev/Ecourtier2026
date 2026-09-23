@@ -48,9 +48,9 @@ export const Drawer: React.FC<DrawerProps> = ({
   const motionProps = getMotionProps();
 
   const positionStyles = {
-    right: 'fixed inset-y-0 right-0 w-full sm:w-[420px] border-l border-argile-200 shadow-warm-hover',
-    left: 'fixed inset-y-0 left-0 w-full sm:w-[420px] border-r border-argile-200 shadow-warm-hover',
-    bottom: 'fixed inset-x-0 bottom-0 max-h-[88vh] rounded-t-3xl border-t border-argile-200 shadow-warm-hover',
+    right: 'fixed inset-y-0 right-0 w-full max-w-full sm:w-[420px] border-l border-argile-200 shadow-warm-hover overflow-x-hidden',
+    left: 'fixed inset-y-0 left-0 w-full max-w-full sm:w-[420px] border-r border-argile-200 shadow-warm-hover overflow-x-hidden',
+    bottom: 'fixed inset-x-0 bottom-0 max-h-[88vh] w-full max-w-full rounded-t-3xl border-t border-argile-200 shadow-warm-hover overflow-x-hidden',
   };
 
   return (

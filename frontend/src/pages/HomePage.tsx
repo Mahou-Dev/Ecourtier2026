@@ -98,9 +98,9 @@ export const HomePage: React.FC = () => {
                   </button>
                 </div>
 
-                <div className="flex items-center gap-1.5 text-xs font-semibold text-charcoal-700">
-                  <MapPin className="w-3.5 h-3.5 text-terracotta-500" />
-                  <span className="text-charcoal-500">Ville:</span>
+                <div className="flex flex-wrap items-center gap-1.5 text-xs font-semibold text-charcoal-700 min-w-0 max-w-full">
+                  <MapPin className="w-3.5 h-3.5 text-terracotta-500 shrink-0" />
+                  <span className="text-charcoal-500 shrink-0">Ville:</span>
                   {['Dakar', 'Ziguinchor', 'Saly'].map((c) => (
                     <button
                       key={c}
@@ -120,7 +120,7 @@ export const HomePage: React.FC = () => {
 
               {/* Natural Language Search Input */}
               <form onSubmit={handleSearchSubmit} className="space-y-3">
-                <div className="relative flex items-center">
+                <div className="relative flex items-center min-w-0 max-w-full">
                   <input
                     type="text"
                     value={naturalQuery}
@@ -130,13 +130,14 @@ export const HomePage: React.FC = () => {
                   />
                   <div className="absolute right-1.5">
                     <Button type="submit" variant="primary" size="md" leftIcon={<Search className="w-4 h-4" />}>
-                      Rechercher
+                      <span className="hidden xs:inline">Rechercher</span>
+                      <Search className="w-4 h-4 xs:hidden" />
                     </Button>
                   </div>
                 </div>
 
                 {/* Prompt Chips */}
-                <div className="flex items-center gap-2 overflow-x-auto no-scrollbar text-[11px] text-charcoal-500 pt-0.5">
+                <div className="flex items-center gap-2 overflow-x-auto min-w-0 max-w-full no-scrollbar text-[11px] text-charcoal-500 pt-0.5">
                   <span className="font-semibold text-sahel-800 shrink-0">Suggestions :</span>
                   {[
                     'F3 Nema Ziguinchor < 160k',

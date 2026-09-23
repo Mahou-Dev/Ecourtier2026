@@ -84,13 +84,13 @@ export const SearchResultsPage: React.FC = () => {
       <div className="w-full md:w-7/12 lg:w-1/2 flex flex-col h-full border-r border-argile-200">
         
         {/* Top Control & Quick Filters Bar */}
-        <div className="p-4 bg-white border-b border-argile-200 space-y-3 shrink-0">
-          <div className="flex items-center justify-between gap-2">
-            <div>
-              <h1 className="font-display font-extrabold text-lg text-charcoal-900">
+        <div className="p-4 bg-white border-b border-argile-200 space-y-3 shrink-0 min-w-0 max-w-full overflow-hidden">
+          <div className="flex items-center justify-between gap-2 min-w-0 max-w-full">
+            <div className="min-w-0">
+              <h1 className="font-display font-extrabold text-base sm:text-lg text-charcoal-900 truncate">
                 Logements Disponibles ({data?.totalElements ?? 0})
               </h1>
-              <p className="text-xs text-charcoal-500">
+              <p className="text-[11px] sm:text-xs text-charcoal-500 truncate">
                 Dakar, Ziguinchor, Saly &bull; Annonces contrôlées par E-Courtier
               </p>
             </div>
@@ -99,13 +99,15 @@ export const SearchResultsPage: React.FC = () => {
               size="sm"
               leftIcon={<SlidersHorizontal className="w-4 h-4 text-terracotta-500" />}
               onClick={() => setIsFilterDrawerOpen(true)}
+              className="shrink-0"
             >
-              Filtres Avancés
+              <span className="hidden xs:inline">Filtres Avancés</span>
+              <span className="xs:hidden">Filtres</span>
             </Button>
           </div>
 
           {/* Quick Filter Chips */}
-          <div className="flex items-center gap-2 overflow-x-auto no-scrollbar text-xs font-semibold">
+          <div className="flex items-center gap-2 overflow-x-auto min-w-0 max-w-full no-scrollbar text-xs font-semibold">
             {['TOUS', 'Dakar', 'Ziguinchor', 'Saly', 'Thiès'].map((c) => (
               <button
                 key={c}

@@ -30,3 +30,22 @@
     background: radial-gradient(circle at 50% 0%, #FAF5EC 0%, #FDFBF7 100%);
   }
 }
+
+/* LEAFLET RESPONSIVE CONTROL OVERRIDES */
+.leaflet-container {
+  max-width: 100% !important;
+  width: 100% !important;
+}
+
+.leaflet-control-container .leaflet-bottom {
+  max-width: 100% !important;
+}
+
+.leaflet-control-attribution {
+  max-width: 85vw !important;
+  font-size: 9px !important;
+  white-space: nowrap !important;
+  overflow: hidden !important;
+  text-overflow: ellipsis !important;
+}
+

@@ -37,7 +37,7 @@ export const Modal: React.FC<ModalProps> = ({
         {/* Dialog Content Container with automatic Focus-Trap & Escape listener */}
         <Dialog.Content
           className={cn(
-            'fixed left-[50%] top-[50%] z-50 w-full translate-x-[-50%] translate-y-[-50%] bg-white rounded-2xl shadow-warm-hover overflow-hidden border border-argile-200 flex flex-col focus:outline-none animate-in fade-in zoom-in-95 duration-200 p-0',
+            'fixed left-[50%] top-[50%] z-50 w-full max-w-[calc(100vw-1.5rem)] translate-x-[-50%] translate-y-[-50%] bg-white rounded-2xl shadow-warm-hover overflow-hidden border border-argile-200 flex flex-col focus:outline-none animate-in fade-in zoom-in-95 duration-200 p-0',
             sizes[size],
             className
           )}

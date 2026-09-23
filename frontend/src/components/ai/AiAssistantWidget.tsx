@@ -117,7 +117,7 @@ export const AiAssistantWidget: React.FC = () => {
 
       {/* Chat Window Panel */}
       {isOpen && (
-        <div className="w-[360px] xs:w-[400px] sm:w-[440px] h-[580px] bg-white rounded-3xl shadow-warm-hover border border-argile-200 flex flex-col overflow-hidden animate-in fade-in slide-in-from-bottom-5">
+        <div className="w-[calc(100vw-2.5rem)] max-w-[420px] sm:w-[420px] h-[500px] sm:h-[580px] bg-white rounded-3xl shadow-warm-hover border border-argile-200 flex flex-col overflow-hidden animate-in fade-in slide-in-from-bottom-5">
           
           {/* Header */}
           <div className="p-4 bg-sahel-800 text-white flex items-center justify-between">

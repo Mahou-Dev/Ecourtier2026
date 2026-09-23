@@ -73,10 +73,10 @@ export const LeafletMap: React.FC<LeafletMapProps> = ({
   onSelectProperty,
   center = [14.6937, -17.4441], // Default Dakar
   zoom = 12,
-  className = 'w-full h-full min-h-[400px]',
+  className = 'w-full h-full min-h-[300px]',
 }) => {
   return (
-    <div className={className}>
+    <div className={`w-full max-w-full overflow-hidden relative ${className}`}>
       <MapContainer
         center={center}
         zoom={zoom}

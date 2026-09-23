@@ -18,25 +18,22 @@ export const Header: React.FC = () => {
 
   return (
     <header className="sticky top-0 z-40 bg-sand-100/90 backdrop-blur-md border-b border-argile-200/80 transition-all">
-      <div className="max-w-7xl mx-auto px-4 xs:px-6 lg:px-8 h-18 sm:h-20 flex items-center justify-between">
+      <div className="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8 h-16 sm:h-20 flex items-center justify-between">
         
         {/* Brand Logo */}
-        <Link to="/" className="flex items-center gap-3 group">
-          <div className="w-10 h-10 sm:w-11 sm:h-11 rounded-xl bg-terracotta-500 flex items-center justify-center text-white shadow-terracotta-glow group-hover:scale-105 transition-transform">
-            <Home className="w-5 h-5 sm:w-6 sm:h-6" />
+        <Link to="/" className="flex items-center gap-2 sm:gap-3 group shrink-0">
+          <div className="w-9 h-9 sm:w-11 sm:h-11 rounded-xl bg-terracotta-500 flex items-center justify-center text-white shadow-terracotta-glow group-hover:scale-105 transition-transform">
+            <Home className="w-4.5 h-4.5 sm:w-6 sm:h-6" />
           </div>
           <div>
-            <div className="flex items-center gap-1.5">
-              <span className="font-display font-extrabold text-xl sm:text-2xl text-charcoal-800 tracking-tight">
+            <div className="flex items-center gap-1">
+              <span className="font-display font-extrabold text-lg sm:text-2xl text-charcoal-800 tracking-tight">
                 E-Courtier
               </span>
-              <span className="bg-ocher-500 text-charcoal-900 text-[10px] font-extrabold px-1.5 py-0.5 rounded tracking-wider uppercase">
+              <span className="bg-ocher-500 text-charcoal-900 text-[9px] sm:text-[10px] font-extrabold px-1 py-0.5 rounded tracking-wider uppercase">
                 SN
               </span>
             </div>
-            <p className="text-[11px] text-charcoal-500 font-medium hidden xs:block">
-              Immobilier Intelligent au Sénégal
-            </p>
           </div>
         </Link>
 
@@ -66,7 +63,7 @@ export const Header: React.FC = () => {
         </nav>
 
         {/* Auth & Action Buttons */}
-        <div className="flex items-center gap-2 xs:gap-3">
+        <div className="flex items-center gap-1.5 sm:gap-3 shrink-0">
           {utilisateur ? (
             <div className="flex items-center gap-2">
               <div className="hidden sm:flex flex-col text-right">
@@ -80,18 +77,18 @@ export const Header: React.FC = () => {
                 title="Se déconnecter"
                 leftIcon={<LogOut className="w-4 h-4 text-charcoal-600" />}
               >
-                Déconnexion
+                <span className="hidden sm:inline">Déconnexion</span>
               </Button>
             </div>
           ) : (
             <>
               <Link to="/connexion">
                 <Button variant="ghost" size="sm" leftIcon={<User className="w-4 h-4" />}>
-                  Connexion
+                  <span className="hidden sm:inline">Connexion</span>
                 </Button>
               </Link>
               
-              <Link to="/inscription">
+              <Link to="/inscription" className="hidden sm:inline-block">
                 <Button variant="outline" size="sm">
                   Inscription
                 </Button>
@@ -101,7 +98,8 @@ export const Header: React.FC = () => {
           
           <Link to="/recherche">
             <Button variant="primary" size="sm" leftIcon={<Sparkles className="w-4 h-4" />}>
-              Trouver un bien
+              <span className="hidden sm:inline">Trouver un bien</span>
+              <span className="sm:hidden text-xs">Trouver</span>
             </Button>
           </Link>
         </div>
