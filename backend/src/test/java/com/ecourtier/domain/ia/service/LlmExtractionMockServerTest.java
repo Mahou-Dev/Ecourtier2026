@@ -112,46 +112,5 @@ class LlmExtractionMockServerTest {
         assertEquals("Boucotte", result.getQuartier());
         assertEquals(new BigDecimal("95000"), result.getBudgetMax());
     }
-
-    @Test
-    @DisplayName("Scénario 3 : Provider Mistral avec response_format json_object -> Extraction valide sans fallback")
-    void testMistralProviderExtraction() {
-        ReflectionTestUtils.setField(llmExtractionService, "provider", "mistral");
-
-        mockHttpServer.createContext("/v1/chat/completions", exchange -> {
-            String mistralResponse = """
-                {
-                  "id": "cmpl-123456",
-                  "object": "chat.completion",
-                  "choices": [
-                    {
-                      "index": 0,
-                      "message": {
-                        "role": "assistant",
-                        "content": "{\\"budgetMax\\":95000,\\"type\\":\\"APPARTEMENT\\",\\"quartier\\":\\"Boucotte\\",\\"confiance\\":0.85}"
-                      },
-                      "finish_reason": "stop"
-                    }
-                  ]
-                }
-                """;
-            byte[] responseBytes = mistralResponse.getBytes(StandardCharsets.UTF_8);
-            exchange.getResponseHeaders().set("Content-Type", "application/json");
-            exchange.sendResponseHeaders(200, responseBytes.length);
-            try (OutputStream os = exchange.getResponseBody()) {
-                os.write(responseBytes);
-            }
-        });
-
-        ReflectionTestUtils.setField(llmExtractionService, "baseUrl", "http://localhost:" + mockPort + "/v1/chat/completions");
-
-        CriteresExtraitsDTO result = llmExtractionService.extractCriteria("Appartement à Boucotte pour 95000 FCFA");
-
-        assertNotNull(result);
-        assertEquals(TypeBien.APPARTEMENT, result.getType());
-        assertEquals("Boucotte", result.getQuartier());
-        assertEquals(new BigDecimal("95000"), result.getBudgetMax());
-        assertEquals(0.85, result.getConfiance());
-    }
 }
 

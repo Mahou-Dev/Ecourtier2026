@@ -26,7 +26,7 @@ public class LlmExtractionService {
     @Value("${ecourtier.ia.api-key:}")
     private String apiKey;
 
-    @Value("${ecourtier.ia.provider:claude}")
+    @Value("${ecourtier.ia.provider:gemini}")
     private String provider;
 
     @Value("${ecourtier.ia.base-url:}")
@@ -89,8 +89,7 @@ public class LlmExtractionService {
 
         String defaultUrl = "gemini".equalsIgnoreCase(provider) ?
                 "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent" :
-                ("mistral".equalsIgnoreCase(provider) ? "https://api.mistral.ai/v1/chat/completions" :
-                ("claude".equalsIgnoreCase(provider) ? "https://api.anthropic.com/v1/messages" : "https://api.openai.com/v1/chat/completions"));
+                ("claude".equalsIgnoreCase(provider) ? "https://api.anthropic.com/v1/messages" : "https://api.openai.com/v1/chat/completions");
 
         String targetUrl = (baseUrl != null && !baseUrl.trim().isEmpty()) ? baseUrl : defaultUrl;
 
@@ -131,25 +130,6 @@ public class LlmExtractionService {
             String rawResponse = client.post()
                     .uri(targetUrl)
                     .header("x-goog-api-key", apiKey)
-                    .contentType(MediaType.APPLICATION_JSON)
-                    .body(body)
-                    .retrieve()
-                    .body(String.class);
-
-            return parseLlmJsonResponse(rawResponse);
-        } else if ("mistral".equalsIgnoreCase(provider)) {
-            Map<String, Object> body = Map.of(
-                    "model", "mistral-small-latest",
-                    "messages", List.of(
-                            Map.of("role", "system", "content", systemPrompt),
-                            Map.of("role", "user", "content", userMessage)
-                    ),
-                    "response_format", Map.of("type", "json_object")
-            );
-
-            String rawResponse = client.post()
-                    .uri(targetUrl)
-                    .header(HttpHeaders.AUTHORIZATION, "Bearer " + apiKey)
                     .contentType(MediaType.APPLICATION_JSON)
                     .body(body)
                     .retrieve()
