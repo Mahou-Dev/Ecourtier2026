@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
-import { AlertTriangle, X } from 'lucide-react';
+import { AlertTriangle } from 'lucide-react';
+import { Modal } from './Modal';
 import { Button } from './Button';
 import { Select } from './Select';
 import { apiFetch } from '../../services/api';
@@ -23,8 +24,6 @@ export const SignalementModal: React.FC<SignalementModalProps> = ({
   const [description, setDescription] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  if (!isOpen) return null;
-
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsSubmitting(true);
@@ -43,22 +42,15 @@ export const SignalementModal: React.FC<SignalementModalProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-charcoal-950/60 backdrop-blur-xs p-4">
-      <div className="bg-white w-full max-w-md rounded-2xl border border-argile-300 shadow-2xl p-6 relative animate-in fade-in zoom-in-95 duration-200">
-        <button
-          onClick={onClose}
-          className="absolute top-4 right-4 text-charcoal-400 hover:text-charcoal-700 p-1 rounded-lg"
-        >
-          <X className="w-5 h-5" />
-        </button>
-
-        <div className="flex items-center gap-3 mb-4">
-          <div className="w-10 h-10 rounded-full bg-rose-100 text-rose-600 flex items-center justify-center shrink-0">
+    <Modal isOpen={isOpen} onClose={onClose} title="Signaler cette annonce" size="sm">
+      <div className="space-y-4">
+        <div className="flex items-center gap-3 p-3 rounded-xl bg-rose-50 border border-rose-200">
+          <div className="w-9 h-9 rounded-full bg-rose-100 text-rose-600 flex items-center justify-center shrink-0">
             <AlertTriangle className="w-5 h-5" />
           </div>
-          <div>
-            <h3 className="font-display font-bold text-base text-charcoal-900">Signaler cette annonce</h3>
-            <p className="text-xs text-charcoal-500 line-clamp-1">{annonceTitre}</p>
+          <div className="min-w-0 flex-1">
+            <p className="text-xs font-bold text-sahel-900 truncate">{annonceTitre}</p>
+            <p className="text-[11px] text-sahel-600">Formulaire de modération</p>
           </div>
         </div>
 
@@ -99,6 +91,6 @@ export const SignalementModal: React.FC<SignalementModalProps> = ({
           </div>
         </form>
       </div>
-    </div>
+    </Modal>
   );
 };

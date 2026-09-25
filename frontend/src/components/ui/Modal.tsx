@@ -37,13 +37,13 @@ export const Modal: React.FC<ModalProps> = ({
         {/* Dialog Content Container with automatic Focus-Trap & Escape listener */}
         <Dialog.Content
           className={cn(
-            'fixed left-[50%] top-[50%] z-50 w-full max-w-[calc(100vw-1.5rem)] translate-x-[-50%] translate-y-[-50%] bg-white rounded-2xl shadow-warm-hover overflow-hidden border border-argile-200 flex flex-col focus:outline-none animate-in fade-in zoom-in-95 duration-200 p-0',
+            'fixed left-[50%] top-[50%] z-50 w-full max-w-[calc(100vw-1.5rem)] max-h-[calc(100dvh-2rem)] translate-x-[-50%] translate-y-[-50%] bg-white rounded-2xl shadow-warm-hover overflow-hidden border border-argile-200 flex flex-col focus:outline-none animate-in fade-in zoom-in-95 duration-200 p-0',
             sizes[size],
             className
           )}
         >
           {/* Header */}
-          <div className="flex items-center justify-between px-6 py-4 border-b border-argile-200 bg-sand-50/50">
+          <div className="flex items-center justify-between px-6 py-4 border-b border-argile-200 bg-sand-50/50 shrink-0">
             {title ? (
               <Dialog.Title className="font-display font-bold text-base text-charcoal-900">
                 {title}
@@ -63,7 +63,7 @@ export const Modal: React.FC<ModalProps> = ({
           </div>
 
           {/* Body Content */}
-          <div className="p-6 overflow-y-auto flex-1">{children}</div>
+          <div className="p-6 overflow-y-auto flex-1 min-h-0">{children}</div>
         </Dialog.Content>
       </Dialog.Portal>
     </Dialog.Root>
