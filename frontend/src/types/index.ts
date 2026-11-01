@@ -71,6 +71,7 @@ export interface AnnonceDTO {
   equipements: string[];
   proximites: string[];
   documentsVerification?: any[];
+  estFavori?: boolean;
 }
 
 export interface PageResponse<T> {
@@ -130,7 +131,10 @@ export interface TransactionResponseDTO {
   proprietaireId?: string;
   proprietaireNomComplet?: string;
   montantCaution: number;
+  montantPremierLoyer: number;
   fraisDossier: number;
+  montantTotalSequestre: number;
+  montantVerseProprietaire: number;
   statutSequestre: StatutSequestre;
   referenceWave?: string;
   statutBail: StatutBail;
@@ -142,7 +146,7 @@ export interface TransactionResponseDTO {
 }
 
 export interface TransactionRequestDTO {
-  montantCaution: number;
+  montantCaution?: number;
 }
 
 export interface AnnonceCreateInput {
@@ -218,3 +222,76 @@ export interface TraiterSignalementInput {
   statut: StatutSignalement;
   suspendreAnnonce?: boolean;
 }
+
+export interface MessageChatDTO {
+  id: string;
+  conversationId: string;
+  expediteur: UtilisateurDTO;
+  contenu: string;
+  dateEnvoi: string;
+  lu: boolean;
+}
+
+export interface ConversationChatDTO {
+  id: string;
+  annonceId: string;
+  annonceTitre: string;
+  locataire: UtilisateurDTO;
+  proprietaire: UtilisateurDTO;
+  dernierMessage?: MessageChatDTO;
+  nbMessagesNonLus: number;
+  dateCreation: string;
+}
+
+export interface SerieTemporelleDTO {
+  date: string;
+  valeur: number;
+}
+
+export interface RepartitionGeographiqueDTO {
+  ville: string;
+  quartier: string;
+  total: number;
+}
+
+export interface UtilisateursStatsDTO {
+  totalParRole: Record<string, number>;
+  nouvellesInscriptions: SerieTemporelleDTO[];
+}
+
+export interface AnnoncesStatsDTO {
+  totalParStatutPublication: Record<string, number>;
+  totalParStatutVerification: Record<string, number>;
+  repartitionParVilleQuartier: RepartitionGeographiqueDTO[];
+  prixMoyenParTypeBien: Record<string, number>;
+  tempsMoyenDecisionMinutes: number;
+}
+
+export interface ActiviteCommercialeStatsDTO {
+  nombreRdvParStatut: Record<string, number>;
+  tauxConversionRdvToTransaction: number;
+  tauxConversionTransactionToBail: number;
+  montantTotalSequestreBloque: number;
+  montantTotalLibere: number;
+}
+
+export interface ModerationStatsDTO {
+  signalementsParStatut: Record<string, number>;
+  signalementsParMotif: Record<string, number>;
+  noteMoyenneGlobale: number;
+}
+
+export interface AssistantIAStatsDTO {
+  nombreConversations: number;
+  tauxConversationsShortlistNonVide: number;
+}
+
+export interface AdminStatistiquesDTO {
+  periode: string;
+  utilisateurs: UtilisateursStatsDTO;
+  annonces: AnnoncesStatsDTO;
+  activiteCommerciale: ActiviteCommercialeStatsDTO;
+  moderation: ModerationStatsDTO;
+  assistantIA: AssistantIAStatsDTO;
+}
+
