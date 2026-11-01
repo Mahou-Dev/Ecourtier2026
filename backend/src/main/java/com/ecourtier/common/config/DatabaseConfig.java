@@ -17,13 +17,13 @@ import java.net.URI;
 @Slf4j
 public class DatabaseConfig {
 
-    @Value("${spring.datasource.url:jdbc:postgresql://localhost:5432/ecourtier_db}")
+    @Value("${spring.datasource.url:}")
     private String rawUrl;
 
-    @Value("${spring.datasource.username:ecourtier_user}")
+    @Value("${spring.datasource.username:}")
     private String username;
 
-    @Value("${spring.datasource.password:ecourtier_secure_pass_2026}")
+    @Value("${spring.datasource.password:}")
     private String password;
 
     @Value("${spring.datasource.driver-class-name:org.postgresql.Driver}")
@@ -34,10 +34,10 @@ public class DatabaseConfig {
     public DataSource dataSource() {
         boolean isH2Driver = driverClassName != null && driverClassName.toLowerCase().contains("h2");
         String finalUrl = resolveJdbcUrl(rawUrl, driverClassName);
-        String finalUsername = isH2Driver && (username == null || username.isBlank() || "ecourtier_user".equals(username))
+        String finalUsername = isH2Driver && (username == null || username.isBlank())
                 ? "sa"
                 : extractUsername(rawUrl, username);
-        String finalPassword = isH2Driver && ("ecourtier_secure_pass_2026".equals(password) || password == null)
+        String finalPassword = isH2Driver && password == null
                 ? ""
                 : extractPassword(rawUrl, password);
 
@@ -49,7 +49,7 @@ public class DatabaseConfig {
         config.setPassword(finalPassword);
         config.setDriverClassName(driverClassName);
         config.setMaximumPoolSize(10);
-        config.setInitializationFailTimeout(30000);
+        config.setInitializationFailTimeout(30000); // 30s timeout pour les cold starts cloud
 
         return new HikariDataSource(config);
     }
@@ -62,12 +62,17 @@ public class DatabaseConfig {
             }
             return "jdbc:h2:mem:ecourtier_mem;DB_CLOSE_DELAY=-1;MODE=PostgreSQL;DATABASE_TO_LOWER=TRUE";
         }
+        if (rawUrl == null || rawUrl.trim().isEmpty()) {
+            throw new IllegalStateException(
+                    "Démarrage refusé : SPRING_DATASOURCE_URL (spring.datasource.url) est obligatoire."
+            );
+        }
         return formatJdbcUrl(rawUrl);
     }
 
     public static String formatJdbcUrl(String rawUrl) {
         if (rawUrl == null || rawUrl.trim().isEmpty()) {
-            return "jdbc:postgresql://localhost:5432/ecourtier_db";
+            return "";
         }
         String urlToParse = rawUrl.trim();
         if (urlToParse.startsWith("jdbc:")) {
