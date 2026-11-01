@@ -7,6 +7,7 @@ import com.ecourtier.domain.annonce.entity.StatutPublication;
 import com.ecourtier.domain.annonce.entity.StatutVerification;
 import com.ecourtier.domain.annonce.entity.TypeBien;
 import com.ecourtier.domain.utilisateur.dto.UtilisateurResponseDTO;
+import io.swagger.v3.oas.annotations.media.Schema;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
@@ -38,6 +39,10 @@ public class AnnonceResponseDTO {
     private Double longitude;
     private boolean meuble;
     private boolean animauxAcceptes;
+
+    @Schema(description = "Indique si les demandes de visite sans conflit à ±60 min sont confirmées automatiquement", example = "true")
+    private boolean confirmationAutomatique;
+
     private String lienVisite360;
     private StatutVerification statutVerification;
     private StatutPublication statutPublication;

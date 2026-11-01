@@ -4,6 +4,7 @@ import com.ecourtier.domain.annonce.entity.Equipement;
 import com.ecourtier.domain.annonce.entity.ModeTransaction;
 import com.ecourtier.domain.annonce.entity.ProximiteTag;
 import com.ecourtier.domain.annonce.entity.TypeBien;
+import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
@@ -62,6 +63,11 @@ public class AnnonceCreateDTO {
 
     private boolean meuble;
     private boolean animauxAcceptes;
+
+    @Schema(description = "Confirmation automatique des demandes de visite sans conflit à ±60 min", example = "true", defaultValue = "true")
+    @Builder.Default
+    private Boolean confirmationAutomatique = true;
+
     private String lienVisite360;
 
     private Set<Equipement> equipements;

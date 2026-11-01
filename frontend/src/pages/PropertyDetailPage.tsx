@@ -589,7 +589,7 @@ export const PropertyDetailPage: React.FC = () => {
                           setIsTxModalOpen(true);
                         }}
                       >
-                        Gérer la caution & Signer le bail
+                        {property.modeTransaction === 'VENTE' ? "Gérer l'acompte & Signer la réservation" : "Gérer la caution & Signer le bail"}
                       </Button>
                     </div>
                   ) : hasEffectueVisit ? (
@@ -600,7 +600,9 @@ export const PropertyDetailPage: React.FC = () => {
                         Visite effectuée avec succès !
                       </p>
                       <p className="text-[11px] text-sahel-600">
-                        Vous pouvez dès maintenant réserver ce bien et consigner les fonds (caution + 1er loyer + frais) sous séquestre sécurisé.
+                        {property.modeTransaction === 'VENTE'
+                          ? "Vous pouvez dès maintenant réserver ce bien et consigner l'acompte de réservation (10 % du prix) sous séquestre sécurisé."
+                          : "Vous pouvez dès maintenant réserver ce bien et consigner les fonds (caution + 1er loyer + frais) sous séquestre sécurisé."}
                       </p>
                       <Button
                         variant="primary"
@@ -609,7 +611,7 @@ export const PropertyDetailPage: React.FC = () => {
                         isLoading={isInitiatingTx}
                         onClick={handleInitierTransaction}
                       >
-                        Initier la location / l'achat
+                        {property.modeTransaction === 'VENTE' ? "Initier la réservation d'achat" : "Initier la location"}
                       </Button>
                     </div>
                   ) : (

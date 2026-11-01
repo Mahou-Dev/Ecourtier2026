@@ -37,6 +37,7 @@ export const TransactionDetailsModal: React.FC<TransactionDetailsModalProps> = (
 
   if (!transaction) return null;
 
+  const isVente = transaction.modeTransaction === 'VENTE';
   const isLocataire = utilisateur?.id === transaction.locataireId;
   const isProprietaire = utilisateur?.id === transaction.proprietaireId;
 
@@ -75,7 +76,7 @@ export const TransactionDetailsModal: React.FC<TransactionDetailsModalProps> = (
       if (err.status === 403) {
         toast.error("Accès refusé : vous ne faites pas partie des signataires de ce contrat.");
       } else {
-        toast.error(err.message || 'Échec de la signature du bail');
+        toast.error(err.message || 'Échec de la signature');
       }
     } finally {
       setIsSigning(false);
@@ -87,9 +88,9 @@ export const TransactionDetailsModal: React.FC<TransactionDetailsModalProps> = (
     setIsDownloadingPdf(true);
     try {
       await downloadPdfBail(transaction.id);
-      toast.success('Téléchargement du contrat de bail démarré !');
+      toast.success(isVente ? 'Téléchargement du récapitulatif de réservation démarré !' : 'Téléchargement du contrat de bail démarré !');
     } catch (err: any) {
-      toast.error(err.message || 'Impossible de télécharger le bail');
+      toast.error(err.message || 'Impossible de télécharger le document PDF');
     } finally {
       setIsDownloadingPdf(false);
     }
@@ -112,15 +113,16 @@ export const TransactionDetailsModal: React.FC<TransactionDetailsModalProps> = (
   };
 
   const renderBailBadge = () => {
+    const labelPrefix = isVente ? 'Réservation' : 'Bail';
     switch (transaction.statutBail) {
       case 'NON_SIGNE':
-        return <Badge variant="neutral">Bail : Non signé</Badge>;
+        return <Badge variant="neutral">{labelPrefix} : Non signé</Badge>;
       case 'SIGNE_LOCATAIRE':
-        return <Badge variant="info">Bail : Signé par le locataire</Badge>;
+        return <Badge variant="info">{labelPrefix} : Signé par l'{isVente ? 'acheteur' : 'locataire'}</Badge>;
       case 'SIGNE_PROPRIETAIRE':
-        return <Badge variant="info">Bail : Signé par le propriétaire</Badge>;
+        return <Badge variant="info">{labelPrefix} : Signé par le {isVente ? 'vendeur' : 'propriétaire'}</Badge>;
       case 'SIGNE_COMPLET':
-        return <Badge variant="success">Bail : Signé complet (2/2)</Badge>;
+        return <Badge variant="success">{labelPrefix} : Signé complet (2/2)</Badge>;
       default:
         return null;
     }
@@ -138,7 +140,11 @@ export const TransactionDetailsModal: React.FC<TransactionDetailsModalProps> = (
               <h3 className="font-display font-bold text-base text-sahel-900">{transaction.annonceTitre}</h3>
             </div>
             <p className="text-xs text-sahel-600">
-              Locataire: <span className="font-semibold text-sahel-900">{transaction.locataireNomComplet}</span> | Propriétaire: <span className="font-semibold text-sahel-900">{transaction.proprietaireNomComplet || 'Agent'}</span>
+              {isVente ? (
+                <>Acheteur : <span className="font-semibold text-sahel-900">{transaction.locataireNomComplet}</span> | Vendeur : <span className="font-semibold text-sahel-900">{transaction.proprietaireNomComplet || 'Agent'}</span></>
+              ) : (
+                <>Locataire : <span className="font-semibold text-sahel-900">{transaction.locataireNomComplet}</span> | Propriétaire : <span className="font-semibold text-sahel-900">{transaction.proprietaireNomComplet || 'Agent'}</span></>
+              )}
             </p>
           </div>
           <div className="flex flex-wrap gap-2">
@@ -152,7 +158,7 @@ export const TransactionDetailsModal: React.FC<TransactionDetailsModalProps> = (
           <div className="flex items-center justify-between">
             <h4 className="font-display font-bold text-sm text-sahel-900 flex items-center gap-2">
               <CreditCard className="w-4 h-4 text-terracotta-500" />
-              <span>1. Séquestre Bancaire (Caution + 1er Loyer)</span>
+              <span>{isVente ? '1. Séquestre Bancaire — Acompte de réservation (10 % du prix)' : '1. Séquestre Bancaire (Caution + 1er Loyer)'}</span>
             </h4>
             {transaction.statutSequestre === 'BLOQUE' || transaction.statutSequestre === 'LIBERE' ? (
               <span className="text-xs font-bold text-emerald-700 flex items-center gap-1">
@@ -165,26 +171,45 @@ export const TransactionDetailsModal: React.FC<TransactionDetailsModalProps> = (
             )}
           </div>
 
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-xs">
-            <div className="p-3 rounded-xl bg-sand-50 border border-sand-200">
-              <p className="text-sahel-600">Caution</p>
-              <p className="font-display font-bold text-sm text-sahel-900">{transaction.montantCaution.toLocaleString('fr-FR')} FCFA</p>
+          {isVente ? (
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-3 text-xs">
+              <div className="p-3 rounded-xl bg-sand-50 border border-sand-200">
+                <p className="text-sahel-600">Acompte de réservation ({transaction.acomptePourcentage || 10} % du prix)</p>
+                <p className="font-display font-bold text-sm text-sahel-900">{transaction.montantCaution.toLocaleString('fr-FR')} FCFA</p>
+              </div>
+              <div className="p-3 rounded-xl bg-sand-50 border border-sand-200">
+                <p className="text-sahel-600">Frais de dossier plateforme</p>
+                <p className="font-display font-bold text-sm text-sahel-900">{transaction.fraisDossier.toLocaleString('fr-FR')} FCFA</p>
+              </div>
+              <div className="p-3 rounded-xl bg-terracotta-50/50 border border-terracotta-200">
+                <p className="text-terracotta-800 font-semibold">Total consigné en séquestre</p>
+                <p className="font-display font-bold text-sm text-terracotta-700">
+                  {(transaction.montantTotalSequestre ?? (transaction.montantCaution + transaction.fraisDossier)).toLocaleString('fr-FR')} FCFA
+                </p>
+              </div>
             </div>
-            <div className="p-3 rounded-xl bg-sand-50 border border-sand-200">
-              <p className="text-sahel-600">Premier loyer</p>
-              <p className="font-display font-bold text-sm text-sahel-900">{(transaction.montantPremierLoyer || 0).toLocaleString('fr-FR')} FCFA</p>
+          ) : (
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-xs">
+              <div className="p-3 rounded-xl bg-sand-50 border border-sand-200">
+                <p className="text-sahel-600">Caution</p>
+                <p className="font-display font-bold text-sm text-sahel-900">{transaction.montantCaution.toLocaleString('fr-FR')} FCFA</p>
+              </div>
+              <div className="p-3 rounded-xl bg-sand-50 border border-sand-200">
+                <p className="text-sahel-600">Premier loyer</p>
+                <p className="font-display font-bold text-sm text-sahel-900">{(transaction.montantPremierLoyer || 0).toLocaleString('fr-FR')} FCFA</p>
+              </div>
+              <div className="p-3 rounded-xl bg-sand-50 border border-sand-200">
+                <p className="text-sahel-600">Frais de dossier</p>
+                <p className="font-display font-bold text-sm text-sahel-900">{transaction.fraisDossier.toLocaleString('fr-FR')} FCFA</p>
+              </div>
+              <div className="p-3 rounded-xl bg-terracotta-50/50 border border-terracotta-200">
+                <p className="text-terracotta-800 font-semibold">Total consigné</p>
+                <p className="font-display font-bold text-sm text-terracotta-700">
+                  {(transaction.montantTotalSequestre ?? (transaction.montantCaution + (transaction.montantPremierLoyer || 0) + transaction.fraisDossier)).toLocaleString('fr-FR')} FCFA
+                </p>
+              </div>
             </div>
-            <div className="p-3 rounded-xl bg-sand-50 border border-sand-200">
-              <p className="text-sahel-600">Frais de dossier</p>
-              <p className="font-display font-bold text-sm text-sahel-900">{transaction.fraisDossier.toLocaleString('fr-FR')} FCFA</p>
-            </div>
-            <div className="p-3 rounded-xl bg-terracotta-50/50 border border-terracotta-200">
-              <p className="text-terracotta-800 font-semibold">Total consigné</p>
-              <p className="font-display font-bold text-sm text-terracotta-700">
-                {(transaction.montantTotalSequestre ?? (transaction.montantCaution + (transaction.montantPremierLoyer || 0) + transaction.fraisDossier)).toLocaleString('fr-FR')} FCFA
-              </p>
-            </div>
-          </div>
+          )}
 
           {transaction.referenceWave && (
             <div className="p-3 rounded-xl bg-emerald-50 border border-emerald-200 text-xs text-emerald-900 flex items-center justify-between">
@@ -200,7 +225,11 @@ export const TransactionDetailsModal: React.FC<TransactionDetailsModalProps> = (
                 <span>Fonds libérés avec succès</span>
               </div>
               <p>
-                Montant versé au propriétaire ({transaction.proprietaireNomComplet || 'Bailleur'}) : <strong>{(transaction.montantVerseProprietaire ?? (transaction.montantCaution + (transaction.montantPremierLoyer || 0))).toLocaleString('fr-FR')} FCFA</strong> (caution + premier loyer).
+                {isVente ? (
+                  <>Montant versé au vendeur ({transaction.proprietaireNomComplet || 'Vendeur'}) : <strong>{(transaction.montantVerseProprietaire ?? transaction.montantCaution).toLocaleString('fr-FR')} FCFA</strong> (acompte de réservation de {transaction.acomptePourcentage || 10} %).</>
+                ) : (
+                  <>Montant versé au propriétaire ({transaction.proprietaireNomComplet || 'Bailleur'}) : <strong>{(transaction.montantVerseProprietaire ?? (transaction.montantCaution + (transaction.montantPremierLoyer || 0))).toLocaleString('fr-FR')} FCFA</strong> (caution + premier loyer).</>
+                )}
               </p>
               <p className="text-emerald-700">
                 Frais de plateforme conservés : <strong>{transaction.fraisDossier.toLocaleString('fr-FR')} FCFA</strong>.
@@ -221,23 +250,23 @@ export const TransactionDetailsModal: React.FC<TransactionDetailsModalProps> = (
                 </Button>
               ) : (
                 <p className="text-xs text-sahel-600 italic">
-                  En attente du paiement du séquestre par le locataire ({transaction.locataireNomComplet}).
+                  En attente du paiement du séquestre par {isVente ? "l'acheteur" : "le locataire"} ({transaction.locataireNomComplet}).
                 </p>
               )}
             </div>
           )}
         </div>
 
-        {/* Step 2: Lease Signature */}
+        {/* Step 2: Lease or Sale Reservation Signature */}
         <div className="p-5 rounded-2xl border border-sand-300 bg-white space-y-4">
           <div className="flex items-center justify-between">
             <h4 className="font-display font-bold text-sm text-sahel-900 flex items-center gap-2">
               <FileCheck className="w-4 h-4 text-terracotta-500" />
-              <span>2. Signature Numérique du Contrat de Bail</span>
+              <span>{isVente ? "2. Signature Numérique du Récapitulatif de Réservation d'Achat" : "2. Signature Numérique du Contrat de Bail"}</span>
             </h4>
             {transaction.statutBail === 'SIGNE_COMPLET' ? (
               <span className="text-xs font-bold text-emerald-700 flex items-center gap-1">
-                <CheckCircle2 className="w-4 h-4 text-emerald-600" /> Bail signé complet
+                <CheckCircle2 className="w-4 h-4 text-emerald-600" /> {isVente ? 'Document signé complet' : 'Bail signé complet'}
               </span>
             ) : (
               <span className="text-xs font-bold text-amber-700 flex items-center gap-1">
@@ -253,7 +282,7 @@ export const TransactionDetailsModal: React.FC<TransactionDetailsModalProps> = (
               <div className="flex items-center gap-2">
                 <UserCheck className={`w-4 h-4 ${transaction.dateSignatureLocataire ? 'text-emerald-600' : 'text-sahel-500'}`} />
                 <div>
-                  <p className="font-bold">Signature Locataire</p>
+                  <p className="font-bold">{isVente ? 'Signature Acheteur' : 'Signature Locataire'}</p>
                   <p className="text-[11px]">{transaction.locataireNomComplet}</p>
                 </div>
               </div>
@@ -272,8 +301,8 @@ export const TransactionDetailsModal: React.FC<TransactionDetailsModalProps> = (
               <div className="flex items-center gap-2">
                 <UserCheck className={`w-4 h-4 ${transaction.dateSignatureProprietaire ? 'text-emerald-600' : 'text-sahel-500'}`} />
                 <div>
-                  <p className="font-bold">Signature Propriétaire</p>
-                  <p className="text-[11px]">{transaction.proprietaireNomComplet || 'Propriétaire'}</p>
+                  <p className="font-bold">{isVente ? 'Signature Vendeur' : 'Signature Propriétaire'}</p>
+                  <p className="text-[11px]">{transaction.proprietaireNomComplet || (isVente ? 'Vendeur' : 'Propriétaire')}</p>
                 </div>
               </div>
               {transaction.dateSignatureProprietaire ? (
@@ -296,7 +325,7 @@ export const TransactionDetailsModal: React.FC<TransactionDetailsModalProps> = (
                   isLoading={isSigning}
                   onClick={handleSignerBail}
                 >
-                  Signer le bail numérique
+                  {isVente ? "Signer le récapitulatif de réservation" : "Signer le bail numérique"}
                 </Button>
               ) : (
                 <div className="p-3 rounded-xl bg-amber-50 border border-amber-200 text-xs text-amber-900 flex items-center gap-2">
@@ -317,7 +346,11 @@ export const TransactionDetailsModal: React.FC<TransactionDetailsModalProps> = (
                 onClick={handleDownloadPdf}
               >
                 <Download className="w-4 h-4 text-terracotta-600" />
-                <span>Télécharger le contrat de bail PDF (Horodaté & Numéroté)</span>
+                <span>
+                  {isVente
+                    ? "Télécharger le récapitulatif de réservation d'achat (PDF horodaté)"
+                    : "Télécharger le contrat de bail PDF (Horodaté & Numéroté)"}
+                </span>
               </Button>
             </div>
           )}
