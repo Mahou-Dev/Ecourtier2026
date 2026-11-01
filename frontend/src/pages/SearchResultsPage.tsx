@@ -1,89 +1,356 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useSearchParams, Link } from 'react-router-dom';
-import { SlidersHorizontal, MapPin, ShieldCheck, Search, RefreshCw, ChevronLeft, ChevronRight } from 'lucide-react';
+import {
+  SlidersHorizontal,
+  MapPin,
+  ShieldCheck,
+  Search,
+  RefreshCw,
+  ChevronLeft,
+  ChevronRight,
+  X,
+  Check,
+} from 'lucide-react';
 import { useQuery } from '@tanstack/react-query';
 import { motion, useReducedMotion } from 'framer-motion';
 import { apiFetch, getPhotoUrl } from '../services/api';
 import { AnnonceDTO, PageResponse } from '../types';
 import { LeafletMap } from '../components/map/LeafletMap';
 import { Button } from '../components/ui/Button';
-import { Badge } from '../components/ui/Badge';
 import { Slider } from '../components/ui/Slider';
-import { Select } from '../components/ui/Select';
 import { Drawer } from '../components/ui/Drawer';
 import { Skeleton } from '../components/ui/Skeleton';
-import { PatternClaustra } from '../components/ui/PatternClaustra';
 import { FavoriteButton } from '../components/ui/FavoriteButton';
+import { useReferences } from '../hooks/useReferences';
+import { QuartierAutocomplete } from '../components/ui/QuartierAutocomplete';
+import { getProximiteMeta } from '../components/ui/ReferenceIcons';
 
 export const SearchResultsPage: React.FC = () => {
   const shouldReduceMotion = useReducedMotion();
   const [searchParams, setSearchParams] = useSearchParams();
+  const { data: references } = useReferences();
+
   const [selectedPropertyId, setSelectedPropertyId] = useState<string | null>(null);
   const [isFilterDrawerOpen, setIsFilterDrawerOpen] = useState(false);
 
-  // Filter States
-  const [cityFilter, setCityFilter] = useState<string>(searchParams.get('city') || searchParams.get('ville') || 'TOUS');
-  const [typeFilter, setTypeFilter] = useState<string>('TOUS');
-  const [modeTransactionFilter, setModeTransactionFilter] = useState<string>('TOUS');
-  const [proximiteFilter, setProximiteFilter] = useState<string>('TOUS');
-  const [maxPrice, setMaxPrice] = useState<number>(800000);
-  const [onlyVerified, setOnlyVerified] = useState<boolean>(false);
-  const [onlyFurnished, setOnlyFurnished] = useState<boolean>(false);
-  const [page, setPage] = useState<number>(0);
+  // Initialize filters from URL params
+  const [modeTransaction, setModeTransaction] = useState<string>(
+    searchParams.get('modeTransaction') || 'TOUS'
+  );
 
-  // TanStack Query fetching GET /api/v1/annonces with Spring Pageable
+  const [selectedTypes, setSelectedTypes] = useState<string[]>(() => {
+    const fromUrl = searchParams.getAll('type');
+    if (fromUrl.length > 0) return fromUrl;
+    const single = searchParams.get('type');
+    return single && single !== 'TOUS' ? [single] : [];
+  });
+
+  const [cityFilter, setCityFilter] = useState<string>(
+    searchParams.get('ville') || searchParams.get('city') || 'TOUS'
+  );
+
+  const [quartierFilter, setQuartierFilter] = useState<string>(
+    searchParams.get('quartier') || ''
+  );
+
+  const [budgetMin, setBudgetMin] = useState<number | undefined>(() => {
+    const val = searchParams.get('budgetMin');
+    return val ? Number(val) : undefined;
+  });
+
+  const [budgetMax, setBudgetMax] = useState<number | undefined>(() => {
+    const val = searchParams.get('budgetMax');
+    return val ? Number(val) : undefined;
+  });
+
+  const [superficieMin, setSuperficieMin] = useState<number | undefined>(() => {
+    const val = searchParams.get('superficieMin');
+    return val ? Number(val) : undefined;
+  });
+
+  const [nombrePieces, setNombrePieces] = useState<number | undefined>(() => {
+    const val = searchParams.get('nombrePieces');
+    return val ? Number(val) : undefined;
+  });
+
+  const [meubleFilter, setMeubleFilter] = useState<'TOUS' | 'MEUBLE' | 'NON_MEUBLE'>(() => {
+    const m = searchParams.get('meuble');
+    if (m === 'true') return 'MEUBLE';
+    if (m === 'false') return 'NON_MEUBLE';
+    return 'TOUS';
+  });
+
+  const [animauxAcceptes, setAnimauxAcceptes] = useState<boolean>(() => {
+    return searchParams.get('animauxAcceptes') === 'true';
+  });
+
+  const [selectedProximites, setSelectedProximites] = useState<string[]>(() => {
+    const fromUrl = searchParams.getAll('proximite');
+    if (fromUrl.length > 0) return fromUrl;
+    const single = searchParams.get('proximite');
+    return single && single !== 'TOUS' ? [single] : [];
+  });
+
+  const [onlyVerified, setOnlyVerified] = useState<boolean>(() => {
+    return (
+      searchParams.get('statutVerification') === 'VERIFIEE' ||
+      searchParams.get('onlyVerified') === 'true'
+    );
+  });
+
+  const [page, setPage] = useState<number>(() => {
+    const p = searchParams.get('page');
+    return p ? Number(p) : 0;
+  });
+
+  // Slider budget limits depend on modeTransaction
+  const sliderConfig = useMemo(() => {
+    if (modeTransaction === 'VENTE') {
+      return { min: 0, max: 200_000_000, step: 5_000_000 };
+    }
+    return { min: 0, max: 2_000_000, step: 25_000 };
+  }, [modeTransaction]);
+
+  // Synchronize filter states to URL search parameters
+  useEffect(() => {
+    const newParams = new URLSearchParams();
+    if (page > 0) newParams.set('page', page.toString());
+    if (modeTransaction !== 'TOUS') newParams.set('modeTransaction', modeTransaction);
+    selectedTypes.forEach((t) => newParams.append('type', t));
+    if (cityFilter !== 'TOUS') newParams.set('ville', cityFilter);
+    if (quartierFilter.trim()) newParams.set('quartier', quartierFilter.trim());
+    if (budgetMin !== undefined && budgetMin > 0) newParams.set('budgetMin', budgetMin.toString());
+    if (budgetMax !== undefined && budgetMax > 0) newParams.set('budgetMax', budgetMax.toString());
+    if (superficieMin !== undefined && superficieMin > 0) newParams.set('superficieMin', superficieMin.toString());
+    if (nombrePieces !== undefined && nombrePieces > 0) newParams.set('nombrePieces', nombrePieces.toString());
+    if (meubleFilter === 'MEUBLE') newParams.set('meuble', 'true');
+    if (meubleFilter === 'NON_MEUBLE') newParams.set('meuble', 'false');
+    if (animauxAcceptes) newParams.set('animauxAcceptes', 'true');
+    selectedProximites.forEach((p) => newParams.append('proximite', p));
+    if (onlyVerified) newParams.set('statutVerification', 'VERIFIEE');
+
+    setSearchParams(newParams, { replace: true });
+  }, [
+    page,
+    modeTransaction,
+    selectedTypes,
+    cityFilter,
+    quartierFilter,
+    budgetMin,
+    budgetMax,
+    superficieMin,
+    nombrePieces,
+    meubleFilter,
+    animauxAcceptes,
+    selectedProximites,
+    onlyVerified,
+    setSearchParams,
+  ]);
+
+  // Query fetching listings with all filters
   const { data, isLoading, isError, refetch } = useQuery<PageResponse<AnnonceDTO>>({
     queryKey: [
       'annonces',
+      modeTransaction,
+      selectedTypes,
       cityFilter,
-      typeFilter,
-      modeTransactionFilter,
-      proximiteFilter,
-      maxPrice,
+      quartierFilter,
+      budgetMin,
+      budgetMax,
+      superficieMin,
+      nombrePieces,
+      meubleFilter,
+      animauxAcceptes,
+      selectedProximites,
       onlyVerified,
-      onlyFurnished,
       page,
     ],
     queryFn: async () => {
       const params = new URLSearchParams();
       params.append('page', page.toString());
-      params.append('size', '9');
+      params.append('size', '12');
       params.append('tri', 'dateCreation');
       params.append('direction', 'DESC');
 
+      if (modeTransaction !== 'TOUS') params.append('modeTransaction', modeTransaction);
+      selectedTypes.forEach((t) => params.append('type', t));
       if (cityFilter !== 'TOUS') params.append('ville', cityFilter);
-      if (typeFilter !== 'TOUS') params.append('type', typeFilter);
-      if (modeTransactionFilter !== 'TOUS') params.append('modeTransaction', modeTransactionFilter);
-      if (proximiteFilter !== 'TOUS') params.append('proximite', proximiteFilter);
-      if (maxPrice > 0) params.append('budgetMax', maxPrice.toString());
-      if (onlyFurnished) params.append('meuble', 'true');
+      if (quartierFilter.trim()) params.append('quartier', quartierFilter.trim());
+      if (budgetMin !== undefined && budgetMin > 0) params.append('budgetMin', budgetMin.toString());
+      if (budgetMax !== undefined && budgetMax > 0) params.append('budgetMax', budgetMax.toString());
+      if (superficieMin !== undefined && superficieMin > 0) params.append('superficieMin', superficieMin.toString());
+      if (nombrePieces !== undefined && nombrePieces > 0) params.append('nombrePieces', nombrePieces.toString());
+      if (meubleFilter === 'MEUBLE') params.append('meuble', 'true');
+      if (meubleFilter === 'NON_MEUBLE') params.append('meuble', 'false');
+      if (animauxAcceptes) params.append('animauxAcceptes', 'true');
+      selectedProximites.forEach((p) => params.append('proximite', p));
+      if (onlyVerified) params.append('statutVerification', 'VERIFIEE');
 
       return apiFetch<PageResponse<AnnonceDTO>>(`/api/v1/annonces?${params.toString()}`);
     },
   });
 
-  const rawProperties = data?.content || [];
-  // Client filter for onlyVerified if specified (or backend statutVerification check)
-  const properties = onlyVerified
-    ? rawProperties.filter((p) => p.statutVerification === 'VERIFIEE')
-    : rawProperties;
+  const properties = data?.content || [];
 
   const handleResetFilters = () => {
+    setModeTransaction('TOUS');
+    setSelectedTypes([]);
     setCityFilter('TOUS');
-    setTypeFilter('TOUS');
-    setModeTransactionFilter('TOUS');
-    setProximiteFilter('TOUS');
-    setMaxPrice(800000);
+    setQuartierFilter('');
+    setBudgetMin(undefined);
+    setBudgetMax(undefined);
+    setSuperficieMin(undefined);
+    setNombrePieces(undefined);
+    setMeubleFilter('TOUS');
+    setAnimauxAcceptes(false);
+    setSelectedProximites([]);
     setOnlyVerified(false);
-    setOnlyFurnished(false);
     setPage(0);
-    setSearchParams({});
   };
+
+  const toggleType = (t: string) => {
+    setSelectedTypes((prev) =>
+      prev.includes(t) ? prev.filter((item) => item !== t) : [...prev, t]
+    );
+    setPage(0);
+  };
+
+  const toggleProximite = (p: string) => {
+    setSelectedProximites((prev) =>
+      prev.includes(p) ? prev.filter((item) => item !== p) : [...prev, p]
+    );
+    setPage(0);
+  };
+
+  // Active filter badges list
+  const activeChips = useMemo(() => {
+    const chips: Array<{ id: string; label: string; onRemove: () => void }> = [];
+
+    if (modeTransaction !== 'TOUS') {
+      chips.push({
+        id: 'mode',
+        label: modeTransaction === 'VENTE' ? 'Vente' : 'Location',
+        onRemove: () => setModeTransaction('TOUS'),
+      });
+    }
+
+    selectedTypes.forEach((t) => {
+      const match = references?.typesBien?.find((tb) => tb.valeur === t);
+      chips.push({
+        id: `type-${t}`,
+        label: match?.libelle || t,
+        onRemove: () => toggleType(t),
+      });
+    });
+
+    if (cityFilter !== 'TOUS') {
+      chips.push({
+        id: 'city',
+        label: `Ville : ${cityFilter}`,
+        onRemove: () => setCityFilter('TOUS'),
+      });
+    }
+
+    if (quartierFilter.trim()) {
+      chips.push({
+        id: 'quartier',
+        label: `Quartier : ${quartierFilter}`,
+        onRemove: () => setQuartierFilter(''),
+      });
+    }
+
+    if (budgetMin !== undefined && budgetMin > 0) {
+      chips.push({
+        id: 'budgetMin',
+        label: `Min : ${budgetMin.toLocaleString('fr-FR')} FCFA`,
+        onRemove: () => setBudgetMin(undefined),
+      });
+    }
+
+    if (budgetMax !== undefined && budgetMax > 0) {
+      chips.push({
+        id: 'budgetMax',
+        label: `Max : ${budgetMax.toLocaleString('fr-FR')} FCFA`,
+        onRemove: () => setBudgetMax(undefined),
+      });
+    }
+
+    if (superficieMin !== undefined && superficieMin > 0) {
+      chips.push({
+        id: 'superficieMin',
+        label: `≥ ${superficieMin} m²`,
+        onRemove: () => setSuperficieMin(undefined),
+      });
+    }
+
+    if (nombrePieces !== undefined && nombrePieces > 0) {
+      chips.push({
+        id: 'nombrePieces',
+        label: `${nombrePieces}+ pièces`,
+        onRemove: () => setNombrePieces(undefined),
+      });
+    }
+
+    if (meubleFilter === 'MEUBLE') {
+      chips.push({
+        id: 'meuble',
+        label: 'Meublé',
+        onRemove: () => setMeubleFilter('TOUS'),
+      });
+    } else if (meubleFilter === 'NON_MEUBLE') {
+      chips.push({
+        id: 'meuble',
+        label: 'Non meublé',
+        onRemove: () => setMeubleFilter('TOUS'),
+      });
+    }
+
+    if (animauxAcceptes) {
+      chips.push({
+        id: 'animaux',
+        label: 'Animaux acceptés',
+        onRemove: () => setAnimauxAcceptes(false),
+      });
+    }
+
+    selectedProximites.forEach((p) => {
+      const match = references?.proximites?.find((pr) => pr.valeur === p);
+      chips.push({
+        id: `prox-${p}`,
+        label: match?.libelle || p,
+        onRemove: () => toggleProximite(p),
+      });
+    });
+
+    if (onlyVerified) {
+      chips.push({
+        id: 'verified',
+        label: 'Vérifiées uniquement',
+        onRemove: () => setOnlyVerified(false),
+      });
+    }
+
+    return chips;
+  }, [
+    modeTransaction,
+    selectedTypes,
+    cityFilter,
+    quartierFilter,
+    budgetMin,
+    budgetMax,
+    superficieMin,
+    nombrePieces,
+    meubleFilter,
+    animauxAcceptes,
+    selectedProximites,
+    onlyVerified,
+    references,
+  ]);
 
   return (
     <div className="h-[calc(100vh-80px)] flex flex-col md:flex-row overflow-hidden bg-sand-100">
       
-      {/* LEFT COLUMN / TOP ON MOBILE: FILTER BAR & LISTINGS */}
+      {/* LEFT COLUMN: LISTINGS & FILTER BAR */}
       <div className="w-full md:w-7/12 lg:w-1/2 flex flex-col h-full border-r border-argile-200">
         
         {/* Top Control & Quick Filters Bar */}
@@ -94,7 +361,7 @@ export const SearchResultsPage: React.FC = () => {
                 Logements Disponibles ({data?.totalElements ?? 0})
               </h1>
               <p className="text-[11px] sm:text-xs text-charcoal-500 truncate">
-                Dakar, Ziguinchor, Saly &bull; Annonces contrôlées par E-Courtier
+                Dakar, Ziguinchor, Saly, Thiès &bull; Annonces contrôlées par E-Courtier
               </p>
             </div>
             <Button
@@ -109,8 +376,29 @@ export const SearchResultsPage: React.FC = () => {
             </Button>
           </div>
 
-          {/* Quick Filter Chips */}
+          {/* Quick Mode & City Filters */}
           <div className="flex items-center gap-2 overflow-x-auto min-w-0 max-w-full no-scrollbar text-xs font-semibold">
+            {/* Mode selection buttons */}
+            {(['TOUS', 'LOCATION', 'VENTE'] as const).map((m) => (
+              <button
+                key={m}
+                onClick={() => {
+                  setModeTransaction(m);
+                  setPage(0);
+                }}
+                className={`px-3 py-1.5 rounded-xl border transition-all whitespace-nowrap ${
+                  modeTransaction === m
+                    ? 'bg-terracotta-500 text-white border-terracotta-500 shadow-sm'
+                    : 'bg-sand-100 text-charcoal-700 border-argile-300 hover:bg-sand-200'
+                }`}
+              >
+                {m === 'TOUS' ? 'Tous les modes' : m === 'LOCATION' ? 'Location' : 'Vente'}
+              </button>
+            ))}
+
+            <div className="h-4 w-px bg-sand-300 shrink-0" />
+
+            {/* Quick Cities */}
             {['TOUS', 'Dakar', 'Ziguinchor', 'Saly', 'Thiès'].map((c) => (
               <button
                 key={c}
@@ -119,7 +407,9 @@ export const SearchResultsPage: React.FC = () => {
                   setPage(0);
                 }}
                 className={`px-3 py-1.5 rounded-xl border transition-all whitespace-nowrap ${
-                  cityFilter === c ? 'bg-sahel-800 text-white border-sahel-800' : 'bg-sand-100 text-charcoal-700 border-argile-300 hover:bg-sand-200'
+                  cityFilter === c
+                    ? 'bg-sahel-800 text-white border-sahel-800'
+                    : 'bg-sand-100 text-charcoal-700 border-argile-300 hover:bg-sand-200'
                 }`}
               >
                 {c === 'TOUS' ? 'Toutes les villes' : c}
@@ -129,13 +419,44 @@ export const SearchResultsPage: React.FC = () => {
             <button
               onClick={() => setOnlyVerified(!onlyVerified)}
               className={`px-3 py-1.5 rounded-xl border transition-all whitespace-nowrap flex items-center gap-1 ${
-                onlyVerified ? 'bg-terracotta-500 text-white border-terracotta-500' : 'bg-sand-100 text-charcoal-700 border-argile-300'
+                onlyVerified
+                  ? 'bg-emerald-600 text-white border-emerald-600'
+                  : 'bg-sand-100 text-charcoal-700 border-argile-300 hover:bg-sand-200'
               }`}
             >
               <ShieldCheck className="w-3.5 h-3.5" />
               <span>Vérifiées uniquement</span>
             </button>
           </div>
+
+          {/* Active Filter Pastilles (Chips) */}
+          {activeChips.length > 0 && (
+            <div className="flex flex-wrap items-center gap-1.5 pt-1 border-t border-sand-200">
+              <span className="text-[11px] font-semibold text-charcoal-500 mr-1">Filtres actifs :</span>
+              {activeChips.map((chip) => (
+                <span
+                  key={chip.id}
+                  className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium bg-terracotta-100 text-terracotta-900 border border-terracotta-200"
+                >
+                  <span>{chip.label}</span>
+                  <button
+                    type="button"
+                    onClick={chip.onRemove}
+                    className="p-0.5 hover:bg-terracotta-200 rounded-full transition-colors text-terracotta-700"
+                  >
+                    <X className="w-3 h-3" />
+                  </button>
+                </span>
+              ))}
+              <button
+                type="button"
+                onClick={handleResetFilters}
+                className="text-[11px] font-semibold text-charcoal-500 hover:text-terracotta-600 underline ml-1"
+              >
+                Effacer tout
+              </button>
+            </div>
+          )}
         </div>
 
         {/* LISTINGS FEED SCROLLABLE AREA */}
@@ -149,134 +470,132 @@ export const SearchResultsPage: React.FC = () => {
                   <div className="flex-1 space-y-3">
                     <Skeleton variant="text" className="w-3/4" />
                     <Skeleton variant="text" className="w-1/2" />
-                    <Skeleton variant="text" className="w-full" />
+                    <Skeleton variant="text" className="w-1/4" />
                   </div>
                 </div>
               ))}
             </div>
           ) : isError ? (
-            <div className="p-8 text-center space-y-4 bg-white rounded-2xl border border-argile-200 my-8">
-              <h3 className="font-display font-bold text-base text-charcoal-800">Erreur de chargement</h3>
-              <p className="text-xs text-charcoal-500">Impossible de récupérer les annonces pour le moment.</p>
-              <Button variant="primary" size="sm" onClick={() => refetch()} leftIcon={<RefreshCw className="w-4 h-4" />}>
+            <div className="text-center p-8 bg-white rounded-2xl border border-argile-200 space-y-3">
+              <p className="text-sm font-semibold text-charcoal-800">
+                Impossible de charger les annonces pour le moment.
+              </p>
+              <Button variant="outline" size="sm" onClick={() => refetch()} leftIcon={<RefreshCw className="w-4 h-4" />}>
                 Réessayer
               </Button>
             </div>
           ) : properties.length === 0 ? (
-            <div className="relative overflow-hidden p-8 sm:p-12 text-center space-y-4 bg-white rounded-2xl border border-argile-300 my-8 shadow-warm-card">
-              <PatternClaustra variant="terracotta" opacity={0.06} scale={1} />
-              <div className="relative z-10 w-14 h-14 rounded-full bg-terracotta-100 text-terracotta-600 flex items-center justify-center mx-auto shadow-xs">
-                <Search className="w-7 h-7" />
+            <div className="text-center p-12 bg-white rounded-2xl border border-argile-200 space-y-4">
+              <div className="w-12 h-12 rounded-full bg-sand-200 flex items-center justify-center mx-auto text-charcoal-500">
+                <Search className="w-6 h-6" />
               </div>
-              <div className="relative z-10 space-y-1.5 max-w-md mx-auto">
-                <h3 className="font-display font-extrabold text-lg text-charcoal-900">
-                  Aucun bien ne correspond à ces critères
-                </h3>
-                <p className="text-xs text-charcoal-600 leading-relaxed">
-                  Aucun logement vérifié n'est actuellement répertorié dans cette zone avec vos filtres exacts. Élargissez votre périmètre ou réinitialisez la recherche.
+              <div>
+                <h3 className="font-display font-bold text-base text-charcoal-900">Aucun résultat trouvé</h3>
+                <p className="text-xs text-charcoal-500 max-w-sm mx-auto mt-1">
+                  Aucune annonce ne correspond exactement à vos critères. Essayez d'élargir votre recherche ou de réinitialiser les filtres.
                 </p>
               </div>
-              <div className="relative z-10 pt-2">
-                <Button variant="primary" size="md" onClick={handleResetFilters} leftIcon={<RefreshCw className="w-4 h-4" />}>
-                  Réinitialiser les filtres
-                </Button>
-              </div>
+              <Button variant="outline" size="sm" onClick={handleResetFilters}>
+                Réinitialiser les filtres
+              </Button>
             </div>
           ) : (
             <>
-            <motion.div
-              initial={shouldReduceMotion ? 'visible' : 'hidden'}
-              animate="visible"
-              variants={{
-                hidden: { opacity: 0 },
-                visible: {
-                  opacity: 1,
-                  transition: {
-                    staggerChildren: shouldReduceMotion ? 0 : 0.05,
-                  },
-                },
-              }}
-              className="space-y-4"
-            >
-              {properties.map((prop) => {
-                const isSelected = prop.id === selectedPropertyId;
-                const firstPhoto = prop.photos && prop.photos.length > 0 ? getPhotoUrl(prop.photos[0].url) : getPhotoUrl();
-                return (
-                  <motion.div
-                    key={prop.id}
-                    variants={{
-                      hidden: { opacity: 0, y: shouldReduceMotion ? 0 : 12 },
-                      visible: {
-                        opacity: 1,
-                        y: 0,
-                        transition: { duration: 0.25, ease: 'easeOut' },
-                      },
-                    }}
-                    onMouseEnter={() => setSelectedPropertyId(prop.id)}
-                    className={`bg-white rounded-xl border transition-all duration-200 overflow-hidden shadow-warm-card flex flex-col sm:flex-row hover:-translate-y-0.5 hover:shadow-lg ${
-                      isSelected ? 'border-terracotta-500 ring-2 ring-terracotta-500/20 shadow-terracotta-card' : 'border-argile-200 hover:border-terracotta-400'
-                    }`}
-                  >
-                    {/* Property Image Container */}
-                    <div className="relative w-full sm:w-52 h-44 sm:h-auto shrink-0 bg-sand-200 overflow-hidden group">
-                      <img src={firstPhoto} alt={prop.titre} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" />
-                      {prop.statutVerification === 'VERIFIEE' && (
-                        <div className="absolute top-2 left-2">
-                          <Badge variant="sahel" className="text-[10px] px-2 py-0.5 font-bold">
-                            <ShieldCheck className="w-3 h-3 mr-1 inline" /> Vérifié
-                          </Badge>
-                        </div>
-                      )}
-                      <div className="absolute top-2 right-2">
-                        <FavoriteButton
-                          annonceId={prop.id}
-                          estFavori={prop.estFavori ?? false}
+              <motion.div
+                className="space-y-4"
+                initial={shouldReduceMotion ? false : { opacity: 0 }}
+                animate={{ opacity: 1 }}
+                transition={{ duration: 0.3 }}
+              >
+                {properties.map((prop) => {
+                  const isSelected = selectedPropertyId === prop.id;
+                  const photoUrl = prop.photos?.[0] ? getPhotoUrl(prop.photos[0].url) : '/placeholder.jpg';
+
+                  return (
+                    <motion.div
+                      key={prop.id}
+                      onClick={() => setSelectedPropertyId(prop.id)}
+                      className={`flex flex-col sm:flex-row gap-4 bg-white p-3.5 sm:p-4 rounded-2xl border transition-all cursor-pointer ${
+                        isSelected
+                          ? 'border-terracotta-500 ring-2 ring-terracotta-500/20 shadow-warm-hover'
+                          : 'border-argile-200 hover:border-argile-300 hover:shadow-warm-card'
+                      }`}
+                      whileHover={shouldReduceMotion ? undefined : { y: -2 }}
+                    >
+                      {/* Photo Thumbnail */}
+                      <div className="relative w-full sm:w-48 h-44 sm:h-36 shrink-0 rounded-xl overflow-hidden bg-sand-200">
+                        <img
+                          src={photoUrl}
+                          alt={prop.titre}
+                          loading="lazy"
+                          className="w-full h-full object-cover"
                         />
-                      </div>
-                    </div>
-
-                    {/* Property Details */}
-                    <div className="p-4 flex-1 flex flex-col justify-between space-y-3">
-                      <div>
-                        <div className="flex items-center justify-between text-xs text-sahel-800 font-semibold mb-1">
-                          <span className="flex items-center gap-1">
-                            <MapPin className="w-3.5 h-3.5 text-terracotta-500" />
-                            {prop.quartier}, {prop.ville}
+                        <div className="absolute top-2 left-2 flex flex-col gap-1">
+                          <span className={`text-[10px] font-extrabold uppercase px-2 py-0.5 rounded shadow ${
+                            prop.modeTransaction === 'VENTE' ? 'bg-amber-600 text-white' : 'bg-sahel-800 text-white'
+                          }`}>
+                            {prop.modeTransaction === 'VENTE' ? 'Vente' : 'Location'}
                           </span>
-                          <span className="text-terracotta-600 font-extrabold text-sm group-hover:scale-105 transition-transform origin-right">
-                            {prop.prix.toLocaleString('fr-FR')} FCFA {prop.modeTransaction === 'LOCATION' ? '/ mois' : ''}
-                          </span>
+                          {prop.statutVerification === 'VERIFIEE' && (
+                            <span className="bg-emerald-600 text-white text-[10px] font-bold px-1.5 py-0.5 rounded shadow flex items-center gap-1">
+                              <ShieldCheck className="w-3 h-3" /> Vérifié
+                            </span>
+                          )}
                         </div>
-                        <h3 className="font-display font-bold text-sm text-charcoal-900 line-clamp-2">
-                          {prop.titre}
-                        </h3>
-                      </div>
-
-                      {/* Vector Tags System */}
-                      <div className="flex items-center gap-2 text-xs text-charcoal-600 bg-sand-100/90 p-2 rounded-lg">
-                        <span className="font-mono text-[11px] bg-white px-2 py-0.5 rounded border border-argile-200">{prop.superficie} m²</span>
-                        <span className="font-mono text-[11px] bg-white px-2 py-0.5 rounded border border-argile-200">{prop.nombrePieces} pièces</span>
-                        {prop.meuble && <span className="bg-terracotta-100 text-terracotta-800 text-[10px] font-bold px-2 py-0.5 rounded">Meublé</span>}
-                        <span className="ml-auto font-mono text-[10px] uppercase bg-sahel-800 text-white px-2 py-0.5 rounded font-bold">{prop.type}</span>
-                      </div>
-
-                      <div className="flex items-center justify-between pt-1">
-                        <div className="flex items-center gap-1.5 text-[11px] text-charcoal-600">
-                          <span className="font-semibold text-charcoal-800">{prop.auteur?.prenom} {prop.auteur?.nom}</span>
+                        <div className="absolute top-2 right-2">
+                          <FavoriteButton
+                            annonceId={prop.id}
+                            estFavori={!!prop.estFavori}
+                            size="sm"
+                          />
                         </div>
-                        <Link to={`/annonce/${prop.id}`}>
-                          <Button variant="primary" size="sm" className="text-xs py-1.5 px-3">
-                            Voir la fiche
-                          </Button>
-                        </Link>
                       </div>
-                    </div>
-                  </motion.div>
-                );
-              })}
-            </motion.div>
 
-              {/* REAL SPRING PAGEABLE PAGINATION */}
+                      {/* Property Details */}
+                      <div className="flex-1 flex flex-col justify-between space-y-2">
+                        <div>
+                          <div className="flex items-center justify-between gap-2">
+                            <span className="font-display font-extrabold text-base text-terracotta-600">
+                              {prop.prix.toLocaleString('fr-FR')} FCFA
+                              {prop.modeTransaction === 'LOCATION' && <span className="text-xs text-charcoal-500 font-normal"> /mois</span>}
+                            </span>
+                            <span className="text-xs text-charcoal-500 flex items-center gap-1 truncate max-w-[140px]">
+                              <MapPin className="w-3.5 h-3.5 shrink-0 text-terracotta-500" />
+                              <span className="truncate">{prop.ville} ({prop.quartier})</span>
+                            </span>
+                          </div>
+
+                          <h3 className="font-display font-bold text-sm text-charcoal-900 line-clamp-2 mt-1">
+                            {prop.titre}
+                          </h3>
+                        </div>
+
+                        {/* Vector Tags System */}
+                        <div className="flex flex-wrap items-center gap-1.5 text-xs text-charcoal-600 bg-sand-100/90 p-2 rounded-lg">
+                          <span className="font-mono text-[11px] bg-white px-2 py-0.5 rounded border border-argile-200">{prop.superficie} m²</span>
+                          <span className="font-mono text-[11px] bg-white px-2 py-0.5 rounded border border-argile-200">{prop.nombrePieces} pièces</span>
+                          {prop.meuble && <span className="bg-terracotta-100 text-terracotta-800 text-[10px] font-bold px-2 py-0.5 rounded">Meublé</span>}
+                          {prop.animauxAcceptes && <span className="bg-emerald-100 text-emerald-800 text-[10px] font-bold px-2 py-0.5 rounded">Animaux OK</span>}
+                          <span className="ml-auto font-mono text-[10px] uppercase bg-sahel-800 text-white px-2 py-0.5 rounded font-bold">{prop.type}</span>
+                        </div>
+
+                        <div className="flex items-center justify-between pt-1">
+                          <div className="flex items-center gap-1.5 text-[11px] text-charcoal-600">
+                            <span className="font-semibold text-charcoal-800">{prop.auteur?.prenom} {prop.auteur?.nom}</span>
+                          </div>
+                          <Link to={`/annonce/${prop.id}`}>
+                            <Button variant="primary" size="sm" className="text-xs py-1.5 px-3">
+                              Voir la fiche
+                            </Button>
+                          </Link>
+                        </div>
+                      </div>
+                    </motion.div>
+                  );
+                })}
+              </motion.div>
+
+              {/* SPRING PAGEABLE PAGINATION */}
               {data && data.totalPages > 1 && (
                 <div className="flex items-center justify-between pt-4 pb-2 text-xs font-semibold text-charcoal-700 border-t border-argile-200">
                   <span>Page {data.number + 1} sur {data.totalPages}</span>
@@ -308,7 +627,7 @@ export const SearchResultsPage: React.FC = () => {
         </div>
       </div>
 
-      {/* RIGHT COLUMN / BOTTOM ON MOBILE: SYNCHRONIZED LEAFLET MAP */}
+      {/* RIGHT COLUMN: SYNCHRONIZED LEAFLET MAP */}
       <div className="w-full md:w-5/12 lg:w-1/2 h-64 md:h-full relative shrink-0">
         <LeafletMap
           properties={properties}
@@ -325,122 +644,309 @@ export const SearchResultsPage: React.FC = () => {
       >
         <div className="space-y-6">
           
-          {/* City */}
-          <Select
-            label="Ville"
-            options={[
-              { value: 'TOUS', label: 'Toutes les villes' },
-              { value: 'Dakar', label: 'Dakar' },
-              { value: 'Ziguinchor', label: 'Ziguinchor' },
-              { value: 'Saly', label: 'Saly' },
-              { value: 'Thiès', label: 'Thiès' },
-            ]}
-            value={cityFilter}
-            onChange={(val) => {
-              setCityFilter(val);
-              setPage(0);
-            }}
-          />
-
           {/* Mode Transaction */}
-          <Select
-            label="Mode de Transaction"
-            options={[
-              { value: 'TOUS', label: 'Tous les modes' },
-              { value: 'LOCATION', label: 'Location' },
-              { value: 'VENTE', label: 'Vente' },
-            ]}
-            value={modeTransactionFilter}
-            onChange={(val) => {
-              setModeTransactionFilter(val);
-              setPage(0);
-            }}
-          />
-
-          {/* Type */}
-          <Select
-            label="Type de bien"
-            options={[
-              { value: 'TOUS', label: 'Tous les types' },
-              { value: 'APPARTEMENT', label: 'Appartement' },
-              { value: 'VILLA', label: 'Villa' },
-              { value: 'STUDIO', label: 'Studio' },
-            ]}
-            value={typeFilter}
-            onChange={(val) => {
-              setTypeFilter(val);
-              setPage(0);
-            }}
-          />
-
-          {/* Proximité */}
-          <Select
-            label="Proximité (Écoles, Hôpitaux, Transports...)"
-            options={[
-              { value: 'TOUS', label: 'Toutes proximités' },
-              { value: 'ECOLE', label: 'Écoles / Universités' },
-              { value: 'HOPITAL', label: 'Hôpitaux / Pharmacies' },
-              { value: 'MARCHE', label: 'Marchés / Commerces' },
-              { value: 'TRANSPORT', label: 'Transports en commun (BRT/TER)' },
-              { value: 'COMMERCE', label: 'Supermarchés' },
-              { value: 'PLAGE', label: 'Mer / Plage' },
-              { value: 'MOSQUEE', label: 'Lieu de culte / Mosquée' },
-            ]}
-            value={proximiteFilter}
-            onChange={(val) => {
-              setProximiteFilter(val);
-              setPage(0);
-            }}
-          />
-
-          {/* Budget Slider */}
-          <Slider
-            label="Budget Maximal (FCFA)"
-            min={50000}
-            max={2000000}
-            step={25000}
-            value={maxPrice}
-            onChange={(val) => {
-              setMaxPrice(val);
-              setPage(0);
-            }}
-            formatValue={(val) => `${val.toLocaleString('fr-FR')} F`}
-          />
-
-          {/* Checkboxes */}
-          <div className="space-y-3 pt-2">
-            <h4 className="text-xs font-semibold text-charcoal-800 uppercase tracking-wider">Garanties & Équipements</h4>
-            
-            <label className="flex items-center gap-3 cursor-pointer">
-              <input
-                type="checkbox"
-                checked={onlyVerified}
-                onChange={(e) => setOnlyVerified(e.target.checked)}
-                className="w-4 h-4 rounded text-terracotta-500 focus:ring-terracotta-500"
-              />
-              <span className="text-xs font-medium text-charcoal-800">Uniquement avec titre & propriété vérifiés</span>
+          <div>
+            <label className="block text-xs font-bold text-sahel-800 mb-1.5">
+              Mode de Transaction
             </label>
+            <div className="grid grid-cols-3 gap-2">
+              {(['TOUS', 'LOCATION', 'VENTE'] as const).map((m) => (
+                <button
+                  key={m}
+                  type="button"
+                  onClick={() => {
+                    setModeTransaction(m);
+                    setPage(0);
+                  }}
+                  className={`py-2 px-3 rounded-xl border text-xs font-semibold transition-all ${
+                    modeTransaction === m
+                      ? 'bg-terracotta-500 text-white border-terracotta-500'
+                      : 'bg-sand-50 border-sand-300 text-charcoal-700 hover:bg-sand-100'
+                  }`}
+                >
+                  {m === 'TOUS' ? 'Tous' : m === 'LOCATION' ? 'Location' : 'Vente'}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Type de bien (Choix multiple - F7) */}
+          <div>
+            <label className="block text-xs font-bold text-sahel-800 mb-1.5">
+              Types de bien (choix multiple)
+            </label>
+            <div className="grid grid-cols-3 gap-2">
+              {(references?.typesBien || [
+                { valeur: 'APPARTEMENT', libelle: 'Appartement' },
+                { valeur: 'VILLA', libelle: 'Villa' },
+                { valeur: 'STUDIO', libelle: 'Studio' },
+              ]).map((t) => {
+                const isChecked = selectedTypes.includes(t.valeur);
+                return (
+                  <button
+                    key={t.valeur}
+                    type="button"
+                    onClick={() => toggleType(t.valeur)}
+                    className={`py-2 px-2.5 rounded-xl border text-xs font-medium flex items-center justify-between transition-all ${
+                      isChecked
+                        ? 'bg-terracotta-50 border-terracotta-500 text-terracotta-800 font-semibold ring-1 ring-terracotta-400'
+                        : 'bg-white border-sand-300 text-charcoal-700 hover:bg-sand-50'
+                    }`}
+                  >
+                    <span>{t.libelle}</span>
+                    {isChecked && <Check className="w-3.5 h-3.5 text-terracotta-600" />}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* Ville & Quartier (Autocomplétion - F8) */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div>
+              <label className="block text-xs font-bold text-sahel-800 mb-1.5">Ville</label>
+              <select
+                value={cityFilter}
+                onChange={(e) => {
+                  setCityFilter(e.target.value);
+                  setPage(0);
+                }}
+                className="w-full px-3 py-2 rounded-xl border border-sand-300 text-xs focus:ring-2 focus:ring-terracotta-500 outline-none"
+              >
+                <option value="TOUS">Toutes les villes</option>
+                <option value="Dakar">Dakar</option>
+                <option value="Ziguinchor">Ziguinchor</option>
+                <option value="Saly">Saly</option>
+                <option value="Thiès">Thiès</option>
+              </select>
+            </div>
+
+            <div>
+              <label className="block text-xs font-bold text-sahel-800 mb-1.5">Quartier</label>
+              <QuartierAutocomplete
+                value={quartierFilter}
+                onChange={(val) => {
+                  setQuartierFilter(val);
+                  setPage(0);
+                }}
+              />
+            </div>
+          </div>
+
+          {/* Budget Min et Max (Curseur dépendant du mode - F9) */}
+          <div className="space-y-3 pt-2 border-t border-sand-200">
+            <div className="flex items-center justify-between">
+              <label className="text-xs font-bold text-sahel-800">
+                Budget (FCFA) {modeTransaction === 'VENTE' ? '— Vente' : '— Location'}
+              </label>
+              {(budgetMin !== undefined || budgetMax !== undefined) && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setBudgetMin(undefined);
+                    setBudgetMax(undefined);
+                    setPage(0);
+                  }}
+                  className="text-[11px] text-terracotta-600 hover:underline"
+                >
+                  Réinitialiser budget
+                </button>
+              )}
+            </div>
+
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="block text-[11px] text-charcoal-500 mb-1">Budget Min (FCFA)</label>
+                <input
+                  type="number"
+                  placeholder="Min"
+                  value={budgetMin !== undefined ? budgetMin : ''}
+                  onChange={(e) => {
+                    const val = e.target.value ? Number(e.target.value) : undefined;
+                    setBudgetMin(val);
+                    setPage(0);
+                  }}
+                  className="w-full px-3 py-1.5 rounded-lg border border-sand-300 text-xs focus:ring-2 focus:ring-terracotta-500 outline-none"
+                />
+              </div>
+              <div>
+                <label className="block text-[11px] text-charcoal-500 mb-1">Budget Max (FCFA)</label>
+                <input
+                  type="number"
+                  placeholder="Max (sans plafond)"
+                  value={budgetMax !== undefined ? budgetMax : ''}
+                  onChange={(e) => {
+                    const val = e.target.value ? Number(e.target.value) : undefined;
+                    setBudgetMax(val);
+                    setPage(0);
+                  }}
+                  className="w-full px-3 py-1.5 rounded-lg border border-sand-300 text-xs focus:ring-2 focus:ring-terracotta-500 outline-none"
+                />
+              </div>
+            </div>
+
+            <Slider
+              label={`Plafond Maximal : ${budgetMax ? `${budgetMax.toLocaleString('fr-FR')} FCFA` : 'Aucun plafond'}`}
+              min={sliderConfig.min}
+              max={sliderConfig.max}
+              step={sliderConfig.step}
+              value={budgetMax || sliderConfig.max}
+              onChange={(val) => {
+                setBudgetMax(val);
+                setPage(0);
+              }}
+              formatValue={(val) => `${(val / 1000).toLocaleString('fr-FR')}k F`}
+            />
+          </div>
+
+          {/* Superficie & Nombre de pièces (F10, F11) */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2 border-t border-sand-200">
+            <div>
+              <label className="block text-xs font-bold text-sahel-800 mb-1.5">Superficie minimale (m²)</label>
+              <input
+                type="number"
+                placeholder="Ex: 80"
+                value={superficieMin !== undefined ? superficieMin : ''}
+                onChange={(e) => {
+                  const val = e.target.value ? Number(e.target.value) : undefined;
+                  setSuperficieMin(val);
+                  setPage(0);
+                }}
+                className="w-full px-3 py-2 rounded-xl border border-sand-300 text-xs focus:ring-2 focus:ring-terracotta-500 outline-none"
+              />
+            </div>
+
+            <div>
+              <label className="block text-xs font-bold text-sahel-800 mb-1.5">Nombre de pièces</label>
+              <div className="grid grid-cols-5 gap-1">
+                {([1, 2, 3, 4, 5] as const).map((np) => (
+                  <button
+                    key={np}
+                    type="button"
+                    onClick={() => {
+                      setNombrePieces(nombrePieces === np ? undefined : np);
+                      setPage(0);
+                    }}
+                    className={`py-2 rounded-xl border text-xs font-semibold transition-all ${
+                      nombrePieces === np
+                        ? 'bg-terracotta-500 text-white border-terracotta-500'
+                        : 'bg-sand-50 border-sand-300 text-charcoal-700 hover:bg-sand-100'
+                    }`}
+                  >
+                    {np === 5 ? '5+' : np}
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
+
+          {/* Meublé (Tous / Meublé / Non meublé - F13) */}
+          <div className="pt-2 border-t border-sand-200">
+            <label className="block text-xs font-bold text-sahel-800 mb-1.5">Ameublement</label>
+            <div className="grid grid-cols-3 gap-2">
+              {(
+                [
+                  { val: 'TOUS', label: 'Tous' },
+                  { val: 'MEUBLE', label: 'Meublé' },
+                  { val: 'NON_MEUBLE', label: 'Non meublé' },
+                ] as const
+              ).map((opt) => (
+                <button
+                  key={opt.val}
+                  type="button"
+                  onClick={() => {
+                    setMeubleFilter(opt.val);
+                    setPage(0);
+                  }}
+                  className={`py-2 px-2 rounded-xl border text-xs font-semibold transition-all ${
+                    meubleFilter === opt.val
+                      ? 'bg-sahel-800 text-white border-sahel-800'
+                      : 'bg-sand-50 border-sand-300 text-charcoal-700 hover:bg-sand-100'
+                  }`}
+                >
+                  {opt.label}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Proximités (Cases à cocher depuis /references - F12) */}
+          <div className="space-y-2 pt-2 border-t border-sand-200">
+            <label className="block text-xs font-bold text-sahel-800 mb-1">
+              Proximités & Commodités
+            </label>
+            <div className="grid grid-cols-2 gap-2">
+              {(references?.proximites || [
+                { valeur: 'ECOLE', libelle: 'École' },
+                { valeur: 'MARCHE', libelle: 'Marché' },
+                { valeur: 'HOPITAL', libelle: 'Hôpital / Santé' },
+                { valeur: 'TRANSPORT', libelle: 'Transports (BRT/Bus)' },
+                { valeur: 'PLAGE', libelle: 'Plage / Mer' },
+                { valeur: 'COMMERCE', libelle: 'Commerces' },
+                { valeur: 'UNIVERSITE', libelle: 'Université' },
+              ]).map((p) => {
+                const meta = getProximiteMeta(p.valeur);
+                const Icon = meta.icon;
+                const isChecked = selectedProximites.includes(p.valeur);
+                return (
+                  <button
+                    key={p.valeur}
+                    type="button"
+                    onClick={() => toggleProximite(p.valeur)}
+                    className={`flex items-center gap-2 px-2.5 py-2 rounded-xl border text-xs text-left transition-all ${
+                      isChecked
+                        ? 'bg-clay-50 border-sahel-600 text-sahel-900 font-semibold ring-1 ring-sahel-500'
+                        : 'bg-white border-sand-300 text-charcoal-700 hover:bg-sand-50'
+                    }`}
+                  >
+                    <Icon className={`w-3.5 h-3.5 shrink-0 ${isChecked ? 'text-sahel-700' : 'text-charcoal-500'}`} />
+                    <span className="truncate">{p.libelle}</span>
+                    {isChecked && <Check className="w-3.5 h-3.5 text-sahel-700 ml-auto" />}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* Garanties & Options */}
+          <div className="space-y-3 pt-2 border-t border-sand-200">
+            <h4 className="text-xs font-bold text-sahel-800 uppercase tracking-wider">
+              Options supplémentaires
+            </h4>
 
             <label className="flex items-center gap-3 cursor-pointer">
               <input
                 type="checkbox"
-                checked={onlyFurnished}
+                checked={animauxAcceptes}
                 onChange={(e) => {
-                  setOnlyFurnished(e.target.checked);
+                  setAnimauxAcceptes(e.target.checked);
                   setPage(0);
                 }}
                 className="w-4 h-4 rounded text-terracotta-500 focus:ring-terracotta-500"
               />
-              <span className="text-xs font-medium text-charcoal-800">Logements meublés uniquement</span>
+              <span className="text-xs font-medium text-charcoal-800">Animaux acceptés</span>
+            </label>
+
+            <label className="flex items-center gap-3 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={onlyVerified}
+                onChange={(e) => {
+                  setOnlyVerified(e.target.checked);
+                  setPage(0);
+                }}
+                className="w-4 h-4 rounded text-terracotta-500 focus:ring-terracotta-500"
+              />
+              <span className="text-xs font-medium text-charcoal-800">Uniquement annonces vérifiées</span>
             </label>
           </div>
 
-          <div className="pt-4 flex items-center gap-3">
+          <div className="pt-4 flex items-center gap-3 border-t border-sand-200">
             <Button variant="outline" size="md" className="flex-1" onClick={handleResetFilters}>
               Réinitialiser
             </Button>
             <Button variant="primary" size="md" className="flex-1" onClick={() => setIsFilterDrawerOpen(false)}>
-              Appliquer les filtres
+              Voir les résultats ({data?.totalElements ?? 0})
             </Button>
           </div>
 
@@ -450,3 +956,5 @@ export const SearchResultsPage: React.FC = () => {
     </div>
   );
 };
+
+export default SearchResultsPage;
