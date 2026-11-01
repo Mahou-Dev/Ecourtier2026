@@ -18,8 +18,13 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 @SpringBootTest(properties = {
-    "ADMIN_BOOTSTRAP_PASSWORD=TestAdminProdPassword123!",
+    "ADMIN_BOOTSTRAP_PASSWORD=",
+    "JWT_SECRET=404E635266556A586E3272357538782F413F4428472B4B6250645367566B5970",
+    "spring.datasource.url=jdbc:h2:mem:prodseedtest;DB_CLOSE_DELAY=-1;MODE=PostgreSQL;DATABASE_TO_LOWER=TRUE",
+    "spring.datasource.username=sa",
+    "spring.datasource.password=",
     "spring.datasource.driver-class-name=org.h2.Driver",
+    "spring.jpa.database-platform=org.hibernate.dialect.H2Dialect",
     "spring.flyway.enabled=false",
     "spring.jpa.hibernate.ddl-auto=create-drop"
 })

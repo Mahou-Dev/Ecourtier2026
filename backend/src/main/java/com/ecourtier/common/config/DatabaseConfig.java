@@ -32,11 +32,16 @@ public class DatabaseConfig {
     @Bean
     @Primary
     public DataSource dataSource() {
-        String finalUrl = formatJdbcUrl(rawUrl);
-        String finalUsername = extractUsername(rawUrl, username);
-        String finalPassword = extractPassword(rawUrl, password);
+        boolean isH2Driver = driverClassName != null && driverClassName.toLowerCase().contains("h2");
+        String finalUrl = resolveJdbcUrl(rawUrl, driverClassName);
+        String finalUsername = isH2Driver && (username == null || username.isBlank() || "ecourtier_user".equals(username))
+                ? "sa"
+                : extractUsername(rawUrl, username);
+        String finalPassword = isH2Driver && ("ecourtier_secure_pass_2026".equals(password) || password == null)
+                ? ""
+                : extractPassword(rawUrl, password);
 
-        log.info("[DATABASE CONFIG] Initialisation du DataSource avec l'URL JDBC : {}", finalUrl);
+        log.info("[DATABASE CONFIG] Initialisation du DataSource ({}) avec l'URL JDBC : {}", driverClassName, finalUrl);
 
         HikariConfig config = new HikariConfig();
         config.setJdbcUrl(finalUrl);
@@ -44,9 +49,20 @@ public class DatabaseConfig {
         config.setPassword(finalPassword);
         config.setDriverClassName(driverClassName);
         config.setMaximumPoolSize(10);
-        config.setInitializationFailTimeout(30000); // 30s timeout pour les cold starts cloud
+        config.setInitializationFailTimeout(30000);
 
         return new HikariDataSource(config);
+    }
+
+    public static String resolveJdbcUrl(String rawUrl, String driverClassName) {
+        boolean isH2Driver = driverClassName != null && driverClassName.toLowerCase().contains("h2");
+        if (isH2Driver) {
+            if (rawUrl != null && rawUrl.trim().startsWith("jdbc:h2:")) {
+                return rawUrl.trim();
+            }
+            return "jdbc:h2:mem:ecourtier_mem;DB_CLOSE_DELAY=-1;MODE=PostgreSQL;DATABASE_TO_LOWER=TRUE";
+        }
+        return formatJdbcUrl(rawUrl);
     }
 
     public static String formatJdbcUrl(String rawUrl) {
