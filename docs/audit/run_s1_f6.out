@@ -1,0 +1,42 @@
+=== EXECUTION S1 (20 phrases) ===
+S1-01 | GEMINI_OK       |  3.07s | ok=True  | sugg=1/1 (cat=1) | {'type': True, 'nombrePieces': True, 'lieu': True, 'budgetMax': True, 'modeTransaction': True}
+S1-02 | GEMINI_OK       |  1.55s | ok=True  | sugg=2/2 (cat=2) | {'type': True, 'meuble': True, 'lieu': True, 'budgetMax': True}
+S1-03 | GEMINI_OK       |  1.84s | ok=True  | sugg=1/1 (cat=1) | {'type': True, 'modeTransaction': True, 'lieu': True, 'budgetMax': True}
+S1-04 | GEMINI_OK       |  2.30s | ok=False | sugg=1/1 (cat=1) | {'nombrePieces': False, 'lieu': True, 'budgetMax': True}
+S1-05 | GEMINI_OK       |  2.46s | ok=True  | sugg=1/1 (cat=1) | {'type': True, 'modeTransaction': True, 'lieu': True, 'animauxAcceptes': True, 'budgetMax': True}
+S1-06 | GEMINI_OK       |  1.70s | ok=True  | sugg=0/0 (cat=1) | {'type': True, 'etage': True, 'lieu': True, 'budgetMax': True}
+S1-07 | GEMINI_OK       |  1.87s | ok=True  | sugg=0/0 (cat=0) | {'modeTransaction': True, 'lieu': True, 'budgetMax': True}
+S1-08 | GEMINI_OK       |  1.78s | ok=True  | sugg=0/0 (cat=0) | {'type': True, 'nombrePieces': True, 'meuble': True, 'lieu': True, 'budgetMax': True}
+S1-09 | GEMINI_OK       |  1.36s | ok=True  | sugg=2/2 (cat=2) | {'type': True, 'lieu': True, 'budgetMax': True}
+S1-10 | GEMINI_OK       |  2.10s | ok=True  | sugg=0/0 (cat=2) | {'type': True, 'lieu': True}
+S1-11 | GEMINI_OK       |  1.43s | ok=True  | sugg=0/0 (cat=0) | {'type': True, 'superficieMin': True, 'lieu': True, 'budgetMax': True}
+S1-12 | GEMINI_OK       |  1.45s | ok=True  | sugg=0/0 (cat=1) | {'type': True, 'meuble': True, 'lieu': True, 'modeTransaction': True, 'budgetMax': True}
+S1-13 | GEMINI_OK       |  2.36s | ok=True  | sugg=2/2 (cat=2) | {'type': True, 'nombrePieces': True, 'modeTransaction': True, 'lieu': True, 'budgetMax': True}
+S1-14 | FALLBACK_REGLES |  1.13s | ok=False | sugg=0/0 (cat=0) | {'type': True, 'lieu': True, 'budgetMax': False}
+S1-15 | FALLBACK_REGLES |  1.06s | ok=False | sugg=0/0 (cat=1) | {'type': True, 'animauxAcceptes': False, 'lieu': True, 'budgetMax': False, 'modeTransaction': True}
+S1-16 | FALLBACK_REGLES |  1.16s | ok=True  | sugg=0/0 (cat=0) | {'type': True, 'etage': True, 'nombrePieces': True, 'lieu': True, 'budgetMax': True}
+S1-17 | FALLBACK_REGLES |  1.61s | ok=False | sugg=0/0 (cat=0) | {'type': True, 'modeTransaction': True, 'lieu': False}
+S1-18 | FALLBACK_REGLES |  0.61s | ok=False | sugg=0/0 (cat=0) | {'meuble': True, 'lieu': False, 'budgetMax': False}
+S1-19 | FALLBACK_REGLES |  0.65s | ok=True  | sugg=1/1 (cat=1) | {'type': True, 'modeTransaction': True, 'lieu': True, 'budgetMax': True}
+S1-20 | FALLBACK_REGLES |  0.44s | ok=True  | sugg=1/1 (cat=1) | {'nombrePieces': True, 'lieu': True, 'budgetMax': True}
+
+=== EXECUTION F6 (5 cas incomplets) ===
+F6-1 | FALLBACK_REGLES |  1.00s | relance=None | rep="J'ai trouvé 4 annonce(s) correspondant à votre recherche pour un budget max de 500000"
+F6-2 | FALLBACK_REGLES |  1.11s | relance='Quel est votre budget approximatif et le type de bien souhaité (ex: appartement, villa, studio) ?' | rep='Pour affiner ma recherche, Quel est votre budget approximatif et le type de bien souh'
+F6-3 | FALLBACK_REGLES |  1.67s | relance='Quel est votre budget approximatif et le type de bien souhaité (ex: appartement, villa, studio) ?' | rep='Pour affiner ma recherche, Quel est votre budget approximatif et le type de bien souh'
+F6-4 | FALLBACK_REGLES |  1.25s | relance='Quel est votre budget approximatif et le type de bien souhaité (ex: appartement, villa, studio) ?' | rep='Pour affiner ma recherche, Quel est votre budget approximatif et le type de bien souh'
+F6-5 | FALLBACK_REGLES |  0.80s | relance=None | rep="J'ai trouvé 1 annonce(s) correspondant à votre recherche à Boucotte pour un budget ma"
+
+=== EXECUTION S6 (10 appels chronométrés dédiés) ===
+S6-01 | FALLBACK_REGLES | 1.522s | sugg=2
+S6-02 | FALLBACK_REGLES | 0.846s | sugg=1
+S6-03 | GEMINI_OK       | 2.434s | sugg=1
+S6-04 | GEMINI_OK       | 1.833s | sugg=2
+S6-05 | FALLBACK_REGLES | 2.541s | sugg=1
+S6-06 | GEMINI_OK       | 1.692s | sugg=1
+S6-07 | FALLBACK_REGLES | 2.564s | sugg=3
+S6-08 | FALLBACK_REGLES | 4.840s | sugg=2
+S6-09 | GEMINI_OK       | 5.028s | sugg=0
+S6-10 | FALLBACK_REGLES | 0.638s | sugg=1
+
+Terminé -> /home/mahou-dev/Documents/Ecourtier2026/docs/audit/s1_f6_resultats.json

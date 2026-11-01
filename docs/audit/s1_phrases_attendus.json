@@ -1,0 +1,32 @@
+{
+  "_note": "Critères attendus figés AVANT exécution (2026-10-30 ~11:42Z). lieu = quartier OU ville (comparaison sans accents ni casse). Seuls les champs listés sont notés. 'deux chambres' = 3 pièces (convention F3 : 2 chambres + salon).",
+  "phrases": [
+    {"id": 1,  "texte": "Je cherche un appartement F3 à Boucotte, budget 150 000 FCFA par mois", "attendu": {"type": "APPARTEMENT", "nombrePieces": 3, "lieu": "Boucotte", "budgetMax": 150000, "modeTransaction": "LOCATION"}},
+    {"id": 2,  "texte": "studio meublé à Nema max 100k", "attendu": {"type": "STUDIO", "meuble": true, "lieu": "Nema", "budgetMax": 100000}},
+    {"id": 3,  "texte": "Je veux acheter une villa à Saly, budget 90 millions", "attendu": {"type": "VILLA", "modeTransaction": "VENTE", "lieu": "Saly", "budgetMax": 90000000}},
+    {"id": 4,  "texte": "deux chambres à Mermoz pour 500000 francs", "attendu": {"nombrePieces": 3, "lieu": "Mermoz", "budgetMax": 500000}},
+    {"id": 5,  "texte": "maison à louer à Thiès avec mes chiens, 200000 max", "attendu": {"type": "VILLA", "modeTransaction": "LOCATION", "lieu": "Thiès", "animauxAcceptes": true, "budgetMax": 200000}},
+    {"id": 6,  "texte": "appart au 2ème étage à Sacre Coeur budget 300000", "attendu": {"type": "APPARTEMENT", "etage": 2, "lieu": "Sacré-Cœur", "budgetMax": 300000}},
+    {"id": 7,  "texte": "Je cherche un logement à Almadies avec 150000000 de budget pour acheter", "attendu": {"modeTransaction": "VENTE", "lieu": "Almadies", "budgetMax": 150000000}},
+    {"id": 8,  "texte": "F4 non meublé Mermoz 450 000", "attendu": {"type": "APPARTEMENT", "nombrePieces": 4, "meuble": false, "lieu": "Mermoz", "budgetMax": 450000}},
+    {"id": 9,  "texte": "Studio pas cher a ziguinchor moins de 90 000 fcfa", "attendu": {"type": "STUDIO", "lieu": "Ziguinchor", "budgetMax": 90000}},
+    {"id": 10, "texte": "je cherche une vila à nema", "attendu": {"type": "VILLA", "lieu": "Nema"}},
+    {"id": 11, "texte": "appartement de 100 m2 minimum à Dakar, 400k", "attendu": {"type": "APPARTEMENT", "superficieMin": 100, "lieu": "Dakar", "budgetMax": 400000}},
+    {"id": 12, "texte": "Je voudrais louer un apartement meublé à Mbour, 120 000 par mois", "attendu": {"type": "APPARTEMENT", "meuble": true, "lieu": "Mbour", "modeTransaction": "LOCATION", "budgetMax": 120000}},
+    {"id": 13, "texte": "villa 5 pièces à vendre ziguinchor 50 millions", "attendu": {"type": "VILLA", "nombrePieces": 5, "modeTransaction": "VENTE", "lieu": "Ziguinchor", "budgetMax": 50000000}},
+    {"id": 14, "texte": "un studio pour étudiant à Boucotte, 60.000 FCFA", "attendu": {"type": "STUDIO", "lieu": "Boucotte", "budgetMax": 60000}},
+    {"id": 15, "texte": "Nous sommes une famille avec un chat, on cherche une maison à Dakar 1,5 million par mois", "attendu": {"type": "VILLA", "animauxAcceptes": true, "lieu": "Dakar", "budgetMax": 1500000, "modeTransaction": "LOCATION"}},
+    {"id": 16, "texte": "rez-de-chaussée obligatoire, F2 à Sacré-Cœur, budget 200 000", "attendu": {"type": "APPARTEMENT", "etage": 0, "nombrePieces": 2, "lieu": "Sacré-Cœur", "budgetMax": 200000}},
+    {"id": 17, "texte": "Je veux acheter un appartement à Mermoz", "attendu": {"type": "APPARTEMENT", "modeTransaction": "VENTE", "lieu": "Mermoz"}},
+    {"id": 18, "texte": "cherche chambre meublée dixieme thies 80k", "attendu": {"meuble": true, "lieu": "Dixième", "budgetMax": 80000}},
+    {"id": 19, "texte": "Location villa avec piscine Almadies budget max 2 000 000 FCFA", "attendu": {"type": "VILLA", "modeTransaction": "LOCATION", "lieu": "Almadies", "budgetMax": 2000000}},
+    {"id": 20, "texte": "jcherche 3 pieces a ziguinchor pas plus de 100000", "attendu": {"nombrePieces": 3, "lieu": "Ziguinchor", "budgetMax": 100000}}
+  ],
+  "f6_cas_incomplets": [
+    {"id": "F6-1", "texte": "Je cherche un appartement à Mermoz, budget 500 000", "manque": ["superficie", "etage", "animaux", "meuble"]},
+    {"id": "F6-2", "texte": "studio à Nema 100k", "manque": ["superficie", "etage", "animaux"]},
+    {"id": "F6-3", "texte": "J'ai un chien, je cherche une villa à Dakar", "manque": ["budget", "superficie", "etage"]},
+    {"id": "F6-4", "texte": "Je veux louer quelque chose", "manque": ["budget", "type", "quartier", "superficie", "etage", "animaux"]},
+    {"id": "F6-5", "texte": "F3 à Boucotte 150 000 FCFA", "manque": ["superficie", "etage", "animaux", "meuble"]}
+  ]
+}

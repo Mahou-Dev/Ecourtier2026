@@ -1,0 +1,410 @@
+{
+  "backend": {
+    "java_main_files_total": 170,
+    "java_main_files_excluding_package_info": 142,
+    "package_info_files": 28,
+    "java_main_total_lines": 8004,
+    "java_main_sloc": 6705,
+    "sql_migrations_count": 10,
+    "sql_migrations_files": [
+      "V10__add_montant_premier_loyer_to_transactions.sql",
+      "V1__init_schema.sql",
+      "V2__annonces_uploads_verification.sql",
+      "V3__ia_conversations.sql",
+      "V4__rendezvous_transactions.sql",
+      "V5__avis_signalements_etage_suspendue.sql",
+      "V6__favoris.sql",
+      "V7__messagerie.sql",
+      "V8__add_date_verification_to_annonces.sql",
+      "V9__add_nombre_annonces_suggerees_to_messages_ia.sql"
+    ],
+    "sql_migrations_lines": 245,
+    "yml_config_files": [
+      "application-dev.yml",
+      "application-prod.yml",
+      "application.yml"
+    ],
+    "yml_config_lines": 87,
+    "entities_count": 13,
+    "entities": [
+      "backend/src/main/java/com/ecourtier/domain/annonce/entity/AnnonceEntity.java",
+      "backend/src/main/java/com/ecourtier/domain/annonce/entity/DocumentVerificationEntity.java",
+      "backend/src/main/java/com/ecourtier/domain/annonce/entity/PhotoAnnonceEntity.java",
+      "backend/src/main/java/com/ecourtier/domain/avis/entity/AvisEntity.java",
+      "backend/src/main/java/com/ecourtier/domain/avis/entity/SignalementEntity.java",
+      "backend/src/main/java/com/ecourtier/domain/favori/entity/FavoriEntity.java",
+      "backend/src/main/java/com/ecourtier/domain/ia/entity/ConversationIAEntity.java",
+      "backend/src/main/java/com/ecourtier/domain/ia/entity/MessageIAEntity.java",
+      "backend/src/main/java/com/ecourtier/domain/messagerie/entity/ConversationChatEntity.java",
+      "backend/src/main/java/com/ecourtier/domain/messagerie/entity/MessageChatEntity.java",
+      "backend/src/main/java/com/ecourtier/domain/rendezvous/entity/RendezVousEntity.java",
+      "backend/src/main/java/com/ecourtier/domain/transaction/entity/TransactionEntity.java",
+      "backend/src/main/java/com/ecourtier/domain/utilisateur/entity/UtilisateurEntity.java"
+    ],
+    "controllers_count": 17,
+    "controllers": [
+      "backend/src/main/java/com/ecourtier/common/controller/AdminSeedController.java",
+      "backend/src/main/java/com/ecourtier/common/controller/UploadController.java",
+      "backend/src/main/java/com/ecourtier/common/health/HealthController.java",
+      "backend/src/main/java/com/ecourtier/domain/admin/controller/AdminStatistiquesController.java",
+      "backend/src/main/java/com/ecourtier/domain/annonce/controller/AdminAnnonceController.java",
+      "backend/src/main/java/com/ecourtier/domain/annonce/controller/AnnonceController.java",
+      "backend/src/main/java/com/ecourtier/domain/avis/controller/AvisController.java",
+      "backend/src/main/java/com/ecourtier/domain/avis/controller/SignalementController.java",
+      "backend/src/main/java/com/ecourtier/domain/avis/controller/UtilisateurController.java",
+      "backend/src/main/java/com/ecourtier/domain/favori/controller/FavoriController.java",
+      "backend/src/main/java/com/ecourtier/domain/ia/controller/IAController.java",
+      "backend/src/main/java/com/ecourtier/domain/messagerie/controller/MessagerieRestController.java",
+      "backend/src/main/java/com/ecourtier/domain/messagerie/controller/MessagerieStompController.java",
+      "backend/src/main/java/com/ecourtier/domain/rendezvous/controller/RendezVousController.java",
+      "backend/src/main/java/com/ecourtier/domain/transaction/controller/TransactionController.java",
+      "backend/src/main/java/com/ecourtier/domain/utilisateur/controller/AdminUtilisateurController.java",
+      "backend/src/main/java/com/ecourtier/domain/utilisateur/controller/AuthController.java"
+    ],
+    "test_files_count": 30,
+    "test_total_lines": 4511,
+    "at_value_usages": [
+      {
+        "file": "backend/src/main/java/com/ecourtier/common/config/AdminBootstrapRunner.java",
+        "expr": "${ecourtier.admin.bootstrap.email:admin@ecourtier.sn}"
+      },
+      {
+        "file": "backend/src/main/java/com/ecourtier/common/config/AdminBootstrapRunner.java",
+        "expr": "${ecourtier.admin.bootstrap.password:}"
+      },
+      {
+        "file": "backend/src/main/java/com/ecourtier/common/config/DatabaseConfig.java",
+        "expr": "${spring.datasource.url:jdbc:postgresql://localhost:5432/ecourtier_db}"
+      },
+      {
+        "file": "backend/src/main/java/com/ecourtier/common/config/DatabaseConfig.java",
+        "expr": "${spring.datasource.username:ecourtier_user}"
+      },
+      {
+        "file": "backend/src/main/java/com/ecourtier/common/config/DatabaseConfig.java",
+        "expr": "${spring.datasource.password:ecourtier_secure_pass_2026}"
+      },
+      {
+        "file": "backend/src/main/java/com/ecourtier/common/config/DatabaseConfig.java",
+        "expr": "${spring.datasource.driver-class-name:org.postgresql.Driver}"
+      },
+      {
+        "file": "backend/src/main/java/com/ecourtier/common/config/SecurityConfig.java",
+        "expr": "${ecourtier.cors.allowed-origins:http://localhost:3000,http://127.0.0.1:3000,http://localhost:5173}"
+      },
+      {
+        "file": "backend/src/main/java/com/ecourtier/common/config/WebSocketConfig.java",
+        "expr": "${ecourtier.cors.allowed-origins:http://localhost:3000,http://127.0.0.1:3000,http://localhost:5173}"
+      },
+      {
+        "file": "backend/src/main/java/com/ecourtier/common/health/HealthController.java",
+        "expr": "${spring.profiles.active:dev}"
+      },
+      {
+        "file": "backend/src/main/java/com/ecourtier/common/security/JwtService.java",
+        "expr": "${ecourtier.jwt.secret}"
+      },
+      {
+        "file": "backend/src/main/java/com/ecourtier/common/security/JwtService.java",
+        "expr": "${ecourtier.jwt.access-token-expiration-ms:3600000}"
+      },
+      {
+        "file": "backend/src/main/java/com/ecourtier/common/security/JwtService.java",
+        "expr": "${ecourtier.jwt.refresh-token-expiration-ms:604800000}"
+      },
+      {
+        "file": "backend/src/main/java/com/ecourtier/domain/ia/service/LlmExtractionService.java",
+        "expr": "${ecourtier.ia.api-key:}"
+      },
+      {
+        "file": "backend/src/main/java/com/ecourtier/domain/ia/service/LlmExtractionService.java",
+        "expr": "${ecourtier.ia.provider:gemini}"
+      },
+      {
+        "file": "backend/src/main/java/com/ecourtier/domain/ia/service/LlmExtractionService.java",
+        "expr": "${ecourtier.ia.base-url:}"
+      }
+    ],
+    "system_getenv_usages": [],
+    "yml_env_placeholders": [
+      {
+        "file": "backend/src/main/resources/application.yml",
+        "var": "SPRING_PROFILES_ACTIVE",
+        "raw": "${SPRING_PROFILES_ACTIVE:dev}"
+      },
+      {
+        "file": "backend/src/main/resources/application.yml",
+        "var": "SPRING_DATASOURCE_URL",
+        "raw": "${SPRING_DATASOURCE_URL:jdbc:postgresql://localhost:5432/ecourtier_db}"
+      },
+      {
+        "file": "backend/src/main/resources/application.yml",
+        "var": "SPRING_DATASOURCE_USERNAME",
+        "raw": "${SPRING_DATASOURCE_USERNAME:ecourtier_user}"
+      },
+      {
+        "file": "backend/src/main/resources/application.yml",
+        "var": "SPRING_DATASOURCE_PASSWORD",
+        "raw": "${SPRING_DATASOURCE_PASSWORD:ecourtier_secure_pass_2026}"
+      },
+      {
+        "file": "backend/src/main/resources/application.yml",
+        "var": "BACKEND_PORT",
+        "raw": "${BACKEND_PORT:8080}"
+      },
+      {
+        "file": "backend/src/main/resources/application.yml",
+        "var": "JWT_SECRET",
+        "raw": "${JWT_SECRET:404E635266556A586E3272357538782F413F4428472B4B6250645367566B5970}"
+      },
+      {
+        "file": "backend/src/main/resources/application.yml",
+        "var": "ADMIN_BOOTSTRAP_EMAIL",
+        "raw": "${ADMIN_BOOTSTRAP_EMAIL:admin@ecourtier.sn}"
+      },
+      {
+        "file": "backend/src/main/resources/application.yml",
+        "var": "ADMIN_BOOTSTRAP_PASSWORD",
+        "raw": "${ADMIN_BOOTSTRAP_PASSWORD:}"
+      },
+      {
+        "file": "backend/src/main/resources/application.yml",
+        "var": "IA_API_KEY",
+        "raw": "${IA_API_KEY:}"
+      },
+      {
+        "file": "backend/src/main/resources/application.yml",
+        "var": "IA_PROVIDER",
+        "raw": "${IA_PROVIDER:gemini}"
+      },
+      {
+        "file": "backend/src/main/resources/application.yml",
+        "var": "IA_BASE_URL",
+        "raw": "${IA_BASE_URL:}"
+      },
+      {
+        "file": "backend/src/main/resources/application.yml",
+        "var": "ECOURTIER_CORS_ALLOWED_ORIGINS",
+        "raw": "${ECOURTIER_CORS_ALLOWED_ORIGINS:http://localhost:3000,http://127.0.0.1:3000,http://localhost:5173}"
+      }
+    ]
+  },
+  "frontend": {
+    "src_code_files_count": 48,
+    "src_total_lines": 8142,
+    "src_sloc": 7373,
+    "pages_count": 11,
+    "pages": [
+      "AdminDashboardPage.tsx",
+      "AdminSignalementsPage.tsx",
+      "AdminVerificationPage.tsx",
+      "ComingSoonPage.tsx",
+      "DashboardPage.tsx",
+      "FavorisPage.tsx",
+      "HomePage.tsx",
+      "LoginPage.tsx",
+      "PropertyDetailPage.tsx",
+      "RegisterPage.tsx",
+      "SearchResultsPage.tsx"
+    ],
+    "components_count": 25,
+    "components": [
+      "ai/AiAssistantWidget.tsx",
+      "dashboard/CreateAnnonceModal.tsx",
+      "layout/Footer.tsx",
+      "layout/Header.tsx",
+      "map/LeafletMap.tsx",
+      "messagerie/ChatDrawer.tsx",
+      "messagerie/ConversationsTab.tsx",
+      "transaction/TransactionDetailsModal.tsx",
+      "ui/Avatar.tsx",
+      "ui/Badge.tsx",
+      "ui/Button.tsx",
+      "ui/Card.tsx",
+      "ui/Drawer.tsx",
+      "ui/FavoriteButton.tsx",
+      "ui/Input.tsx",
+      "ui/Modal.tsx",
+      "ui/OfflineIndicator.tsx",
+      "ui/PatternClaustra.tsx",
+      "ui/Select.tsx",
+      "ui/SignalementModal.tsx",
+      "ui/Skeleton.tsx",
+      "ui/Slider.tsx",
+      "ui/Tabs.tsx",
+      "ui/Toast.tsx",
+      "ui/Tooltip.tsx"
+    ],
+    "import_meta_env_usages": [
+      {
+        "file": "frontend/src/services/api.ts",
+        "var": "VITE_API_BASE_URL"
+      }
+    ]
+  },
+  "dependencies": {
+    "spring_boot_parent": "3.4.3",
+    "maven_properties": {
+      "java.version": "21",
+      "springdoc-openapi.version": "2.7.0"
+    },
+    "backend_dependencies": [
+      {
+        "groupId": "org.springframework.boot",
+        "artifactId": "spring-boot-starter-web",
+        "version": "(Spring Boot BOM)",
+        "scope": "compile"
+      },
+      {
+        "groupId": "org.springframework.boot",
+        "artifactId": "spring-boot-starter-websocket",
+        "version": "(Spring Boot BOM)",
+        "scope": "compile"
+      },
+      {
+        "groupId": "org.springframework.boot",
+        "artifactId": "spring-boot-starter-data-jpa",
+        "version": "(Spring Boot BOM)",
+        "scope": "compile"
+      },
+      {
+        "groupId": "org.springframework.boot",
+        "artifactId": "spring-boot-starter-security",
+        "version": "(Spring Boot BOM)",
+        "scope": "compile"
+      },
+      {
+        "groupId": "org.springframework.boot",
+        "artifactId": "spring-boot-starter-validation",
+        "version": "(Spring Boot BOM)",
+        "scope": "compile"
+      },
+      {
+        "groupId": "org.springframework.boot",
+        "artifactId": "spring-boot-devtools",
+        "version": "(Spring Boot BOM)",
+        "scope": "runtime"
+      },
+      {
+        "groupId": "org.postgresql",
+        "artifactId": "postgresql",
+        "version": "(Spring Boot BOM)",
+        "scope": "runtime"
+      },
+      {
+        "groupId": "org.projectlombok",
+        "artifactId": "lombok",
+        "version": "(Spring Boot BOM)",
+        "scope": "compile"
+      },
+      {
+        "groupId": "org.springdoc",
+        "artifactId": "springdoc-openapi-starter-webmvc-ui",
+        "version": "${springdoc-openapi.version}",
+        "scope": "compile"
+      },
+      {
+        "groupId": "org.flywaydb",
+        "artifactId": "flyway-core",
+        "version": "(Spring Boot BOM)",
+        "scope": "compile"
+      },
+      {
+        "groupId": "org.flywaydb",
+        "artifactId": "flyway-database-postgresql",
+        "version": "(Spring Boot BOM)",
+        "scope": "compile"
+      },
+      {
+        "groupId": "io.jsonwebtoken",
+        "artifactId": "jjwt-api",
+        "version": "0.12.6",
+        "scope": "compile"
+      },
+      {
+        "groupId": "io.jsonwebtoken",
+        "artifactId": "jjwt-impl",
+        "version": "0.12.6",
+        "scope": "runtime"
+      },
+      {
+        "groupId": "io.jsonwebtoken",
+        "artifactId": "jjwt-jackson",
+        "version": "0.12.6",
+        "scope": "runtime"
+      },
+      {
+        "groupId": "com.github.librepdf",
+        "artifactId": "openpdf",
+        "version": "2.0.3",
+        "scope": "compile"
+      },
+      {
+        "groupId": "org.springframework.boot",
+        "artifactId": "spring-boot-starter-test",
+        "version": "(Spring Boot BOM)",
+        "scope": "test"
+      },
+      {
+        "groupId": "org.springframework.security",
+        "artifactId": "spring-security-test",
+        "version": "(Spring Boot BOM)",
+        "scope": "test"
+      },
+      {
+        "groupId": "com.h2database",
+        "artifactId": "h2",
+        "version": "(Spring Boot BOM)",
+        "scope": "test"
+      }
+    ],
+    "frontend_dependencies": {
+      "@hookform/resolvers": "^3.10.0",
+      "@radix-ui/react-dialog": "^1.1.6",
+      "@radix-ui/react-dropdown-menu": "^2.1.6",
+      "@radix-ui/react-popover": "^1.1.6",
+      "@radix-ui/react-select": "^2.1.6",
+      "@radix-ui/react-slider": "^1.2.3",
+      "@radix-ui/react-tabs": "^1.1.3",
+      "@radix-ui/react-tooltip": "^1.1.8",
+      "@stomp/stompjs": "^7.3.0",
+      "@tanstack/react-query": "^5.66.0",
+      "@tanstack/react-virtual": "^3.13.2",
+      "clsx": "^2.1.1",
+      "cmdk": "^1.0.4",
+      "date-fns": "^4.1.0",
+      "embla-carousel-react": "^8.5.2",
+      "framer-motion": "^12.4.7",
+      "leaflet": "^1.9.4",
+      "lucide-react": "^0.475.0",
+      "react": "^18.3.1",
+      "react-day-picker": "^9.5.1",
+      "react-dom": "^18.3.1",
+      "react-hook-form": "^7.54.2",
+      "react-leaflet": "^4.2.1",
+      "react-leaflet-cluster": "^2.1.0",
+      "react-router-dom": "^7.1.5",
+      "recharts": "^3.10.1",
+      "sonner": "^2.0.1",
+      "tailwind-merge": "^3.0.1",
+      "yet-another-react-lightbox": "^3.21.7",
+      "zod": "^3.24.2",
+      "zustand": "^5.0.3"
+    },
+    "frontend_devDependencies": {
+      "@types/leaflet": "^1.9.16",
+      "@types/node": "^22.13.4",
+      "@types/react": "^18.3.18",
+      "@types/react-dom": "^18.3.5",
+      "@vitejs/plugin-react": "^4.3.4",
+      "autoprefixer": "^10.4.20",
+      "postcss": "^8.5.2",
+      "tailwindcss": "^3.4.17",
+      "typescript": "^5.7.3",
+      "vite": "^6.1.0",
+      "vite-plugin-pwa": "^1.3.0",
+      "workbox-build": "^7.4.1",
+      "workbox-window": "^7.4.1"
+    }
+  }
+}

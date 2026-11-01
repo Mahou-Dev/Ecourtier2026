@@ -1,0 +1,521 @@
+{
+  "executed_at": "2026-10-30T12:05:06.282026+00:00",
+  "steps": {
+    "auth_login_admin": {
+      "status": 200,
+      "dt": 0.122,
+      "response": {
+        "accessToken": "<JWT_REDACTED len=274>",
+        "refreshToken": "<JWT_REDACTED len=276>",
+        "tokenType": "Bearer",
+        "expiresIn": 3600,
+        "utilisateur": {
+          "id": "e95b584d-20ea-47a7-8fdc-c0337de2a883",
+          "nom": "E-Courtier",
+          "prenom": "Admin",
+          "email": "admin@ecourtier.sn",
+          "telephone": "+221770000000",
+          "role": "ADMIN",
+          "dateCreation": "2026-09-23T12:25:07.631401",
+          "actif": true,
+          "photoProfilUrl": null
+        }
+      }
+    },
+    "auth_login_agent": {
+      "status": 200,
+      "dt": 0.132,
+      "response": {
+        "accessToken": "<JWT_REDACTED len=274>",
+        "refreshToken": "<JWT_REDACTED len=276>",
+        "tokenType": "Bearer",
+        "expiresIn": 3600,
+        "utilisateur": {
+          "id": "7fffc5b1-337b-4350-88d8-7a1ca49612f5",
+          "nom": "Agréé",
+          "prenom": "Agent",
+          "email": "agent@ecourtier.sn",
+          "telephone": "+221770000001",
+          "role": "AGENT",
+          "dateCreation": "2026-09-23T12:25:07.77195",
+          "actif": true,
+          "photoProfilUrl": null
+        }
+      }
+    },
+    "auth_login_proprio": {
+      "status": 200,
+      "dt": 0.134,
+      "response": {
+        "accessToken": "<JWT_REDACTED len=293>",
+        "refreshToken": "<JWT_REDACTED len=294>",
+        "tokenType": "Bearer",
+        "expiresIn": 3600,
+        "utilisateur": {
+          "id": "17dcf272-c8bf-42a3-a1ef-1bc10e7c2e35",
+          "nom": "Diouf",
+          "prenom": "Babacar",
+          "email": "proprio.demo@ecourtier.sn",
+          "telephone": "+221770000002",
+          "role": "PROPRIETAIRE",
+          "dateCreation": "2026-09-23T12:25:07.881834",
+          "actif": true,
+          "photoProfilUrl": null
+        }
+      }
+    },
+    "auth_login_locataire_demo": {
+      "status": 200,
+      "dt": 0.132,
+      "response": {
+        "accessToken": "<JWT_REDACTED len=292>",
+        "refreshToken": "<JWT_REDACTED len=293>",
+        "tokenType": "Bearer",
+        "expiresIn": 3600,
+        "utilisateur": {
+          "id": "1eadfe47-b658-4b2c-a266-976a79e38cd6",
+          "nom": "Diop",
+          "prenom": "Moussa",
+          "email": "locataire.demo@ecourtier.sn",
+          "telephone": "+221770000003",
+          "role": "LOCATAIRE",
+          "dateCreation": "2026-09-23T12:25:07.993676",
+          "actif": true,
+          "photoProfilUrl": null
+        }
+      }
+    },
+    "T1_refresh_token": {
+      "status": 200,
+      "dt": 0.005,
+      "response": {
+        "accessToken": "<JWT_REDACTED len=293>",
+        "refreshToken": "<JWT_REDACTED len=294>",
+        "tokenType": "Bearer",
+        "expiresIn": 3600,
+        "utilisateur": {
+          "id": "17dcf272-c8bf-42a3-a1ef-1bc10e7c2e35",
+          "nom": "Diouf",
+          "prenom": "Babacar",
+          "email": "proprio.demo@ecourtier.sn",
+          "telephone": "+221770000002",
+          "role": "PROPRIETAIRE",
+          "dateCreation": "2026-09-23T12:25:07.881834",
+          "actif": true,
+          "photoProfilUrl": null
+        }
+      }
+    },
+    "T1_rbac_checks": {
+      "admin_no_token": {
+        "status": 401,
+        "response": {
+          "error": "Non authentifi� ? Jeton invalide ou expir�",
+          "status": 401
+        }
+      },
+      "admin_as_locataire": {
+        "status": 401,
+        "response": {
+          "error": "Non authentifi� ? Jeton invalide ou expir�",
+          "status": 401
+        }
+      },
+      "create_annonce_as_locataire": {
+        "status": 400,
+        "response": {
+          "erreurs": {
+            "latitude": "La latitude est obligatoire",
+            "longitude": "La longitude est obligatoire"
+          },
+          "error": "Bad Request — Données d'entrée invalides",
+          "timestamp": "2026-10-30T12:05:06.817393163",
+          "status": 400
+        }
+      }
+    },
+    "F27_register_agent_blocked": {
+      "status": 400,
+      "response": {
+        "error": "Les comptes ADMIN et AGENT ne peuvent pas être créés via l'inscription publique",
+        "timestamp": "2026-10-30T12:05:06.821691466",
+        "status": 400
+      }
+    },
+    "auth_register_acheteur": {
+      "status": 201,
+      "response": {
+        "accessToken": "<JWT_REDACTED len=306>",
+        "refreshToken": "<JWT_REDACTED len=308>",
+        "tokenType": "Bearer",
+        "expiresIn": 3600,
+        "utilisateur": {
+          "id": "abcb92ac-f8d2-4529-8bda-de9f477913d1",
+          "nom": "Fall",
+          "prenom": "Aminata",
+          "email": "audit.acheteur.1793361906@ecourtier.sn",
+          "telephone": "+221772223344",
+          "role": "LOCATAIRE",
+          "dateCreation": "2026-10-30T12:05:06.940581849",
+          "actif": true,
+          "photoProfilUrl": null
+        }
+      }
+    },
+    "F1_F3_F4_F5_create_location_appart": {
+      "status": 201,
+      "id": "ae188335-e6be-4a0f-a635-4aeda107cb36",
+      "statutVerification_initial": "EN_ATTENTE",
+      "equipements": [
+        "WIFI",
+        "GARDIEN",
+        "PARKING",
+        "CLIMATISATION"
+      ],
+      "proximites": [
+        "ECOLE",
+        "MARCHE",
+        "HOPITAL"
+      ],
+      "lienVisite360": "https://my.matterport.com/show/?m=audit360demo"
+    },
+    "F27_agent_capabilities": {
+      "create_own_vente_villa_status": 201,
+      "vente_id": "2b9847b6-6b2b-495c-ad48-c0cbcedd692b",
+      "edit_other_owner_listing_status": 401,
+      "edit_other_owner_listing_resp": {
+        "error": "Non authentifi� ? Jeton invalide ou expir�",
+        "status": 401
+      },
+      "access_admin_users_status": 401
+    },
+    "F1_create_studio": {
+      "status": 201,
+      "id": "49fa1cbd-5bd0-4ba0-999c-260329126193",
+      "type": "STUDIO"
+    },
+    "F2_multi_photos_and_reorder": {
+      "upload_status": 201,
+      "uploaded_count": 3,
+      "photos": [
+        {
+          "id": "f0b5270c-2c10-4991-9d5a-deec236ceb60",
+          "url": "/api/v1/uploads/annonces/ae188335-e6be-4a0f-a635-4aeda107cb36/4c908c67-36f2-48ae-b525-2c70319fbd15.png",
+          "ordre": 0
+        },
+        {
+          "id": "dc1a3563-ca9a-440a-9a72-6ffbac7fe073",
+          "url": "/api/v1/uploads/annonces/ae188335-e6be-4a0f-a635-4aeda107cb36/c30e8aab-d1a2-464d-b818-99af00f3e2fe.png",
+          "ordre": 1
+        },
+        {
+          "id": "08bf1db6-e7ef-4aba-b011-067c9cfd66b4",
+          "url": "/api/v1/uploads/annonces/ae188335-e6be-4a0f-a635-4aeda107cb36/5a182fdb-833a-4609-8323-2cc4cba9ba54.png",
+          "ordre": 2
+        }
+      ],
+      "reorder_status": 200,
+      "reordered": [
+        {
+          "id": "08bf1db6-e7ef-4aba-b011-067c9cfd66b4",
+          "url": "/api/v1/uploads/annonces/ae188335-e6be-4a0f-a635-4aeda107cb36/5a182fdb-833a-4609-8323-2cc4cba9ba54.png",
+          "ordre": 0
+        },
+        {
+          "id": "dc1a3563-ca9a-440a-9a72-6ffbac7fe073",
+          "url": "/api/v1/uploads/annonces/ae188335-e6be-4a0f-a635-4aeda107cb36/c30e8aab-d1a2-464d-b818-99af00f3e2fe.png",
+          "ordre": 1
+        },
+        {
+          "id": "f0b5270c-2c10-4991-9d5a-deec236ceb60",
+          "url": "/api/v1/uploads/annonces/ae188335-e6be-4a0f-a635-4aeda107cb36/4c908c67-36f2-48ae-b525-2c70319fbd15.png",
+          "ordre": 2
+        }
+      ]
+    },
+    "C2_F14_S2_verification": {
+      "pdf_upload_rejected": {
+        "status": 400,
+        "response": {
+          "error": "Format de fichier non pris en charge. Formats acceptés : jpg, jpeg, png, webp",
+          "timestamp": "2026-10-30T12:05:07.048637234",
+          "status": 400
+        }
+      },
+      "png_uploads_by_enum": {
+        "TITRE_FONCIER": {
+          "status": 201,
+          "response": {
+            "id": "0e02b242-0f70-4893-a2ca-c5d368253e6a",
+            "typeDocument": "TITRE_FONCIER",
+            "url": "/api/v1/annonces/ae188335-e6be-4a0f-a635-4aeda107cb36/documents/0e02b242-0f70-4893-a2ca-c5d368253e6a/fichier",
+            "statut": "EN_ATTENTE",
+            "motifRejet": null,
+            "dateCreation": "2026-10-30T12:05:07.061686912"
+          }
+        },
+        "BAIL_PRECEDENT": {
+          "status": 201,
+          "response": {
+            "id": "e79acb2e-f792-486e-8f5d-91d0290f13b6",
+            "typeDocument": "BAIL_PRECEDENT",
+            "url": "/api/v1/annonces/ae188335-e6be-4a0f-a635-4aeda107cb36/documents/e79acb2e-f792-486e-8f5d-91d0290f13b6/fichier",
+            "statut": "EN_ATTENTE",
+            "motifRejet": null,
+            "dateCreation": "2026-10-30T12:05:07.081419498"
+          }
+        },
+        "PIECE_IDENTITE": {
+          "status": 201,
+          "response": {
+            "id": "d0d759d2-2caa-4263-83d9-e1fe032fb134",
+            "typeDocument": "PIECE_IDENTITE",
+            "url": "/api/v1/annonces/ae188335-e6be-4a0f-a635-4aeda107cb36/documents/d0d759d2-2caa-4263-83d9-e1fe032fb134/fichier",
+            "statut": "EN_ATTENTE",
+            "motifRejet": null,
+            "dateCreation": "2026-10-30T12:05:07.100817332"
+          }
+        }
+      },
+      "proprio_self_verify_blocked": {
+        "status": 401,
+        "response": {
+          "error": "Non authentifi� ? Jeton invalide ou expir�",
+          "status": 401
+        }
+      },
+      "admin_pending_count": 13,
+      "admin_verify_status": 200,
+      "statutVerification_after_admin": "VERIFIEE",
+      "documents_after_admin": [
+        {
+          "id": "0e02b242-0f70-4893-a2ca-c5d368253e6a",
+          "typeDocument": "TITRE_FONCIER",
+          "url": "/api/v1/annonces/ae188335-e6be-4a0f-a635-4aeda107cb36/documents/0e02b242-0f70-4893-a2ca-c5d368253e6a/fichier",
+          "statut": "VALIDE",
+          "motifRejet": null,
+          "dateCreation": "2026-10-30T12:05:07.061687"
+        },
+        {
+          "id": "e79acb2e-f792-486e-8f5d-91d0290f13b6",
+          "typeDocument": "BAIL_PRECEDENT",
+          "url": "/api/v1/annonces/ae188335-e6be-4a0f-a635-4aeda107cb36/documents/e79acb2e-f792-486e-8f5d-91d0290f13b6/fichier",
+          "statut": "VALIDE",
+          "motifRejet": null,
+          "dateCreation": "2026-10-30T12:05:07.081419"
+        },
+        {
+          "id": "d0d759d2-2caa-4263-83d9-e1fe032fb134",
+          "typeDocument": "PIECE_IDENTITE",
+          "url": "/api/v1/annonces/ae188335-e6be-4a0f-a635-4aeda107cb36/documents/d0d759d2-2caa-4263-83d9-e1fe032fb134/fichier",
+          "statut": "VALIDE",
+          "motifRejet": null,
+          "dateCreation": "2026-10-30T12:05:07.100817"
+        }
+      ]
+    },
+    "F7_F13_api_filters": {
+      "combined_filters_status": 200,
+      "combined_filters_matches": 3,
+      "proximite_MOSQUEE_bug": {
+        "status": 400,
+        "response": {
+          "error": "No enum constant com.ecourtier.domain.annonce.entity.ProximiteTag.MOSQUEE",
+          "timestamp": "2026-10-30T12:05:07.181819419",
+          "status": 400
+        }
+      }
+    },
+    "F15_F16_F17_S3_rdv_and_sms": {
+      "tx_before_visit_blocked": {
+        "status": 400,
+        "response": {
+          "error": "Impossible d'initier une transaction : aucun rendez-vous de visite EFFECTUÉ préalable n'a été trouvé pour cette annonce.",
+          "timestamp": "2026-10-30T12:05:07.195340838",
+          "status": 400
+        }
+      },
+      "rdv_created_initial_status": "DEMANDE",
+      "rdv_confirm_status": 200,
+      "rdv_confirmed_statut": "CONFIRME",
+      "overlap_30min_confirm_status": 409,
+      "overlap_30min_response": {
+        "error": "Un rendez-vous est déjà confirmé sur ce créneau horaire (± 1h) pour cette annonce",
+        "timestamp": "2026-10-30T12:05:07.246991747",
+        "status": 409
+      },
+      "simuler_rappels_http": {
+        "status": 200,
+        "response": {
+          "message": "1 rappel(s) SMS simulé(s) pour les RDV de demain",
+          "statut": "SUCCESS",
+          "rappelsEnvoyes": 1
+        }
+      },
+      "rappelEnvoye_after_trigger": true,
+      "backend_sms_log_lines": [
+        "2026-10-30T12:05:08.256Z  INFO 61 --- [ecourtier-backend] [nio-8080-exec-4] c.e.d.r.service.RendezVousService        : [SIMULATION SMS RAPPEL RDV] Notification envoyée au demandeur Aminata Fall (+221772223344) pour la visite de l'annonce 'Audit Appartement F3 Sacré-Cœur 1793361906' prévue le 2026-10-31T14:00"
+      ],
+      "rdv_effectue_status": 200
+    },
+    "C3_F18_F19_T5_T6_T7_T8_S4_location_escrow": {
+      "initiated": {
+        "status": 201,
+        "id": "47d36160-731d-44bc-b362-910e619158d5",
+        "montantCaution": 250000.0,
+        "montantPremierLoyer": 250000.0,
+        "fraisDossier": 5000,
+        "montantTotalSequestre": 505000.0,
+        "statutSequestre": "INITIALISE",
+        "statutBail": "NON_SIGNE"
+      },
+      "after_wave_payment": {
+        "status": 200,
+        "referenceWave": "WAVE-SANDBOX-73AB9E01",
+        "statutSequestre": "BLOQUE"
+      },
+      "after_1st_signature_locataire": {
+        "status": 200,
+        "statutBail": "SIGNE_LOCATAIRE",
+        "statutSequestre_still_blocked": "BLOQUE",
+        "pdf_before_2nd_sig_status": 404
+      },
+      "after_2nd_signature_proprietaire": {
+        "status": 200,
+        "statutBail": "SIGNE_COMPLET",
+        "statutSequestre_auto_released": "LIBERE",
+        "montantVerseProprietaire": 500000.0,
+        "dateLiberation": "2026-10-30T12:05:10.413259212",
+        "annonce_statutPublication": "LOUEE",
+        "pdf_download": {
+          "binary_len": 1470,
+          "content_type": "application/pdf",
+          "head_ascii": "%PDF-1.5\n%âãÏÓ\n3 0 obj\n<</Filter"
+        },
+        "pdf_extracted_text": "CONTRAT DE BAIL NUMÉRIQUE E-COURTIER SÉNÉGAL ================================================   1. PARTIES PRENANTES proprio.demo@ecourtier.sn\\ audit.acheteur.1793361906@ecourtier.sn\\   2. BIEN IMMOBILIER Titre de l'annonce : Audit Appartement F3 Sacré-Cur 1793361906 Type de bien : APPARTEMENT Localisation : Sacré-Cur, Dakar   3. CONDITIONS FINANCIÈRES Montant de la caution : 250000.00 FCFA Montant du premier loyer : 250000.00 FCFA Frais de dossier plateforme : 5000.00 FCFA Montant total consigné en séquestre : 505000.00 FCFA Montant versé au bailleur à la libération : 500000.00 FCFA Référen"
+      },
+      "backend_logs": [
+        "2026-10-30T12:05:10.371Z  INFO 61 --- [ecourtier-backend] [nio-8080-exec-9] c.e.d.transaction.client.WaveClientMock  : [WAVE SANDBOX MOCK] Paiement séquestre initié pour la transaction 47d36160-731d-44bc-b362-910e619158d5: Montant 505000.00 FCFA, Réf WAVE-SANDBOX-73AB9E01",
+        "2026-10-30T12:05:10.402Z  WARN 61 --- [ecourtier-backend] [nio-8080-exec-7] .m.m.a.ExceptionHandlerExceptionResolver : Resolved [org.springframework.web.server.ResponseStatusException: 404 NOT_FOUND \"Le PDF du bail n'a pas encore été généré pour cette transaction.\"]",
+        "2026-10-30T12:05:10.413Z  INFO 61 --- [ecourtier-backend] [nio-8080-exec-3] c.e.d.t.service.TransactionService       : [LIBÉRATION AUTOMATIQUE SÉQUESTRE] Bail signé complet ET séquestre bloqué pour la transaction 47d36160-731d-44bc-b362-910e619158d5. Total séquestre: 505000.00 FCFA. Reversé au propriétaire: 500000.00 FCFA (caution 250000.00 + premier loyer 250000.00). Frais plateforme conservés: 5000.00 FCFA. Statut -> LIBERE",
+        "2026-10-30T12:05:10.420Z  INFO 61 --- [ecourtier-backend] [nio-8080-exec-3] c.e.d.t.service.PdfBailGeneratorService  : PDF du bail généré avec succès à /app/uploads/baux/bail_47d36160-731d-44bc-b362-910e619158d5.pdf"
+      ]
+    },
+    "F29_vente_achat_end_to_end": {
+      "tx_init_status": 201,
+      "montantCaution_equals_full_sale_price": 65000000.0,
+      "montantPremierLoyer": 0,
+      "fraisDossier": 5000,
+      "montantTotalSequestre": 65005000.0,
+      "final_statutSequestre": "LIBERE",
+      "final_statutBail": "SIGNE_COMPLET",
+      "montantVerseProprietaire": 65000000.0,
+      "annonce_statutPublication_after_sale": "VENDUE",
+      "pdf_vente_extracted_text": "CONTRAT DE BAIL NUMÉRIQUE E-COURTIER SÉNÉGAL ================================================   1. PARTIES PRENANTES agent@ecourtier.sn\\ audit.acheteur.1793361906@ecourtier.sn\\   2. BIEN IMMOBILIER Titre de l'annonce : Audit Villa Vente Almadies 1793361906 Type de bien : VILLA Localisation : Almadies, Dakar   3. CONDITIONS FINANCIÈRES Montant de la caution : 65000000.00 FCFA Montant du premier loyer : 0.00 FCFA Frais de dossier plateforme : 5000.00 FCFA Montant total consigné en séquestre : 65005000.00 FCFA Montant versé au bailleur à la libération : 65000000.00 FCFA Référence paiement Wave : "
+    },
+    "F20_F21_F22_F26_avis_reputation_signalement_admin": {
+      "avis_create": {
+        "status": 201,
+        "response": {
+          "id": "531c6783-dc1f-4725-b094-993a00f277b3",
+          "annonceId": "ae188335-e6be-4a0f-a635-4aeda107cb36",
+          "note": 5,
+          "commentaire": "Excellent appartement conforme aux photos et visite fluide.",
+          "auteurId": "abcb92ac-f8d2-4529-8bda-de9f477913d1",
+          "auteurPrenom": "Aminata",
+          "auteurNom": "Fall",
+          "dateCreation": "2026-10-30T12:05:11.156232491"
+        }
+      },
+      "avis_duplicate_blocked": {
+        "status": 409,
+        "response": {
+          "error": "Vous avez déjà noté cette annonce",
+          "timestamp": "2026-10-30T12:05:11.178421095",
+          "status": 409
+        }
+      },
+      "reputation_proprietaire": {
+        "status": 200,
+        "response": {
+          "utilisateurId": "17dcf272-c8bf-42a3-a1ef-1bc10e7c2e35",
+          "noteMoyenne": 5.0,
+          "nombreAvis": 2
+        }
+      },
+      "signalement_create": {
+        "status": 201,
+        "id": "df60db5a-15ff-4b22-b2c4-e9f05acd3e92"
+      },
+      "signalement_admin_list_total": 1,
+      "signalement_traiter_suspend": {
+        "status": 200,
+        "response": {
+          "id": "df60db5a-15ff-4b22-b2c4-e9f05acd3e92",
+          "annonceId": "49fa1cbd-5bd0-4ba0-999c-260329126193",
+          "annonceTitre": "Audit Studio Plateau 1793361906",
+          "auteurId": "abcb92ac-f8d2-4529-8bda-de9f477913d1",
+          "auteurEmail": "audit.acheteur.1793361906@ecourtier.sn",
+          "motif": "ARNAQUE_SUSPECTEE",
+          "description": "Signalement de test audit qualité pour vérifier la modération admin.",
+          "statut": "TRAITE",
+          "dateCreation": "2026-10-30T12:05:11.195495"
+        },
+        "annonce_statut_after": "SUSPENDUE"
+      },
+      "admin_statistiques": {
+        "status": 200,
+        "keys": [
+          "periode",
+          "utilisateurs",
+          "annonces",
+          "activiteCommerciale",
+          "moderation",
+          "assistantIA"
+        ],
+        "activiteCommerciale": {
+          "nombreRdvParStatut": {
+            "DEMANDE": 5,
+            "CONFIRME": 2,
+            "ANNULE": 0,
+            "EFFECTUE": 6
+          },
+          "tauxConversionRdvToTransaction": 100.0,
+          "tauxConversionTransactionToBail": 83.3,
+          "montantTotalSequestreBloque": 0,
+          "montantTotalLibere": 25000
+        }
+      },
+      "admin_utilisateurs_count": 21
+    },
+    "hors_cahier_favoris_messagerie": {
+      "favoris": {
+        "add_status": 201,
+        "dup_status": 409,
+        "dup_resp": {
+          "error": "Cette annonce est déjà dans vos favoris",
+          "timestamp": "2026-10-30T12:05:11.298130455",
+          "status": 409
+        },
+        "count": {
+          "count": 1
+        },
+        "list_total": 1,
+        "delete_status": 204
+      },
+      "messagerie": {
+        "create_conv_status": 201,
+        "conv_id": "155a5b0d-21a3-46c7-97ef-7762cd839403",
+        "send_msg_status": 401,
+        "msg_id": null,
+        "proprio_unread_count": {
+          "totalNonLus": 3
+        }
+      }
+    },
+    "ui_target_annonce": {
+      "id": "958b59d1-12af-4412-b319-f20f24dfcb87",
+      "status": 201
+    }
+  }
+}

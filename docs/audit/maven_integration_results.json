@@ -1,0 +1,1318 @@
+{
+  "totalSuites": 30,
+  "totalTests": 106,
+  "totalPassed": 105,
+  "totalFailures": 0,
+  "totalErrors": 1,
+  "totalTimeSec": 42.947,
+  "globalCoverage": {
+    "classes": 87,
+    "linePct": 78.8,
+    "branchPct": 49.7,
+    "instrPct": 73.1,
+    "linesCovered": 1822,
+    "linesTotal": 2313,
+    "branchesCovered": 532,
+    "branchesTotal": 1070
+  },
+  "suites": [
+    {
+      "className": "com.ecourtier.common.config.DataSeedProfileTest",
+      "tests": 1,
+      "failures": 0,
+      "errors": 1,
+      "skipped": 0,
+      "time": 4.617,
+      "cases": [
+        {
+          "name": "testDataSeedRunnerDisabledInProdProfile",
+          "time": 0.01,
+          "status": "ERROR",
+          "message": "Failed to load ApplicationContext for [WebMergedContextConfiguration@16716cc0 testClass = com.ecourtier.common.config.DataSeedProfileTest, locations = [], classes = [com.ecourtier.EcourtierApplication], contextInitializerClasses = [], activeProfiles = [\"prod\"], propertySourceDescriptors = [], propertySourceProperties = [\"ADMIN_BOOTSTRAP_PASSWORD=<REDACTED>\", \"spring.datasource.drive"
+        }
+      ]
+    },
+    {
+      "className": "com.ecourtier.common.config.DatabaseConfigTest",
+      "tests": 1,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "time": 0.028,
+      "cases": [
+        {
+          "name": "testFormatJdbcUrl",
+          "time": 0.026,
+          "status": "PASS",
+          "message": ""
+        }
+      ]
+    },
+    {
+      "className": "com.ecourtier.common.controller.AdminSeedControllerTest",
+      "tests": 3,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "time": 14.431,
+      "cases": [
+        {
+          "name": "seedDemoData_SuccessWhenEmpty",
+          "time": 0.237,
+          "status": "PASS",
+          "message": ""
+        },
+        {
+          "name": "seedDemoData_ForbiddenForNonAdmin",
+          "time": 0.01,
+          "status": "PASS",
+          "message": ""
+        },
+        {
+          "name": "seedDemoData_IdempotentWhenNotEmpty",
+          "time": 0.011,
+          "status": "PASS",
+          "message": ""
+        }
+      ]
+    },
+    {
+      "className": "com.ecourtier.common.domain.EnumConsistencyIntegrationTest",
+      "tests": 1,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "time": 1.935,
+      "cases": [
+        {
+          "name": "testAllEnumValuesPersistence",
+          "time": 0.25,
+          "status": "PASS",
+          "message": ""
+        }
+      ]
+    },
+    {
+      "className": "com.ecourtier.common.security.JwtServiceTest",
+      "tests": 3,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "time": 0.234,
+      "cases": [
+        {
+          "name": "testGenerateRefreshToken",
+          "time": 0.211,
+          "status": "PASS",
+          "message": ""
+        },
+        {
+          "name": "testInvalidToken",
+          "time": 0.012,
+          "status": "PASS",
+          "message": ""
+        },
+        {
+          "name": "testGenerateAccessTokenAndValidate",
+          "time": 0.008,
+          "status": "PASS",
+          "message": ""
+        }
+      ]
+    },
+    {
+      "className": "com.ecourtier.common.security.LoginRateLimiterServiceTest",
+      "tests": 2,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "time": 0.007,
+      "cases": [
+        {
+          "name": "testResetOnSuccess",
+          "time": 0.002,
+          "status": "PASS",
+          "message": ""
+        },
+        {
+          "name": "testRateLimiterBlocksAfterFiveFailures",
+          "time": 0.003,
+          "status": "PASS",
+          "message": ""
+        }
+      ]
+    },
+    {
+      "className": "com.ecourtier.common.service.FileStorageServiceTest",
+      "tests": 7,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "time": 0.017,
+      "cases": [
+        {
+          "name": "testMagicBytesValidFormats",
+          "time": 0.005,
+          "status": "PASS",
+          "message": ""
+        },
+        {
+          "name": "testRealFileLifecycle",
+          "time": 0.002,
+          "status": "PASS",
+          "message": ""
+        },
+        {
+          "name": "testPathTraversalProtection",
+          "time": 0.001,
+          "status": "PASS",
+          "message": ""
+        },
+        {
+          "name": "testValidateFileShortContent",
+          "time": 0.001,
+          "status": "PASS",
+          "message": ""
+        },
+        {
+          "name": "testValidateFileExceedsMaxSize",
+          "time": 0.001,
+          "status": "PASS",
+          "message": ""
+        },
+        {
+          "name": "testValidateFileExtensionNotAllowed",
+          "time": 0.001,
+          "status": "PASS",
+          "message": ""
+        },
+        {
+          "name": "testValidateFileEmptyOrNull",
+          "time": 0.001,
+          "status": "PASS",
+          "message": ""
+        }
+      ]
+    },
+    {
+      "className": "com.ecourtier.common.service.MagicBytesValidationTest",
+      "tests": 2,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "time": 0.004,
+      "cases": [
+        {
+          "name": "testMagicBytesValidationRejectsFakeImage",
+          "time": 0.001,
+          "status": "PASS",
+          "message": ""
+        },
+        {
+          "name": "testMagicBytesValidationAcceptsValidPng",
+          "time": 0.001,
+          "status": "PASS",
+          "message": ""
+        }
+      ]
+    },
+    {
+      "className": "com.ecourtier.domain.admin.controller.AdminStatistiquesControllerTest",
+      "tests": 3,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "time": 3.065,
+      "cases": [
+        {
+          "name": "testAccesAdminAutorise",
+          "time": 0.831,
+          "status": "PASS",
+          "message": ""
+        },
+        {
+          "name": "testAccesNonAdminRefuse",
+          "time": 0.392,
+          "status": "PASS",
+          "message": ""
+        },
+        {
+          "name": "testAccesNonAuthentifieRefuse",
+          "time": 0.38,
+          "status": "PASS",
+          "message": ""
+        }
+      ]
+    },
+    {
+      "className": "com.ecourtier.domain.admin.service.AdminStatistiquesServiceTest",
+      "tests": 3,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "time": 0.177,
+      "cases": [
+        {
+          "name": "testAgregationsStatutPublicationExactes",
+          "time": 0.078,
+          "status": "PASS",
+          "message": ""
+        },
+        {
+          "name": "testProtectionDivisionParZero",
+          "time": 0.03,
+          "status": "PASS",
+          "message": ""
+        },
+        {
+          "name": "testCalculTauxShortlistDeuxConversations",
+          "time": 0.039,
+          "status": "PASS",
+          "message": ""
+        }
+      ]
+    },
+    {
+      "className": "com.ecourtier.domain.annonce.controller.AnnonceIntegrationTest",
+      "tests": 5,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "time": 4.195,
+      "cases": [
+        {
+          "name": "testFiltresCombinesSpecification",
+          "time": 0.973,
+          "status": "PASS",
+          "message": ""
+        },
+        {
+          "name": "testCreationAnnoncePermissions",
+          "time": 0.777,
+          "status": "PASS",
+          "message": ""
+        },
+        {
+          "name": "testModificationAnnonceSecurityOwnership",
+          "time": 0.835,
+          "status": "PASS",
+          "message": ""
+        },
+        {
+          "name": "testBadgeVerificationExclusifAdmin",
+          "time": 0.782,
+          "status": "PASS",
+          "message": ""
+        },
+        {
+          "name": "testUploadPhotoTailleExcedee",
+          "time": 0.796,
+          "status": "PASS",
+          "message": ""
+        }
+      ]
+    },
+    {
+      "className": "com.ecourtier.domain.annonce.controller.DocumentVerificationSecurityTest",
+      "tests": 2,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "time": 0.07,
+      "cases": [
+        {
+          "name": "testDocumentAccessAllowedToOwner",
+          "time": 0.037,
+          "status": "PASS",
+          "message": ""
+        },
+        {
+          "name": "testDocumentAccessDeniedToThirdParty",
+          "time": 0.024,
+          "status": "PASS",
+          "message": ""
+        }
+      ]
+    },
+    {
+      "className": "com.ecourtier.domain.annonce.service.AnnonceServiceTest",
+      "tests": 9,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "time": 0.75,
+      "cases": [
+        {
+          "name": "testSupprimerAnnonceLogique",
+          "time": 0.696,
+          "status": "PASS",
+          "message": ""
+        },
+        {
+          "name": "testRechercherAnnoncesFilters",
+          "time": 0.012,
+          "status": "PASS",
+          "message": ""
+        },
+        {
+          "name": "testDocumentsManagement",
+          "time": 0.01,
+          "status": "PASS",
+          "message": ""
+        },
+        {
+          "name": "testGetAndModifierAnnonce",
+          "time": 0.005,
+          "status": "PASS",
+          "message": ""
+        },
+        {
+          "name": "testReordonnerPhotos",
+          "time": 0.005,
+          "status": "PASS",
+          "message": ""
+        },
+        {
+          "name": "testPhotosManagement",
+          "time": 0.008,
+          "status": "PASS",
+          "message": ""
+        },
+        {
+          "name": "testListerAnnoncesEnAttenteVerification",
+          "time": 0.003,
+          "status": "PASS",
+          "message": ""
+        },
+        {
+          "name": "testDeciderVerificationAnnonce",
+          "time": 0.004,
+          "status": "PASS",
+          "message": ""
+        },
+        {
+          "name": "testCreerAnnonceSuccess",
+          "time": 0.002,
+          "status": "PASS",
+          "message": ""
+        }
+      ]
+    },
+    {
+      "className": "com.ecourtier.domain.annonce.service.MesAnnoncesFilterTest",
+      "tests": 1,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "time": 0.072,
+      "cases": [
+        {
+          "name": "testMesAnnoncesIncludesUnavailableStatusListings",
+          "time": 0.043,
+          "status": "PASS",
+          "message": ""
+        }
+      ]
+    },
+    {
+      "className": "com.ecourtier.domain.annonce.service.SoftDeleteExclusionTest",
+      "tests": 1,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "time": 0.039,
+      "cases": [
+        {
+          "name": "testSoftDeletedListingsExcludedFromSearch",
+          "time": 0.031,
+          "status": "PASS",
+          "message": ""
+        }
+      ]
+    },
+    {
+      "className": "com.ecourtier.domain.avis.service.AvisServiceTest",
+      "tests": 4,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "time": 0.29,
+      "cases": [
+        {
+          "name": "testCreerAvisWithoutCompletedRdvThrowsForbidden",
+          "time": 0.276,
+          "status": "PASS",
+          "message": ""
+        },
+        {
+          "name": "testObtenirAvisSummaryAndReputation",
+          "time": 0.006,
+          "status": "PASS",
+          "message": ""
+        },
+        {
+          "name": "testCreerAvisDuplicateThrowsConflict",
+          "time": 0.003,
+          "status": "PASS",
+          "message": ""
+        },
+        {
+          "name": "testCreerAvisSuccess",
+          "time": 0.004,
+          "status": "PASS",
+          "message": ""
+        }
+      ]
+    },
+    {
+      "className": "com.ecourtier.domain.avis.service.SignalementServiceTest",
+      "tests": 2,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "time": 0.115,
+      "cases": [
+        {
+          "name": "testTraiterSignalementWithSuspension",
+          "time": 0.108,
+          "status": "PASS",
+          "message": ""
+        },
+        {
+          "name": "testCreerSignalementSuccess",
+          "time": 0.005,
+          "status": "PASS",
+          "message": ""
+        }
+      ]
+    },
+    {
+      "className": "com.ecourtier.domain.favori.service.FavoriServiceTest",
+      "tests": 5,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "time": 0.129,
+      "cases": [
+        {
+          "name": "testAjouterFavoriSucces",
+          "time": 0.117,
+          "status": "PASS",
+          "message": ""
+        },
+        {
+          "name": "testSupprimerFavoriInexistant404",
+          "time": 0.003,
+          "status": "PASS",
+          "message": ""
+        },
+        {
+          "name": "testAjouterFavoriDoublon409",
+          "time": 0.002,
+          "status": "PASS",
+          "message": ""
+        },
+        {
+          "name": "testGetFavorisAnonymeFalse",
+          "time": 0.001,
+          "status": "PASS",
+          "message": ""
+        },
+        {
+          "name": "testSupprimerFavoriSucces",
+          "time": 0.002,
+          "status": "PASS",
+          "message": ""
+        }
+      ]
+    },
+    {
+      "className": "com.ecourtier.domain.ia.controller.IAIntegrationTest",
+      "tests": 2,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "time": 1.795,
+      "cases": [
+        {
+          "name": "testWorkflowIAComplet",
+          "time": 0.087,
+          "status": "PASS",
+          "message": ""
+        },
+        {
+          "name": "testMessageTropLongRejete",
+          "time": 0.039,
+          "status": "PASS",
+          "message": ""
+        }
+      ]
+    },
+    {
+      "className": "com.ecourtier.domain.ia.service.LlmExtractionMockServerTest",
+      "tests": 2,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "time": 4.171,
+      "cases": [
+        {
+          "name": "testMalformedJsonTriggersRetryThenFallback",
+          "time": 0.16,
+          "status": "PASS",
+          "message": ""
+        },
+        {
+          "name": "testLatencyTimeoutTriggersFallbackUnderLimit",
+          "time": 4.009,
+          "status": "PASS",
+          "message": ""
+        }
+      ]
+    },
+    {
+      "className": "com.ecourtier.domain.ia.service.LlmExtractionServiceTest",
+      "tests": 2,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "time": 0.277,
+      "cases": [
+        {
+          "name": "testMesureTempsEtFallback",
+          "time": 0.274,
+          "status": "PASS",
+          "message": ""
+        },
+        {
+          "name": "testFallbackQuandCleAbsente",
+          "time": 0.001,
+          "status": "PASS",
+          "message": ""
+        }
+      ]
+    },
+    {
+      "className": "com.ecourtier.domain.ia.service.RuleBasedCriteriaExtractorTest",
+      "tests": 5,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "time": 0.007,
+      "cases": [
+        {
+          "name": "testExtractionStudioBoucotte",
+          "time": 0.001,
+          "status": "PASS",
+          "message": ""
+        },
+        {
+          "name": "testMessageVideRejete",
+          "time": 0.001,
+          "status": "PASS",
+          "message": ""
+        },
+        {
+          "name": "testPromptInjectionRejete",
+          "time": 0.001,
+          "status": "PASS",
+          "message": ""
+        },
+        {
+          "name": "testMessageTropLongRejete",
+          "time": 0.001,
+          "status": "PASS",
+          "message": ""
+        },
+        {
+          "name": "testExtractionCriteresMessageSample",
+          "time": 0.001,
+          "status": "PASS",
+          "message": ""
+        }
+      ]
+    },
+    {
+      "className": "com.ecourtier.domain.messagerie.MessagerieSecurityTest",
+      "tests": 2,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "time": 0.146,
+      "cases": [
+        {
+          "name": "getMessages_NonParticipant_Returns403",
+          "time": 0.022,
+          "status": "PASS",
+          "message": ""
+        },
+        {
+          "name": "stompSubscribe_NonParticipant_Rejected",
+          "time": 0.098,
+          "status": "PASS",
+          "message": ""
+        }
+      ]
+    },
+    {
+      "className": "com.ecourtier.domain.messagerie.MessagerieStompIntegrationTest",
+      "tests": 3,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "time": 4.082,
+      "cases": [
+        {
+          "name": "stompSubscribe_TiersRejected",
+          "time": 0.745,
+          "status": "PASS",
+          "message": ""
+        },
+        {
+          "name": "stompSend_TiersRejected_NotPersisted_NotBroadcasted_ExplicitError",
+          "time": 1.31,
+          "status": "PASS",
+          "message": ""
+        },
+        {
+          "name": "e2eRealtimeMessaging",
+          "time": 0.431,
+          "status": "PASS",
+          "message": ""
+        }
+      ]
+    },
+    {
+      "className": "com.ecourtier.domain.messagerie.service.MessagerieServiceTest",
+      "tests": 10,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "time": 0.39,
+      "cases": [
+        {
+          "name": "compterMessagesNonLus_Success",
+          "time": 0.365,
+          "status": "PASS",
+          "message": ""
+        },
+        {
+          "name": "envoyerMessage_Empty_Rejected",
+          "time": 0.002,
+          "status": "PASS",
+          "message": ""
+        },
+        {
+          "name": "initierConversation_Success",
+          "time": 0.005,
+          "status": "PASS",
+          "message": ""
+        },
+        {
+          "name": "marquerCommeLu_Success",
+          "time": 0.003,
+          "status": "PASS",
+          "message": ""
+        },
+        {
+          "name": "envoyerMessage_Success",
+          "time": 0.003,
+          "status": "PASS",
+          "message": ""
+        },
+        {
+          "name": "envoyerMessage_TooLong_Rejected",
+          "time": 0.002,
+          "status": "PASS",
+          "message": ""
+        },
+        {
+          "name": "initierConversation_ReturnsExisting",
+          "time": 0.002,
+          "status": "PASS",
+          "message": ""
+        },
+        {
+          "name": "initierConversation_SelfContact_Rejected",
+          "time": 0.002,
+          "status": "PASS",
+          "message": ""
+        },
+        {
+          "name": "envoyerMessage_NonParticipant_Forbidden",
+          "time": 0.002,
+          "status": "PASS",
+          "message": ""
+        },
+        {
+          "name": "envoyerMessage_ScriptTag_Rejected",
+          "time": 0.002,
+          "status": "PASS",
+          "message": ""
+        }
+      ]
+    },
+    {
+      "className": "com.ecourtier.domain.rendezvous.mapper.RendezVousMapperTest",
+      "tests": 1,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "time": 0.004,
+      "cases": [
+        {
+          "name": "testToResponseDTO",
+          "time": 0.002,
+          "status": "PASS",
+          "message": ""
+        }
+      ]
+    },
+    {
+      "className": "com.ecourtier.domain.rendezvous.service.RendezVousServiceTest",
+      "tests": 7,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "time": 0.101,
+      "cases": [
+        {
+          "name": "testObtenirRDVs",
+          "time": 0.082,
+          "status": "PASS",
+          "message": ""
+        },
+        {
+          "name": "testAnnulerEtEffectue",
+          "time": 0.003,
+          "status": "PASS",
+          "message": ""
+        },
+        {
+          "name": "testDemanderRendezVousUnavailable",
+          "time": 0.003,
+          "status": "PASS",
+          "message": ""
+        },
+        {
+          "name": "testSimulerRappelsDemain",
+          "time": 0.002,
+          "status": "PASS",
+          "message": ""
+        },
+        {
+          "name": "testDemanderRendezVousSuccess",
+          "time": 0.003,
+          "status": "PASS",
+          "message": ""
+        },
+        {
+          "name": "testConfirmerRendezVousConflict",
+          "time": 0.002,
+          "status": "PASS",
+          "message": ""
+        },
+        {
+          "name": "testConfirmerRendezVousSuccess",
+          "time": 0.002,
+          "status": "PASS",
+          "message": ""
+        }
+      ]
+    },
+    {
+      "className": "com.ecourtier.domain.transaction.controller.WorkflowTransactionIntegrationTest",
+      "tests": 7,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "time": 0.702,
+      "cases": [
+        {
+          "name": "testCalculMontantsLocationEtMontantForgeIgnore",
+          "time": 0.09,
+          "status": "PASS",
+          "message": ""
+        },
+        {
+          "name": "testCalculMontantsVente",
+          "time": 0.04,
+          "status": "PASS",
+          "message": ""
+        },
+        {
+          "name": "testTransactionRefuseeSiAucunRdvEffectuePrealable",
+          "time": 0.034,
+          "status": "PASS",
+          "message": ""
+        },
+        {
+          "name": "testDoubleSignatureParMemePartieRejetee",
+          "time": 0.041,
+          "status": "PASS",
+          "message": ""
+        },
+        {
+          "name": "testLiberationAutomatiqueSequestreBailSigneComplet",
+          "time": 0.377,
+          "status": "PASS",
+          "message": ""
+        },
+        {
+          "name": "testPdfContientDetailConditionsFinancieres",
+          "time": 0.038,
+          "status": "PASS",
+          "message": ""
+        },
+        {
+          "name": "testAccesBailPdfRefuseTiersAutoriseParties",
+          "time": 0.049,
+          "status": "PASS",
+          "message": ""
+        }
+      ]
+    },
+    {
+      "className": "com.ecourtier.domain.utilisateur.controller.AuthIntegrationTest",
+      "tests": 3,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "time": 0.737,
+      "cases": [
+        {
+          "name": "testConnexionMauvaisMotDePasseRejetee",
+          "time": 0.194,
+          "status": "PASS",
+          "message": ""
+        },
+        {
+          "name": "testInscriptionEtConnexionWorkflow",
+          "time": 0.214,
+          "status": "PASS",
+          "message": ""
+        },
+        {
+          "name": "testControleAccesRoleAdmin",
+          "time": 0.303,
+          "status": "PASS",
+          "message": ""
+        }
+      ]
+    },
+    {
+      "className": "com.ecourtier.domain.utilisateur.service.AuthServiceTest",
+      "tests": 7,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "time": 0.36,
+      "cases": [
+        {
+          "name": "testInscriptionDuplicateEmail",
+          "time": 0.339,
+          "status": "PASS",
+          "message": ""
+        },
+        {
+          "name": "testInscriptionRestrictedRole",
+          "time": 0.002,
+          "status": "PASS",
+          "message": ""
+        },
+        {
+          "name": "testRafraichirToken",
+          "time": 0.004,
+          "status": "PASS",
+          "message": ""
+        },
+        {
+          "name": "testConnexionInvalidCredentials",
+          "time": 0.005,
+          "status": "PASS",
+          "message": ""
+        },
+        {
+          "name": "testConnexionDisabledAccount",
+          "time": 0.003,
+          "status": "PASS",
+          "message": ""
+        },
+        {
+          "name": "testInscriptionSuccess",
+          "time": 0.003,
+          "status": "PASS",
+          "message": ""
+        },
+        {
+          "name": "testConnexionSuccess",
+          "time": 0.002,
+          "status": "PASS",
+          "message": ""
+        }
+      ]
+    }
+  ],
+  "coverageByPackage": [
+    {
+      "package": "com.ecourtier",
+      "classes": 1,
+      "linePct": 33.3,
+      "branchPct": 100.0,
+      "instrPct": 37.5,
+      "linesCovered": 1,
+      "linesTotal": 3
+    },
+    {
+      "package": "com.ecourtier.common.config",
+      "classes": 9,
+      "linePct": 83.6,
+      "branchPct": 47.0,
+      "instrPct": 84.6,
+      "linesCovered": 153,
+      "linesTotal": 183
+    },
+    {
+      "package": "com.ecourtier.common.controller",
+      "classes": 2,
+      "linePct": 36.4,
+      "branchPct": 20.0,
+      "instrPct": 33.0,
+      "linesCovered": 8,
+      "linesTotal": 22
+    },
+    {
+      "package": "com.ecourtier.common.exception",
+      "classes": 1,
+      "linePct": 54.5,
+      "branchPct": 100.0,
+      "instrPct": 52.1,
+      "linesCovered": 18,
+      "linesTotal": 33
+    },
+    {
+      "package": "com.ecourtier.common.health",
+      "classes": 1,
+      "linePct": 25.0,
+      "branchPct": 100.0,
+      "instrPct": 15.0,
+      "linesCovered": 1,
+      "linesTotal": 4
+    },
+    {
+      "package": "com.ecourtier.common.security",
+      "classes": 10,
+      "linePct": 73.8,
+      "branchPct": 42.6,
+      "instrPct": 72.5,
+      "linesCovered": 155,
+      "linesTotal": 210
+    },
+    {
+      "package": "com.ecourtier.common.service",
+      "classes": 2,
+      "linePct": 95.4,
+      "branchPct": 77.8,
+      "instrPct": 96.3,
+      "linesCovered": 251,
+      "linesTotal": 263
+    },
+    {
+      "package": "com.ecourtier.domain.admin.controller",
+      "classes": 1,
+      "linePct": 100.0,
+      "branchPct": 100.0,
+      "instrPct": 100.0,
+      "linesCovered": 2,
+      "linesTotal": 2
+    },
+    {
+      "package": "com.ecourtier.domain.admin.service",
+      "classes": 1,
+      "linePct": 84.7,
+      "branchPct": 57.1,
+      "instrPct": 78.4,
+      "linesCovered": 122,
+      "linesTotal": 144
+    },
+    {
+      "package": "com.ecourtier.domain.annonce.controller",
+      "classes": 2,
+      "linePct": 35.5,
+      "branchPct": 30.0,
+      "instrPct": 40.1,
+      "linesCovered": 11,
+      "linesTotal": 31
+    },
+    {
+      "package": "com.ecourtier.domain.annonce.entity",
+      "classes": 10,
+      "linePct": 96.1,
+      "branchPct": 62.5,
+      "instrPct": 97.6,
+      "linesCovered": 49,
+      "linesTotal": 51
+    },
+    {
+      "package": "com.ecourtier.domain.annonce.mapper",
+      "classes": 1,
+      "linePct": 71.4,
+      "branchPct": 35.7,
+      "instrPct": 69.2,
+      "linesCovered": 40,
+      "linesTotal": 56
+    },
+    {
+      "package": "com.ecourtier.domain.annonce.repository",
+      "classes": 1,
+      "linePct": 73.2,
+      "branchPct": 64.7,
+      "instrPct": 71.4,
+      "linesCovered": 30,
+      "linesTotal": 41
+    },
+    {
+      "package": "com.ecourtier.domain.annonce.service",
+      "classes": 1,
+      "linePct": 96.7,
+      "branchPct": 63.2,
+      "instrPct": 79.6,
+      "linesCovered": 148,
+      "linesTotal": 153
+    },
+    {
+      "package": "com.ecourtier.domain.avis.controller",
+      "classes": 3,
+      "linePct": 0.0,
+      "branchPct": 100.0,
+      "instrPct": 0.0,
+      "linesCovered": 0,
+      "linesTotal": 12
+    },
+    {
+      "package": "com.ecourtier.domain.avis.entity",
+      "classes": 4,
+      "linePct": 77.8,
+      "branchPct": 33.3,
+      "instrPct": 86.5,
+      "linesCovered": 14,
+      "linesTotal": 18
+    },
+    {
+      "package": "com.ecourtier.domain.avis.service",
+      "classes": 2,
+      "linePct": 90.3,
+      "branchPct": 54.5,
+      "instrPct": 81.4,
+      "linesCovered": 84,
+      "linesTotal": 93
+    },
+    {
+      "package": "com.ecourtier.domain.favori.controller",
+      "classes": 1,
+      "linePct": 0.0,
+      "branchPct": 100.0,
+      "instrPct": 0.0,
+      "linesCovered": 0,
+      "linesTotal": 8
+    },
+    {
+      "package": "com.ecourtier.domain.favori.entity",
+      "classes": 1,
+      "linePct": 0.0,
+      "branchPct": 0.0,
+      "instrPct": 0.0,
+      "linesCovered": 0,
+      "linesTotal": 3
+    },
+    {
+      "package": "com.ecourtier.domain.favori.service",
+      "classes": 1,
+      "linePct": 61.8,
+      "branchPct": 75.0,
+      "instrPct": 41.3,
+      "linesCovered": 21,
+      "linesTotal": 34
+    },
+    {
+      "package": "com.ecourtier.domain.ia.controller",
+      "classes": 1,
+      "linePct": 100.0,
+      "branchPct": 50.0,
+      "instrPct": 85.7,
+      "linesCovered": 8,
+      "linesTotal": 8
+    },
+    {
+      "package": "com.ecourtier.domain.ia.entity",
+      "classes": 3,
+      "linePct": 77.8,
+      "branchPct": 50.0,
+      "instrPct": 79.3,
+      "linesCovered": 7,
+      "linesTotal": 9
+    },
+    {
+      "package": "com.ecourtier.domain.ia.service",
+      "classes": 3,
+      "linePct": 63.1,
+      "branchPct": 35.9,
+      "instrPct": 54.5,
+      "linesCovered": 224,
+      "linesTotal": 355
+    },
+    {
+      "package": "com.ecourtier.domain.messagerie.controller",
+      "classes": 2,
+      "linePct": 30.0,
+      "branchPct": 50.0,
+      "instrPct": 26.5,
+      "linesCovered": 6,
+      "linesTotal": 20
+    },
+    {
+      "package": "com.ecourtier.domain.messagerie.entity",
+      "classes": 2,
+      "linePct": 66.7,
+      "branchPct": 50.0,
+      "instrPct": 57.1,
+      "linesCovered": 4,
+      "linesTotal": 6
+    },
+    {
+      "package": "com.ecourtier.domain.messagerie.mapper",
+      "classes": 1,
+      "linePct": 95.5,
+      "branchPct": 60.0,
+      "instrPct": 94.0,
+      "linesCovered": 21,
+      "linesTotal": 22
+    },
+    {
+      "package": "com.ecourtier.domain.messagerie.service",
+      "classes": 1,
+      "linePct": 66.7,
+      "branchPct": 66.7,
+      "instrPct": 54.6,
+      "linesCovered": 56,
+      "linesTotal": 84
+    },
+    {
+      "package": "com.ecourtier.domain.rendezvous.controller",
+      "classes": 1,
+      "linePct": 0.0,
+      "branchPct": 100.0,
+      "instrPct": 0.0,
+      "linesCovered": 0,
+      "linesTotal": 15
+    },
+    {
+      "package": "com.ecourtier.domain.rendezvous.entity",
+      "classes": 2,
+      "linePct": 83.3,
+      "branchPct": 50.0,
+      "instrPct": 85.1,
+      "linesCovered": 10,
+      "linesTotal": 12
+    },
+    {
+      "package": "com.ecourtier.domain.rendezvous.mapper",
+      "classes": 1,
+      "linePct": 100.0,
+      "branchPct": 58.3,
+      "instrPct": 93.9,
+      "linesCovered": 18,
+      "linesTotal": 18
+    },
+    {
+      "package": "com.ecourtier.domain.rendezvous.service",
+      "classes": 1,
+      "linePct": 100.0,
+      "branchPct": 87.5,
+      "instrPct": 88.5,
+      "linesCovered": 60,
+      "linesTotal": 60
+    },
+    {
+      "package": "com.ecourtier.domain.transaction.client",
+      "classes": 1,
+      "linePct": 81.8,
+      "branchPct": 0.0,
+      "instrPct": 75.0,
+      "linesCovered": 9,
+      "linesTotal": 11
+    },
+    {
+      "package": "com.ecourtier.domain.transaction.controller",
+      "classes": 1,
+      "linePct": 72.7,
+      "branchPct": 50.0,
+      "instrPct": 68.4,
+      "linesCovered": 16,
+      "linesTotal": 22
+    },
+    {
+      "package": "com.ecourtier.domain.transaction.entity",
+      "classes": 3,
+      "linePct": 85.7,
+      "branchPct": 50.0,
+      "instrPct": 86.8,
+      "linesCovered": 24,
+      "linesTotal": 28
+    },
+    {
+      "package": "com.ecourtier.domain.transaction.mapper",
+      "classes": 1,
+      "linePct": 100.0,
+      "branchPct": 50.0,
+      "instrPct": 92.4,
+      "linesCovered": 33,
+      "linesTotal": 33
+    },
+    {
+      "package": "com.ecourtier.domain.transaction.service",
+      "classes": 2,
+      "linePct": 83.3,
+      "branchPct": 62.1,
+      "instrPct": 81.6,
+      "linesCovered": 120,
+      "linesTotal": 144
+    },
+    {
+      "package": "com.ecourtier.domain.utilisateur.controller",
+      "classes": 2,
+      "linePct": 83.3,
+      "branchPct": 25.0,
+      "instrPct": 76.6,
+      "linesCovered": 15,
+      "linesTotal": 18
+    },
+    {
+      "package": "com.ecourtier.domain.utilisateur.entity",
+      "classes": 2,
+      "linePct": 100.0,
+      "branchPct": 50.0,
+      "instrPct": 100.0,
+      "linesCovered": 8,
+      "linesTotal": 8
+    },
+    {
+      "package": "com.ecourtier.domain.utilisateur.mapper",
+      "classes": 1,
+      "linePct": 92.9,
+      "branchPct": 50.0,
+      "instrPct": 94.6,
+      "linesCovered": 13,
+      "linesTotal": 14
+    },
+    {
+      "package": "com.ecourtier.domain.utilisateur.service",
+      "classes": 1,
+      "linePct": 100.0,
+      "branchPct": 100.0,
+      "instrPct": 95.1,
+      "linesCovered": 62,
+      "linesTotal": 62
+    }
+  ]
+}

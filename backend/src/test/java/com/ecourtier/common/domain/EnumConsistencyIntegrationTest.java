@@ -94,6 +94,7 @@ public class EnumConsistencyIntegrationTest {
                         TransactionEntity tx = transactionRepository.save(TransactionEntity.builder()
                                 .annonce(annonce)
                                 .locataire(owner)
+                                .proprietaire(owner)
                                 .montantCaution(BigDecimal.valueOf(100000))
                                 .statutSequestre(seq)
                                 .statutBail(StatutBail.SIGNE_COMPLET)
