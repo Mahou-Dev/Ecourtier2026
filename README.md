@@ -1,11 +1,11 @@
-# 🇸🇳 E-Courtier Sénégal — Plateforme Immobilière Certifiée & Sécurisée
+# 🇸🇳 E-Courtier Sénégal — Plateforme Immobilière Sécurisée
 
 [![Spring Boot](https://img.shields.io/badge/Spring%20Boot-3.4.3-brightgreen.svg)](https://spring.io/projects/spring-boot)
 [![React](https://img.shields.io/badge/React-18.3.1-blue.svg)](https://react.dev/)
 [![Docker](https://img.shields.io/badge/Docker-Compose-blue)](https://www.docker.com/)
 [![License](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 
-E-Courtier Sénégal est la première plateforme web immobilière sécurisée et transparente spécifiquement adaptée aux réalités réglementaires, financières et géographiques du marché sénégalais (Dakar, Thiès, Ziguinchor, Saly, Mbour, Saint-Louis).
+E-Courtier Sénégal est une plateforme web immobilière sécurisée et transparente adaptée aux usages et réalités géographiques du marché sénégalais (Dakar, Thiès, Ziguinchor, Saly, Mbour, Saint-Louis).
 
 ---
 
@@ -26,14 +26,14 @@ E-Courtier Sénégal est la première plateforme web immobilière sécurisée et
 
 La recherche de logement au Sénégal fait souvent face à plusieurs défis :
 - Risques de fausses annonces et de double réservation.
-- Non-respect du plafonnement légal de la caution (loi sénégalaise fixant le séquestre à 2 mois maximum).
+- Risques liés au versement direct de la caution et du premier loyer avant la signature effective du bail.
 - Absences de vérifications parcelles/NICAD et titres fonciers.
 - Retards dans la prise de rendez-vous de visite.
 
 **E-Courtier Sénégal** apporte des solutions concrètes :
-- **Vérification Administrative Strict** : Téléversement des titres fonciers et baux par les propriétaires, contrôlés par des agents immobiliers agréés.
-- **Séquestre Bancaire Automatisé (Cahier des charges §4)** : Consignation sécurisée sous séquestre de la caution, du premier loyer et des frais de dossier plateforme (5 000 FCFA). Les fonds (caution + 1er loyer) sont libérés et reversés au bailleur dès la double signature effective du contrat de bail, la plateforme retenant les frais.
-- **Double-Signature Numérique du Bail** : Consentement mutuel et irrévocable du locataire et du propriétaire avec génération d'un contrat de bail PDF officiel.
+- **Vérification Administrative Stricte** : Téléversement des titres fonciers, baux précédents et pièces d'identité par les propriétaires, contrôlés par l'administration.
+- **Séquestre Automatisé (Wave Sandbox)** : Consignation sous séquestre de la caution (1 mois de loyer), du premier loyer et des frais de dossier plateforme (5 000 FCFA). Les fonds (caution + 1er loyer) sont libérés en faveur du bailleur dès la double signature effective du contrat de bail, la plateforme retenant les frais de dossier.
+- **Bail numérique avec double signature électronique** : Consentement mutuel horodaté du locataire et du propriétaire avec génération automatique d'un contrat de bail PDF.
 - **Assistant IA Immobilier Localisé** : Extraction intelligente des besoins en langage naturel (Wolof/Français), recommandations personnalisées et shortlist instantanée.
 
 ---
@@ -263,20 +263,20 @@ mvn test jacoco:report
 
 ## 9. Spécificités du Marché Sénégalais & Règles de Séquestre
 
-- **Séquestre Conforme au Cahier des Charges (§4) & Loi n° 2014-03** :
+- **Fonctionnement du Séquestre Implémenté (Wave Sandbox & Bail numérique avec double signature électronique)** :
   - **LOCATION** :
-    - `montantCaution` = Loyer mensuel (prix de l'annonce).
-    - `montantPremierLoyer` = Premier mois de loyer (prix de l'annonce).
-    - `fraisDossier` = Frais administratifs de la plateforme (5 000 FCFA forfaitaires).
-    - `montantTotalSequestre` = Caution + Premier Loyer + Frais de dossier.
-    - **Libération** : À la double signature du bail (`SIGNE_COMPLET`), la caution et le premier loyer (`montantVerseProprietaire = montantCaution + montantPremierLoyer`) sont reversés au bailleur, tandis que la plateforme conserve les 5 000 FCFA de frais de dossier.
+    - `montantCaution` = 1 mois de loyer (égal au loyer mensuel affiché sur l'annonce).
+    - `montantPremierLoyer` = 1 mois de loyer (premier mois de loyer).
+    - `fraisDossier` = Frais fixes de dossier de la plateforme (`5 000 FCFA`).
+    - `montantTotalSequestre` = `montantCaution + montantPremierLoyer + 5 000 FCFA` (consignés via paiement simulé Wave Sandbox).
+    - **Libération** : Dès la double signature du bail numérique (`SIGNE_COMPLET`), la caution et le premier loyer (`montantVerseProprietaire = montantCaution + montantPremierLoyer`) sont libérés pour le propriétaire, tandis que la plateforme retient les `5 000 FCFA` de frais de dossier.
   - **VENTE** :
-    - `montantPremierLoyer` = 0 FCFA (sans objet pour les ventes).
-    - `montantCaution` = Montant de vente (garantie/séquestre correspondant au prix du bien).
-    - `fraisDossier` = 5 000 FCFA forfaitaires.
-    - `montantTotalSequestre` = Caution + 5 000 FCFA.
-    - **Libération** : À la signature complète de l'acte, le montant de garantie est reversé au vendeur.
-  - **Sécurité & Intégrité** : Tous les montants sont calculés exclusivement côté serveur à partir de l'annonce enregistrée en base. Tout montant fourni dans le corps de requête client (ex: tentative de falsification avec `montantCaution = 1`) est expressément ignoré.
+    - `montantPremierLoyer` = `0 FCFA` (sans objet pour les ventes).
+    - `montantCaution` = Montant du bien affiché sur l'annonce.
+    - `fraisDossier` = `5 000 FCFA` forfaitaires.
+    - `montantTotalSequestre` = `montantCaution + 5 000 FCFA`.
+    - **Libération** : À la double signature électronique, `montantCaution` est libéré pour le vendeur et l'annonce passe au statut `VENDUE`.
+  - **Calcul serveur exclusif** : Tous les montants sont calculés côté serveur dans `TransactionService` à partir du prix de l'annonce en base ; toute valeur transmise par le client est ignorée.
 - **Référentiel Géographique Local** : Prise en compte fine des quartiers phares de Dakar (Almadies, Mermoz, Sacré-Cœur, Médina, Fann), Thiès (Dixième), Ziguinchor (Boucotte, Nema), Saly, Mbour, Saint-Louis.
 - **Proximités Stratégiques** : BRT (Bus Rapid Transit), UCAD, Plage, Écoles, Hôpitaux.
 
