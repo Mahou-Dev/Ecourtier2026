@@ -98,13 +98,10 @@ class AdminStatistiquesControllerTest {
     }
 
     @Test
-    @DisplayName("Accès non authentifié renvoie 401 ou 403")
+    @DisplayName("Accès non authentifié renvoie 401 Unauthorized")
     void testAccesNonAuthentifieRefuse() throws Exception {
         mockMvc.perform(get("/api/v1/admin/statistiques"))
-                .andExpect(result -> {
-                    int status = result.getResponse().getStatus();
-                    assertTrue(status == 401 || status == 403);
-                });
+                .andExpect(status().isUnauthorized());
     }
 
     @Test
