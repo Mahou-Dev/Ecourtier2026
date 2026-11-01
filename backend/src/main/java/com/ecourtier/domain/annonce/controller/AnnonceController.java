@@ -64,8 +64,12 @@ public class AnnonceController {
 
     @GetMapping("/{id}")
     @Operation(summary = "Consulter le détail d'une annonce", description = "Accès public sans authentification préalable.")
-    public ResponseEntity<AnnonceResponseDTO> obtenirAnnonceParId(@PathVariable UUID id) {
-        AnnonceResponseDTO response = annonceService.obtenirAnnonceParId(id);
+    public ResponseEntity<AnnonceResponseDTO> obtenirAnnonceParId(
+            @PathVariable UUID id,
+            Authentication authentication
+    ) {
+        String userEmail = authentication != null ? authentication.getName() : null;
+        AnnonceResponseDTO response = annonceService.obtenirAnnonceParId(id, userEmail);
         return ResponseEntity.ok(response);
     }
 
@@ -116,10 +120,12 @@ public class AnnonceController {
             auteurEmail = authentication.getName();
         }
 
+        String userEmail = authentication != null ? authentication.getName() : null;
+
         Page<AnnonceResponseDTO> result = annonceService.rechercherAnnonces(
                 pageable, budgetMin, budgetMax, type, modeTransaction,
                 superficieMin, nombrePieces, quartier, ville, meuble,
-                animauxAcceptes, statutVerification, proximite, includeIndisponibles, auteurEmail
+                animauxAcceptes, statutVerification, proximite, includeIndisponibles, auteurEmail, userEmail
         );
         return ResponseEntity.ok(result);
     }

@@ -12,6 +12,8 @@ import org.springframework.stereotype.Component;
 
 import java.util.Comparator;
 import java.util.List;
+import java.util.Set;
+import java.util.UUID;
 
 @Component
 @RequiredArgsConstructor
@@ -61,6 +63,18 @@ public class AnnonceMapper {
                 .proximites(entity.getProximites())
                 .documentsVerification(docs)
                 .build();
+    }
+
+    /**
+     * Surcharge avec enrichissement du champ estFavori en fonction
+     * des IDs d'annonces présentes dans les favoris de l'utilisateur courant.
+     */
+    public AnnonceResponseDTO toResponseDTO(AnnonceEntity entity, Set<UUID> favorisAnnonceIds) {
+        AnnonceResponseDTO dto = toResponseDTO(entity);
+        if (dto != null && favorisAnnonceIds != null) {
+            dto.setEstFavori(favorisAnnonceIds.contains(entity.getId()));
+        }
+        return dto;
     }
 
     public PhotoResponseDTO toPhotoDTO(PhotoAnnonceEntity entity) {

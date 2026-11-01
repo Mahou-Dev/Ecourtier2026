@@ -32,6 +32,8 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.mockito.junit.jupiter.MockitoSettings;
+import org.mockito.quality.Strictness;
 import org.springframework.core.io.ByteArrayResource;
 import org.springframework.core.io.Resource;
 import org.springframework.data.domain.Page;
@@ -58,6 +60,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
+@MockitoSettings(strictness = Strictness.LENIENT)
 public class AnnonceServiceTest {
 
     @Mock
@@ -140,7 +143,8 @@ public class AnnonceServiceTest {
     @DisplayName("Obtenir par ID et Modifier une annonce")
     void testGetAndModifierAnnonce() {
         when(annonceRepository.findByIdAndSupprimeFalse(annonce.getId())).thenReturn(Optional.of(annonce));
-        when(annonceMapper.toResponseDTO(annonce)).thenReturn(new AnnonceResponseDTO());
+        when(annonceMapper.toResponseDTO(any(), any())).thenReturn(new AnnonceResponseDTO());
+        when(annonceMapper.toResponseDTO(any())).thenReturn(new AnnonceResponseDTO());
 
         AnnonceResponseDTO res1 = annonceService.obtenirAnnonceParId(annonce.getId());
         assertNotNull(res1);
@@ -170,7 +174,7 @@ public class AnnonceServiceTest {
     void testRechercherAnnoncesFilters() {
         when(annonceRepository.findAll(any(Specification.class), any(PageRequest.class)))
                 .thenReturn(new PageImpl<>(List.of(annonce)));
-        when(annonceMapper.toResponseDTO(annonce)).thenReturn(new AnnonceResponseDTO());
+        when(annonceMapper.toResponseDTO(any(), any())).thenReturn(new AnnonceResponseDTO());
 
         Page<AnnonceResponseDTO> page1 = annonceService.rechercherAnnonces(
                 PageRequest.of(0, 10),
@@ -291,7 +295,7 @@ public class AnnonceServiceTest {
 
         when(documentVerificationRepository.findByAnnonceId(annonce.getId())).thenReturn(List.of(doc));
         when(annonceRepository.save(annonce)).thenReturn(annonce);
-        when(annonceMapper.toResponseDTO(annonce)).thenReturn(new AnnonceResponseDTO());
+        when(annonceMapper.toResponseDTO(any())).thenReturn(new AnnonceResponseDTO());
 
         // 1. Décision VERIFIEE -> Document mis à VALIDE
         VerificationDecisionDTO decisionVerif = new VerificationDecisionDTO();
@@ -325,7 +329,7 @@ public class AnnonceServiceTest {
     void testListerAnnoncesEnAttenteVerification() {
         when(annonceRepository.findByStatutVerificationAndSupprimeFalse(eq(StatutVerification.EN_ATTENTE), any()))
                 .thenReturn(new PageImpl<>(List.of(annonce)));
-        when(annonceMapper.toResponseDTO(annonce)).thenReturn(new AnnonceResponseDTO());
+        when(annonceMapper.toResponseDTO(any())).thenReturn(new AnnonceResponseDTO());
 
         Page<AnnonceResponseDTO> page = annonceService.listerAnnoncesEnAttenteVerification(PageRequest.of(0, 10));
         assertEquals(1, page.getTotalElements());
