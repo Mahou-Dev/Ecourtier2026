@@ -48,4 +48,6 @@ public class AnnonceResponseDTO {
     private Set<Equipement> equipements;
     private Set<ProximiteTag> proximites;
     private List<DocumentVerificationResponseDTO> documentsVerification;
+
+    private boolean estFavori;
 }
