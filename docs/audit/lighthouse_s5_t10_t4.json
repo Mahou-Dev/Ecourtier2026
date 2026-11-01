@@ -1,0 +1,456 @@
+{
+  "executedAt": "2026-10-30T12:24:43.886Z",
+  "lighthouseVersion": "13.5.0",
+  "pwaCategoryNote": "Lighthouse v12+ a retiré la catégorie PWA ; le Service Worker, le manifeste et le mode hors-ligne ont été vérifiés directement via Puppeteer + CDP.",
+  "targetUrl": "http://localhost:5173/annonce/958b59d1-12af-4412-b319-f20f24dfcb87",
+  "compressionVerification": {
+    "statusCode": 200,
+    "contentEncoding": "br",
+    "contentLength": "729"
+  },
+  "createAnnonceModalCheck": {
+    "opened": true,
+    "labels": [
+      "Titre de l'annonce",
+      "Description détaillée",
+      "Type de bien",
+      "Transaction",
+      "Prix (FCFA)",
+      "Superficie (m²)",
+      "Pièces",
+      "Étage (ex: 2, 0 pour RDC)",
+      "Quartier",
+      "Ville",
+      "Lien Visite Virtuelle 360° (Optionnel - URL Matterport, YouTube 360, etc.)",
+      "Meublé",
+      "Animaux acceptés",
+      "Ajouter photo",
+      "Type de document",
+      "Choisir un fichier (PDF/Image)"
+    ],
+    "fileInputs": [
+      {
+        "accept": "image/*",
+        "multiple": true
+      },
+      {
+        "accept": "image/*,.pdf",
+        "multiple": false
+      }
+    ],
+    "textExcerpt": "\n1. Informations générales\nTitre de l'annonce\nDescription détaillée\nType de bien\nStudio\nAppartement\nVilla\nTransaction\nLocation\nVente\nPrix (FCFA)\nSuperficie (m²)\nPièces\nÉtage (ex: 2, 0 pour RDC)\nQuartier\nVille\nLien Visite Virtuelle 360° (Optionnel - URL Matterport, YouTube 360, etc.)\nMeublé\nAnimaux acceptés\n2. Photos du bien (max 10)\nAjouter photo\n3. Document de vérification cadastrale (Optionnel mais recommandé)\n\nSoumettez un titre foncier ou bail pour demander le contrôle et l'attribution du badge vérifié par nos équipes.\n\nType de document\nTitre Foncier / Attestation de propriété\nBail enregistré / Contrat\nPièce d'identité propriétaire\nChoisir un fichier (PDF/Image)\nAnnuler\nPublier l'annonce",
+    "hasEquipementsField": false,
+    "hasOwnerPhotoOption": false
+  },
+  "pwaOfflineT4": {
+    "online": {
+      "swControlled": true,
+      "swState": "activated",
+      "swScriptURL": "http://localhost:5173/sw.js",
+      "cacheDetails": {
+        "workbox-precache-v2-http://localhost:5173/": 44,
+        "public-annonces-cache": 1
+      },
+      "manifest": {
+        "name": "E-Courtier Sénégal",
+        "short_name": "E-Courtier",
+        "description": "Plateforme immobilière sénégalaise avec contrôle cadastral & séquestre bancaire",
+        "start_url": "/",
+        "display": "standalone",
+        "background_color": "#faf8f5",
+        "theme_color": "#1a3c34",
+        "lang": "en",
+        "scope": "/",
+        "icons": [
+          {
+            "src": "favicon.ico",
+            "sizes": "64x64 32x32 24x24 16x16",
+            "type": "image/x-icon"
+          }
+        ]
+      }
+    },
+    "offlineReloadSucceeded": true,
+    "offline": {
+      "navigatorOnLine": false,
+      "rendersListingTitleOffline": true,
+      "rendersOfflineBanner": true,
+      "visibleTextSample": "E-Courtier\nSN\nTrouver\nRetour aux résultats\nAjouter aux favoris\nSignaler\nLOCATION\nAPPARTEMENT\nContrôle Cadastral Effectué\nAucun avis\nAppartement Témoin Audit Visite 360 & Galerie\nMermoz, Dakar\nVisite Virtuelle 360°\n\nSuperficie\n\n110 m²\n\nNombre de pièces\n\n4\n\nÉtage\n\n2e\n\nMeublé\n\nOui\n\nAnimaux\n\nAcceptés\n\nDescription du bien\n\nAppartement F4 lumineux à Merm"
+    }
+  },
+  "localFast3G": {
+    "passes": [
+      {
+        "pass": 1,
+        "fcpMs": 1866,
+        "lcpMs": 3811,
+        "speedIndexMs": 3246,
+        "ttiMs": 3780,
+        "tbtMs": 222,
+        "cls": 0.2044,
+        "networkLoadDurationMs": 6773,
+        "lhTotalTimingMs": 25208,
+        "totalBytesTransferred": 577983,
+        "requestsCount": 51,
+        "scores": {
+          "performance": 73,
+          "accessibility": 89,
+          "bestPractices": 100,
+          "seo": 92
+        },
+        "failingA11y": [
+          {
+            "id": "button-name",
+            "title": "Buttons do not have an accessible name",
+            "score": 0,
+            "itemsCount": 1,
+            "sampleSnippets": [
+              "<button class=\"inline-flex items-center justify-center font-display font-semibold transit…\">"
+            ]
+          },
+          {
+            "id": "heading-order",
+            "title": "Heading elements are not in a sequentially-descending order",
+            "score": 0,
+            "itemsCount": 1,
+            "sampleSnippets": [
+              "<h3 class=\"font-display font-bold text-lg text-charcoal-900\">"
+            ]
+          },
+          {
+            "id": "link-name",
+            "title": "Links do not have a discernible name",
+            "score": 0,
+            "itemsCount": 1,
+            "sampleSnippets": [
+              "<a href=\"/connexion\" data-discover=\"true\">"
+            ]
+          }
+        ],
+        "failingBestPractices": []
+      },
+      {
+        "pass": 2,
+        "fcpMs": 2362,
+        "lcpMs": 3841,
+        "speedIndexMs": 3419,
+        "ttiMs": 3804,
+        "tbtMs": 235,
+        "cls": 0.2044,
+        "networkLoadDurationMs": 9596,
+        "lhTotalTimingMs": 27422,
+        "totalBytesTransferred": 578052,
+        "requestsCount": 51,
+        "scores": {
+          "performance": 71,
+          "accessibility": 89,
+          "bestPractices": 100,
+          "seo": 92
+        },
+        "failingA11y": [
+          {
+            "id": "button-name",
+            "title": "Buttons do not have an accessible name",
+            "score": 0,
+            "itemsCount": 1,
+            "sampleSnippets": [
+              "<button class=\"inline-flex items-center justify-center font-display font-semibold transit…\">"
+            ]
+          },
+          {
+            "id": "heading-order",
+            "title": "Heading elements are not in a sequentially-descending order",
+            "score": 0,
+            "itemsCount": 1,
+            "sampleSnippets": [
+              "<h3 class=\"font-display font-bold text-lg text-charcoal-900\">"
+            ]
+          },
+          {
+            "id": "link-name",
+            "title": "Links do not have a discernible name",
+            "score": 0,
+            "itemsCount": 1,
+            "sampleSnippets": [
+              "<a href=\"/connexion\" data-discover=\"true\">"
+            ]
+          }
+        ],
+        "failingBestPractices": []
+      },
+      {
+        "pass": 3,
+        "fcpMs": 1906,
+        "lcpMs": 3865,
+        "speedIndexMs": 3224,
+        "ttiMs": 3832,
+        "tbtMs": 255,
+        "cls": 0.2044,
+        "networkLoadDurationMs": 5630,
+        "lhTotalTimingMs": 24102,
+        "totalBytesTransferred": 578056,
+        "requestsCount": 51,
+        "scores": {
+          "performance": 72,
+          "accessibility": 89,
+          "bestPractices": 100,
+          "seo": 92
+        },
+        "failingA11y": [
+          {
+            "id": "button-name",
+            "title": "Buttons do not have an accessible name",
+            "score": 0,
+            "itemsCount": 1,
+            "sampleSnippets": [
+              "<button class=\"inline-flex items-center justify-center font-display font-semibold transit…\">"
+            ]
+          },
+          {
+            "id": "heading-order",
+            "title": "Heading elements are not in a sequentially-descending order",
+            "score": 0,
+            "itemsCount": 1,
+            "sampleSnippets": [
+              "<h3 class=\"font-display font-bold text-lg text-charcoal-900\">"
+            ]
+          },
+          {
+            "id": "link-name",
+            "title": "Links do not have a discernible name",
+            "score": 0,
+            "itemsCount": 1,
+            "sampleSnippets": [
+              "<a href=\"/connexion\" data-discover=\"true\">"
+            ]
+          }
+        ],
+        "failingBestPractices": []
+      }
+    ],
+    "median": {
+      "fcpMs": 1906,
+      "lcpMs": 3841,
+      "speedIndexMs": 3246,
+      "ttiMs": 3804,
+      "tbtMs": 235,
+      "networkLoadDurationMs": 6773,
+      "totalBytesTransferred": 578052,
+      "scores": {
+        "performance": 72,
+        "accessibility": 89,
+        "bestPractices": 100,
+        "seo": 92
+      }
+    }
+  },
+  "localSlow3G": {
+    "passes": [
+      {
+        "pass": 1,
+        "fcpMs": 4408,
+        "lcpMs": 8915,
+        "speedIndexMs": 7069,
+        "ttiMs": 8881,
+        "tbtMs": 251,
+        "cls": 0.2044,
+        "networkLoadDurationMs": 14750,
+        "lhTotalTimingMs": 33400,
+        "totalBytesTransferred": 578086,
+        "requestsCount": 51,
+        "scores": {
+          "performance": 45,
+          "accessibility": 89,
+          "bestPractices": 100,
+          "seo": 92
+        },
+        "failingA11y": [
+          {
+            "id": "button-name",
+            "title": "Buttons do not have an accessible name",
+            "score": 0,
+            "itemsCount": 1,
+            "sampleSnippets": [
+              "<button class=\"inline-flex items-center justify-center font-display font-semibold transit…\">"
+            ]
+          },
+          {
+            "id": "heading-order",
+            "title": "Heading elements are not in a sequentially-descending order",
+            "score": 0,
+            "itemsCount": 1,
+            "sampleSnippets": [
+              "<h3 class=\"font-display font-bold text-lg text-charcoal-900\">"
+            ]
+          },
+          {
+            "id": "link-name",
+            "title": "Links do not have a discernible name",
+            "score": 0,
+            "itemsCount": 1,
+            "sampleSnippets": [
+              "<a href=\"/connexion\" data-discover=\"true\">"
+            ]
+          }
+        ],
+        "failingBestPractices": []
+      },
+      {
+        "pass": 2,
+        "fcpMs": 4428,
+        "lcpMs": 8937,
+        "speedIndexMs": 7141,
+        "ttiMs": 8891,
+        "tbtMs": 252,
+        "cls": 0.2044,
+        "networkLoadDurationMs": 14742,
+        "lhTotalTimingMs": 33496,
+        "totalBytesTransferred": 578007,
+        "requestsCount": 51,
+        "scores": {
+          "performance": 45,
+          "accessibility": 89,
+          "bestPractices": 100,
+          "seo": 92
+        },
+        "failingA11y": [
+          {
+            "id": "button-name",
+            "title": "Buttons do not have an accessible name",
+            "score": 0,
+            "itemsCount": 1,
+            "sampleSnippets": [
+              "<button class=\"inline-flex items-center justify-center font-display font-semibold transit…\">"
+            ]
+          },
+          {
+            "id": "heading-order",
+            "title": "Heading elements are not in a sequentially-descending order",
+            "score": 0,
+            "itemsCount": 1,
+            "sampleSnippets": [
+              "<h3 class=\"font-display font-bold text-lg text-charcoal-900\">"
+            ]
+          },
+          {
+            "id": "link-name",
+            "title": "Links do not have a discernible name",
+            "score": 0,
+            "itemsCount": 1,
+            "sampleSnippets": [
+              "<a href=\"/connexion\" data-discover=\"true\">"
+            ]
+          }
+        ],
+        "failingBestPractices": []
+      },
+      {
+        "pass": 3,
+        "fcpMs": 4445,
+        "lcpMs": 9026,
+        "speedIndexMs": 7182,
+        "ttiMs": 8979,
+        "tbtMs": 288,
+        "cls": 0.2044,
+        "networkLoadDurationMs": 14845,
+        "lhTotalTimingMs": 33548,
+        "totalBytesTransferred": 578036,
+        "requestsCount": 51,
+        "scores": {
+          "performance": 44,
+          "accessibility": 89,
+          "bestPractices": 100,
+          "seo": 92
+        },
+        "failingA11y": [
+          {
+            "id": "button-name",
+            "title": "Buttons do not have an accessible name",
+            "score": 0,
+            "itemsCount": 1,
+            "sampleSnippets": [
+              "<button class=\"inline-flex items-center justify-center font-display font-semibold transit…\">"
+            ]
+          },
+          {
+            "id": "heading-order",
+            "title": "Heading elements are not in a sequentially-descending order",
+            "score": 0,
+            "itemsCount": 1,
+            "sampleSnippets": [
+              "<h3 class=\"font-display font-bold text-lg text-charcoal-900\">"
+            ]
+          },
+          {
+            "id": "link-name",
+            "title": "Links do not have a discernible name",
+            "score": 0,
+            "itemsCount": 1,
+            "sampleSnippets": [
+              "<a href=\"/connexion\" data-discover=\"true\">"
+            ]
+          }
+        ],
+        "failingBestPractices": []
+      }
+    ],
+    "median": {
+      "fcpMs": 4428,
+      "lcpMs": 8937,
+      "speedIndexMs": 7141,
+      "ttiMs": 8891,
+      "tbtMs": 252,
+      "networkLoadDurationMs": 14750,
+      "totalBytesTransferred": 578036,
+      "scores": {
+        "performance": 45,
+        "accessibility": 89,
+        "bestPractices": 100,
+        "seo": 92
+      }
+    }
+  },
+  "renderRootFast3G": {
+    "pass": 1,
+    "fcpMs": 3948,
+    "lcpMs": 11826,
+    "speedIndexMs": 4281,
+    "ttiMs": 4520,
+    "tbtMs": 34,
+    "cls": 0,
+    "networkLoadDurationMs": 11923,
+    "lhTotalTimingMs": 57263,
+    "totalBytesTransferred": 540415,
+    "requestsCount": 28,
+    "scores": {
+      "performance": 65,
+      "accessibility": 94,
+      "bestPractices": 100,
+      "seo": 100
+    },
+    "failingA11y": [
+      {
+        "id": "color-contrast",
+        "title": "Background and foreground colors do not have a sufficient contrast ratio.",
+        "score": 0,
+        "itemsCount": 4,
+        "sampleSnippets": [
+          "<span>",
+          "<button type=\"button\" class=\"px-5 py-1.5 rounded-full transition-all bg-terracotta-500 text-white shado…\">",
+          "<span>"
+        ]
+      },
+      {
+        "id": "heading-order",
+        "title": "Heading elements are not in a sequentially-descending order",
+        "score": 0,
+        "itemsCount": 2,
+        "sampleSnippets": [
+          "<h3 class=\"font-display font-bold text-base text-charcoal-900\">",
+          "<h4 class=\"font-display text-xs font-bold uppercase tracking-wider text-ocher-400\">"
+        ]
+      }
+    ],
+    "failingBestPractices": []
+  }
+}

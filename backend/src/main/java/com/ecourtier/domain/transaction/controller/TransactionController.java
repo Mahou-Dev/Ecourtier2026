@@ -38,7 +38,7 @@ public class TransactionController {
     @PreAuthorize("isAuthenticated()")
     public ResponseEntity<TransactionResponseDTO> initierTransaction(
             @PathVariable("id") UUID id,
-            @Valid @RequestBody TransactionRequestDTO request,
+            @Valid @RequestBody(required = false) TransactionRequestDTO request,
             Authentication authentication
     ) {
         TransactionResponseDTO response = transactionService.initierTransaction(id, request, authentication.getName());

@@ -1,0 +1,1244 @@
+{
+  "meta": {
+    "date": "2026-10-30T11:46:59.106329+00:00",
+    "compte": "audit.loc+1793360818@ecourtier.sn"
+  },
+  "s1": [
+    {
+      "id": 1,
+      "texte": "Je cherche un appartement F3 à Boucotte, budget 150 000 FCFA par mois",
+      "attendu": {
+        "type": "APPARTEMENT",
+        "nombrePieces": 3,
+        "lieu": "Boucotte",
+        "budgetMax": 150000,
+        "modeTransaction": "LOCATION"
+      },
+      "extrait": {
+        "type": "APPARTEMENT",
+        "modeTransaction": "LOCATION",
+        "budgetMax": 150000,
+        "quartier": "Boucotte",
+        "ville": null,
+        "nombrePieces": 3,
+        "etage": null,
+        "meuble": null,
+        "animauxAcceptes": null,
+        "superficieMin": null
+      },
+      "champs_ok": {
+        "type": true,
+        "nombrePieces": true,
+        "lieu": true,
+        "budgetMax": true,
+        "modeTransaction": true
+      },
+      "phrase_ok": true,
+      "reponse": "J'ai trouvé 1 annonce(s) correspondant à votre recherche à Boucotte pour un budget max de 150000 FCFA :",
+      "relance": null,
+      "suggestions": [
+        {
+          "titre": "Appartement F3 Centre Boucotte",
+          "type": "APPARTEMENT",
+          "prix": 95000.0,
+          "quartier": "Boucotte",
+          "ville": "Ziguinchor",
+          "etage": 1
+        }
+      ],
+      "suggestions_pertinentes": 1,
+      "nb_suggestions": 1,
+      "annonces_pertinentes_catalogue": [
+        "Appartement F3 Centre Boucotte"
+      ],
+      "duree_s": 3.066,
+      "mode": "GEMINI_OK",
+      "logs": [
+        "2026-10-30T11:46:59.297Z  INFO 61 --- [ecourtier-backend] [nio-8080-exec-2] c.e.d.ia.service.LlmExtractionService    : [MODE LLM IA] Appel à l'API LLM (provider: gemini, essai 1/2)"
+      ]
+    },
+    {
+      "id": 2,
+      "texte": "studio meublé à Nema max 100k",
+      "attendu": {
+        "type": "STUDIO",
+        "meuble": true,
+        "lieu": "Nema",
+        "budgetMax": 100000
+      },
+      "extrait": {
+        "type": "STUDIO",
+        "modeTransaction": null,
+        "budgetMax": 100000,
+        "quartier": "Nema",
+        "ville": null,
+        "nombrePieces": null,
+        "etage": null,
+        "meuble": true,
+        "animauxAcceptes": null,
+        "superficieMin": null
+      },
+      "champs_ok": {
+        "type": true,
+        "meuble": true,
+        "lieu": true,
+        "budgetMax": true
+      },
+      "phrase_ok": true,
+      "reponse": "J'ai trouvé 2 annonce(s) correspondant à votre recherche à Nema pour un budget max de 100000 FCFA :",
+      "relance": null,
+      "suggestions": [
+        {
+          "titre": "QA Studio Test A",
+          "type": "STUDIO",
+          "prix": 80000.0,
+          "quartier": "Nema",
+          "ville": "Ziguinchor",
+          "etage": 0
+        },
+        {
+          "titre": "QA Studio Test B",
+          "type": "STUDIO",
+          "prix": 80000.0,
+          "quartier": "Nema",
+          "ville": "Ziguinchor",
+          "etage": 0
+        }
+      ],
+      "suggestions_pertinentes": 2,
+      "nb_suggestions": 2,
+      "annonces_pertinentes_catalogue": [
+        "QA Studio Test B",
+        "QA Studio Test A"
+      ],
+      "duree_s": 1.546,
+      "mode": "GEMINI_OK",
+      "logs": [
+        "2026-10-30T11:47:04.295Z  INFO 61 --- [ecourtier-backend] [nio-8080-exec-5] c.e.d.ia.service.LlmExtractionService    : [MODE LLM IA] Appel à l'API LLM (provider: gemini, essai 1/2)"
+      ]
+    },
+    {
+      "id": 3,
+      "texte": "Je veux acheter une villa à Saly, budget 90 millions",
+      "attendu": {
+        "type": "VILLA",
+        "modeTransaction": "VENTE",
+        "lieu": "Saly",
+        "budgetMax": 90000000
+      },
+      "extrait": {
+        "type": "VILLA",
+        "modeTransaction": "VENTE",
+        "budgetMax": 90000000,
+        "quartier": null,
+        "ville": "Saly",
+        "nombrePieces": null,
+        "etage": null,
+        "meuble": null,
+        "animauxAcceptes": null,
+        "superficieMin": null
+      },
+      "champs_ok": {
+        "type": true,
+        "modeTransaction": true,
+        "lieu": true,
+        "budgetMax": true
+      },
+      "phrase_ok": true,
+      "reponse": "J'ai trouvé 1 annonce(s) correspondant à votre recherche pour un budget max de 90000000 FCFA :",
+      "relance": null,
+      "suggestions": [
+        {
+          "titre": "Villa de Vacances Saly Niakh Niakhal",
+          "type": "VILLA",
+          "prix": 85000000.0,
+          "quartier": "Niakh Niakhal",
+          "ville": "Saly",
+          "etage": 0
+        }
+      ],
+      "suggestions_pertinentes": 1,
+      "nb_suggestions": 1,
+      "annonces_pertinentes_catalogue": [
+        "Villa de Vacances Saly Niakh Niakhal"
+      ],
+      "duree_s": 1.839,
+      "mode": "GEMINI_OK",
+      "logs": [
+        "2026-10-30T11:47:07.421Z  INFO 61 --- [ecourtier-backend] [nio-8080-exec-6] c.e.d.ia.service.LlmExtractionService    : [MODE LLM IA] Appel à l'API LLM (provider: gemini, essai 1/2)"
+      ]
+    },
+    {
+      "id": 4,
+      "texte": "deux chambres à Mermoz pour 500000 francs",
+      "attendu": {
+        "nombrePieces": 3,
+        "lieu": "Mermoz",
+        "budgetMax": 500000
+      },
+      "extrait": {
+        "type": null,
+        "modeTransaction": null,
+        "budgetMax": 500000,
+        "quartier": "Mermoz",
+        "ville": null,
+        "nombrePieces": 2,
+        "etage": null,
+        "meuble": null,
+        "animauxAcceptes": null,
+        "superficieMin": null
+      },
+      "champs_ok": {
+        "nombrePieces": false,
+        "lieu": true,
+        "budgetMax": true
+      },
+      "phrase_ok": false,
+      "reponse": "J'ai trouvé 1 annonce(s) correspondant à votre recherche à Mermoz pour un budget max de 500000 FCFA :",
+      "relance": null,
+      "suggestions": [
+        {
+          "titre": "Appartement F4 Standing Mermoz Corniche",
+          "type": "APPARTEMENT",
+          "prix": 450000.0,
+          "quartier": "Mermoz",
+          "ville": "Dakar",
+          "etage": 3
+        }
+      ],
+      "suggestions_pertinentes": 1,
+      "nb_suggestions": 1,
+      "annonces_pertinentes_catalogue": [
+        "Appartement F4 Standing Mermoz Corniche"
+      ],
+      "duree_s": 2.302,
+      "mode": "GEMINI_OK",
+      "logs": [
+        "2026-10-30T11:47:10.779Z  INFO 61 --- [ecourtier-backend] [nio-8080-exec-3] c.e.d.ia.service.LlmExtractionService    : [MODE LLM IA] Appel à l'API LLM (provider: gemini, essai 1/2)"
+      ]
+    },
+    {
+      "id": 5,
+      "texte": "maison à louer à Thiès avec mes chiens, 200000 max",
+      "attendu": {
+        "type": "VILLA",
+        "modeTransaction": "LOCATION",
+        "lieu": "Thiès",
+        "animauxAcceptes": true,
+        "budgetMax": 200000
+      },
+      "extrait": {
+        "type": "VILLA",
+        "modeTransaction": "LOCATION",
+        "budgetMax": 200000,
+        "quartier": null,
+        "ville": "Thiès",
+        "nombrePieces": null,
+        "etage": null,
+        "meuble": null,
+        "animauxAcceptes": true,
+        "superficieMin": null
+      },
+      "champs_ok": {
+        "type": true,
+        "modeTransaction": true,
+        "lieu": true,
+        "animauxAcceptes": true,
+        "budgetMax": true
+      },
+      "phrase_ok": true,
+      "reponse": "J'ai trouvé 1 annonce(s) correspondant à votre recherche pour un budget max de 200000 FCFA :",
+      "relance": null,
+      "suggestions": [
+        {
+          "titre": "Maison Individuelle Thiès Dixième",
+          "type": "VILLA",
+          "prix": 180000.0,
+          "quartier": "Dixième",
+          "ville": "Thiès",
+          "etage": 0
+        }
+      ],
+      "suggestions_pertinentes": 1,
+      "nb_suggestions": 1,
+      "annonces_pertinentes_catalogue": [
+        "Maison Individuelle Thiès Dixième"
+      ],
+      "duree_s": 2.461,
+      "mode": "GEMINI_OK",
+      "logs": [
+        "2026-10-30T11:47:14.637Z  INFO 61 --- [ecourtier-backend] [nio-8080-exec-1] c.e.d.ia.service.LlmExtractionService    : [MODE LLM IA] Appel à l'API LLM (provider: gemini, essai 1/2)"
+      ]
+    },
+    {
+      "id": 6,
+      "texte": "appart au 2ème étage à Sacre Coeur budget 300000",
+      "attendu": {
+        "type": "APPARTEMENT",
+        "etage": 2,
+        "lieu": "Sacré-Cœur",
+        "budgetMax": 300000
+      },
+      "extrait": {
+        "type": "APPARTEMENT",
+        "modeTransaction": null,
+        "budgetMax": 300000,
+        "quartier": "Sacre Coeur",
+        "ville": null,
+        "nombrePieces": null,
+        "etage": 2,
+        "meuble": null,
+        "animauxAcceptes": null,
+        "superficieMin": null
+      },
+      "champs_ok": {
+        "type": true,
+        "etage": true,
+        "lieu": true,
+        "budgetMax": true
+      },
+      "phrase_ok": true,
+      "reponse": "J'ai bien analysé votre demande. Malheureusement, aucune annonce correspondant exactement à ces critères n'a été trouvée. Vous pouvez essayer d'élargir votre zone ou votre budget.",
+      "relance": null,
+      "suggestions": [],
+      "suggestions_pertinentes": 0,
+      "nb_suggestions": 0,
+      "annonces_pertinentes_catalogue": [
+        "Appartement F3 Moderne Sacré-Cœur 3"
+      ],
+      "duree_s": 1.696,
+      "mode": "GEMINI_OK",
+      "logs": [
+        "2026-10-30T11:47:18.646Z  INFO 61 --- [ecourtier-backend] [nio-8080-exec-2] c.e.d.ia.service.LlmExtractionService    : [MODE LLM IA] Appel à l'API LLM (provider: gemini, essai 1/2)"
+      ]
+    },
+    {
+      "id": 7,
+      "texte": "Je cherche un logement à Almadies avec 150000000 de budget pour acheter",
+      "attendu": {
+        "modeTransaction": "VENTE",
+        "lieu": "Almadies",
+        "budgetMax": 150000000
+      },
+      "extrait": {
+        "type": null,
+        "modeTransaction": "VENTE",
+        "budgetMax": 150000000,
+        "quartier": "Almadies",
+        "ville": null,
+        "nombrePieces": null,
+        "etage": null,
+        "meuble": null,
+        "animauxAcceptes": null,
+        "superficieMin": null
+      },
+      "champs_ok": {
+        "modeTransaction": true,
+        "lieu": true,
+        "budgetMax": true
+      },
+      "phrase_ok": true,
+      "reponse": "J'ai bien analysé votre demande. Malheureusement, aucune annonce correspondant exactement à ces critères n'a été trouvée. Vous pouvez essayer d'élargir votre zone ou votre budget.",
+      "relance": null,
+      "suggestions": [],
+      "suggestions_pertinentes": 0,
+      "nb_suggestions": 0,
+      "annonces_pertinentes_catalogue": [],
+      "duree_s": 1.871,
+      "mode": "GEMINI_OK",
+      "logs": [
+        "2026-10-30T11:47:21.887Z  INFO 61 --- [ecourtier-backend] [nio-8080-exec-5] c.e.d.ia.service.LlmExtractionService    : [MODE LLM IA] Appel à l'API LLM (provider: gemini, essai 1/2)"
+      ]
+    },
+    {
+      "id": 8,
+      "texte": "F4 non meublé Mermoz 450 000",
+      "attendu": {
+        "type": "APPARTEMENT",
+        "nombrePieces": 4,
+        "meuble": false,
+        "lieu": "Mermoz",
+        "budgetMax": 450000
+      },
+      "extrait": {
+        "type": "APPARTEMENT",
+        "modeTransaction": null,
+        "budgetMax": 450000,
+        "quartier": "Mermoz",
+        "ville": null,
+        "nombrePieces": 4,
+        "etage": null,
+        "meuble": false,
+        "animauxAcceptes": null,
+        "superficieMin": null
+      },
+      "champs_ok": {
+        "type": true,
+        "nombrePieces": true,
+        "meuble": true,
+        "lieu": true,
+        "budgetMax": true
+      },
+      "phrase_ok": true,
+      "reponse": "J'ai bien analysé votre demande. Malheureusement, aucune annonce correspondant exactement à ces critères n'a été trouvée. Vous pouvez essayer d'élargir votre zone ou votre budget.",
+      "relance": null,
+      "suggestions": [],
+      "suggestions_pertinentes": 0,
+      "nb_suggestions": 0,
+      "annonces_pertinentes_catalogue": [],
+      "duree_s": 1.782,
+      "mode": "GEMINI_OK",
+      "logs": [
+        "2026-10-30T11:47:25.311Z  INFO 61 --- [ecourtier-backend] [nio-8080-exec-6] c.e.d.ia.service.LlmExtractionService    : [MODE LLM IA] Appel à l'API LLM (provider: gemini, essai 1/2)"
+      ]
+    },
+    {
+      "id": 9,
+      "texte": "Studio pas cher a ziguinchor moins de 90 000 fcfa",
+      "attendu": {
+        "type": "STUDIO",
+        "lieu": "Ziguinchor",
+        "budgetMax": 90000
+      },
+      "extrait": {
+        "type": "STUDIO",
+        "modeTransaction": "LOCATION",
+        "budgetMax": 90000,
+        "quartier": null,
+        "ville": "ziguinchor",
+        "nombrePieces": null,
+        "etage": null,
+        "meuble": null,
+        "animauxAcceptes": null,
+        "superficieMin": null
+      },
+      "champs_ok": {
+        "type": true,
+        "lieu": true,
+        "budgetMax": true
+      },
+      "phrase_ok": true,
+      "reponse": "J'ai trouvé 2 annonce(s) correspondant à votre recherche pour un budget max de 90000 FCFA :",
+      "relance": null,
+      "suggestions": [
+        {
+          "titre": "QA Studio Test A",
+          "type": "STUDIO",
+          "prix": 80000.0,
+          "quartier": "Nema",
+          "ville": "Ziguinchor",
+          "etage": 0
+        },
+        {
+          "titre": "QA Studio Test B",
+          "type": "STUDIO",
+          "prix": 80000.0,
+          "quartier": "Nema",
+          "ville": "Ziguinchor",
+          "etage": 0
+        }
+      ],
+      "suggestions_pertinentes": 2,
+      "nb_suggestions": 2,
+      "annonces_pertinentes_catalogue": [
+        "QA Studio Test B",
+        "QA Studio Test A"
+      ],
+      "duree_s": 1.356,
+      "mode": "GEMINI_OK",
+      "logs": [
+        "2026-10-30T11:47:28.611Z  INFO 61 --- [ecourtier-backend] [nio-8080-exec-3] c.e.d.ia.service.LlmExtractionService    : [MODE LLM IA] Appel à l'API LLM (provider: gemini, essai 1/2)"
+      ]
+    },
+    {
+      "id": 10,
+      "texte": "je cherche une vila à nema",
+      "attendu": {
+        "type": "VILLA",
+        "lieu": "Nema"
+      },
+      "extrait": {
+        "type": "VILLA",
+        "modeTransaction": null,
+        "budgetMax": null,
+        "quartier": null,
+        "ville": "nema",
+        "nombrePieces": null,
+        "etage": null,
+        "meuble": null,
+        "animauxAcceptes": null,
+        "superficieMin": null
+      },
+      "champs_ok": {
+        "type": true,
+        "lieu": true
+      },
+      "phrase_ok": true,
+      "reponse": "Pour affiner ma recherche, Quel est votre budget approximatif et le type de bien souhaité (ex: appartement, villa, studio) ?",
+      "relance": "Quel est votre budget approximatif et le type de bien souhaité (ex: appartement, villa, studio) ?",
+      "suggestions": [],
+      "suggestions_pertinentes": 0,
+      "nb_suggestions": 0,
+      "annonces_pertinentes_catalogue": [
+        "Villa Vente Sequestre Test",
+        "Belle Villa Familiale Ziguinchor Nema"
+      ],
+      "duree_s": 2.104,
+      "mode": "GEMINI_OK",
+      "logs": [
+        "2026-10-30T11:47:31.529Z  INFO 61 --- [ecourtier-backend] [nio-8080-exec-1] c.e.d.ia.service.LlmExtractionService    : [MODE LLM IA] Appel à l'API LLM (provider: gemini, essai 1/2)"
+      ]
+    },
+    {
+      "id": 11,
+      "texte": "appartement de 100 m2 minimum à Dakar, 400k",
+      "attendu": {
+        "type": "APPARTEMENT",
+        "superficieMin": 100,
+        "lieu": "Dakar",
+        "budgetMax": 400000
+      },
+      "extrait": {
+        "type": "APPARTEMENT",
+        "modeTransaction": null,
+        "budgetMax": 400000,
+        "quartier": null,
+        "ville": "Dakar",
+        "nombrePieces": null,
+        "etage": null,
+        "meuble": null,
+        "animauxAcceptes": null,
+        "superficieMin": 100.0
+      },
+      "champs_ok": {
+        "type": true,
+        "superficieMin": true,
+        "lieu": true,
+        "budgetMax": true
+      },
+      "phrase_ok": true,
+      "reponse": "J'ai bien analysé votre demande. Malheureusement, aucune annonce correspondant exactement à ces critères n'a été trouvée. Vous pouvez essayer d'élargir votre zone ou votre budget.",
+      "relance": null,
+      "suggestions": [],
+      "suggestions_pertinentes": 0,
+      "nb_suggestions": 0,
+      "annonces_pertinentes_catalogue": [],
+      "duree_s": 1.429,
+      "mode": "GEMINI_OK",
+      "logs": [
+        "2026-10-30T11:47:35.181Z  INFO 61 --- [ecourtier-backend] [nio-8080-exec-2] c.e.d.ia.service.LlmExtractionService    : [MODE LLM IA] Appel à l'API LLM (provider: gemini, essai 1/2)"
+      ]
+    },
+    {
+      "id": 12,
+      "texte": "Je voudrais louer un apartement meublé à Mbour, 120 000 par mois",
+      "attendu": {
+        "type": "APPARTEMENT",
+        "meuble": true,
+        "lieu": "Mbour",
+        "modeTransaction": "LOCATION",
+        "budgetMax": 120000
+      },
+      "extrait": {
+        "type": "APPARTEMENT",
+        "modeTransaction": "LOCATION",
+        "budgetMax": 120000,
+        "quartier": null,
+        "ville": "Mbour",
+        "nombrePieces": null,
+        "etage": null,
+        "meuble": true,
+        "animauxAcceptes": null,
+        "superficieMin": null
+      },
+      "champs_ok": {
+        "type": true,
+        "meuble": true,
+        "lieu": true,
+        "modeTransaction": true,
+        "budgetMax": true
+      },
+      "phrase_ok": true,
+      "reponse": "J'ai bien analysé votre demande. Malheureusement, aucune annonce correspondant exactement à ces critères n'a été trouvée. Vous pouvez essayer d'élargir votre zone ou votre budget.",
+      "relance": null,
+      "suggestions": [],
+      "suggestions_pertinentes": 0,
+      "nb_suggestions": 0,
+      "annonces_pertinentes_catalogue": [
+        "Bel appartement a Mbour "
+      ],
+      "duree_s": 1.451,
+      "mode": "GEMINI_OK",
+      "logs": [
+        "2026-10-30T11:47:38.160Z  INFO 61 --- [ecourtier-backend] [nio-8080-exec-5] c.e.d.ia.service.LlmExtractionService    : [MODE LLM IA] Appel à l'API LLM (provider: gemini, essai 1/2)"
+      ]
+    },
+    {
+      "id": 13,
+      "texte": "villa 5 pièces à vendre ziguinchor 50 millions",
+      "attendu": {
+        "type": "VILLA",
+        "nombrePieces": 5,
+        "modeTransaction": "VENTE",
+        "lieu": "Ziguinchor",
+        "budgetMax": 50000000
+      },
+      "extrait": {
+        "type": "VILLA",
+        "modeTransaction": "VENTE",
+        "budgetMax": 50000000,
+        "quartier": null,
+        "ville": "Ziguinchor",
+        "nombrePieces": 5,
+        "etage": null,
+        "meuble": null,
+        "animauxAcceptes": null,
+        "superficieMin": null
+      },
+      "champs_ok": {
+        "type": true,
+        "nombrePieces": true,
+        "modeTransaction": true,
+        "lieu": true,
+        "budgetMax": true
+      },
+      "phrase_ok": true,
+      "reponse": "J'ai trouvé 2 annonce(s) correspondant à votre recherche pour un budget max de 50000000 FCFA :",
+      "relance": null,
+      "suggestions": [
+        {
+          "titre": "Belle Villa Familiale Ziguinchor Nema",
+          "type": "VILLA",
+          "prix": 45000000.0,
+          "quartier": "Nema",
+          "ville": "Ziguinchor",
+          "etage": 0
+        },
+        {
+          "titre": "Villa Vente Sequestre Test",
+          "type": "VILLA",
+          "prix": 45000000.0,
+          "quartier": "Nema",
+          "ville": "Ziguinchor",
+          "etage": null
+        }
+      ],
+      "suggestions_pertinentes": 2,
+      "nb_suggestions": 2,
+      "annonces_pertinentes_catalogue": [
+        "Villa Vente Sequestre Test",
+        "Belle Villa Familiale Ziguinchor Nema"
+      ],
+      "duree_s": 2.36,
+      "mode": "GEMINI_OK",
+      "logs": [
+        "2026-10-30T11:47:41.144Z  INFO 61 --- [ecourtier-backend] [nio-8080-exec-6] c.e.d.ia.service.LlmExtractionService    : [MODE LLM IA] Appel à l'API LLM (provider: gemini, essai 1/2)"
+      ]
+    },
+    {
+      "id": 14,
+      "texte": "un studio pour étudiant à Boucotte, 60.000 FCFA",
+      "attendu": {
+        "type": "STUDIO",
+        "lieu": "Boucotte",
+        "budgetMax": 60000
+      },
+      "extrait": {
+        "type": "STUDIO",
+        "modeTransaction": null,
+        "budgetMax": null,
+        "quartier": "Boucotte",
+        "ville": null,
+        "nombrePieces": null,
+        "etage": null,
+        "meuble": null,
+        "animauxAcceptes": null,
+        "superficieMin": null
+      },
+      "champs_ok": {
+        "type": true,
+        "lieu": true,
+        "budgetMax": false
+      },
+      "phrase_ok": false,
+      "reponse": "Pour affiner ma recherche, Quel est votre budget approximatif et le type de bien souhaité (ex: appartement, villa, studio) ?",
+      "relance": "Quel est votre budget approximatif et le type de bien souhaité (ex: appartement, villa, studio) ?",
+      "suggestions": [],
+      "suggestions_pertinentes": 0,
+      "nb_suggestions": 0,
+      "annonces_pertinentes_catalogue": [],
+      "duree_s": 1.128,
+      "mode": "FALLBACK_REGLES",
+      "logs": [
+        "2026-10-30T11:47:45.054Z  INFO 61 --- [ecourtier-backend] [nio-8080-exec-3] c.e.d.ia.service.LlmExtractionService    : [MODE LLM IA] Appel à l'API LLM (provider: gemini, essai 1/2)",
+        "2026-10-30T11:47:46.158Z  WARN 61 --- [ecourtier-backend] [nio-8080-exec-3] c.e.d.ia.service.LlmExtractionService    : [MODE LLM IA] Échec de l'essai 1/2: 429 Too Many Requests: \"{<EOL>  \"error\": {<EOL>    \"code\": 429,<EOL>    \"message\": \"You exceeded your current quota, please check your plan and billing details. For more information on this error, head to: https://ai.google.dev/gemini-api/docs/rate-limits. To monitor your current usage, head to: https://ai.dev/rate-limit. \\n* Quota exceeded for metric: generativelanguage.googleapis.com/generate_content_free_tier_requests, limit: 5, model: gemini-2.5-flash, description: Generate content requests per minute limit exceeded on Free Tier. See https://ai.google.dev/gemini-api/docs/rate-limits.\\nPlease retry in 13.896274606s.\",<EOL>    \"status\": \"RESOURCE_EXHAUSTED\",<EOL>    \"details\": [<EOL>      {<EOL>        \"@type\": \"type.googleapis.com/google.rpc.Help\",<EOL>        \"links\": [<EOL>          {<EOL>            \"description\": \"Learn more about Gemini API quotas\",<EOL>            \"url\": \"https://ai.google.dev/gemini-api/docs/rate-limits\"<EOL>          }<EOL>        ]<EOL>      },<EOL>      {<EOL>        \"@type\": \"type.googleapis.com/google.rpc.QuotaFailure\",<EOL>        \"violations\": [<EOL>          {<EOL>            \"description\": \"Generate content requests per minute limit exceeded on Free Tier. See https://ai.google.dev/gemini-api/docs/rate-limits.\",<EOL>            \"quotaMetric\": \"generativelanguage.googleapis.com/generate_content_free_tier_requests\",<EOL>            \"quotaId\": \"GenerateRequestsPerMinutePerProjectPerModel-FreeTier\",<EOL>            \"quotaDimensions\": {<EOL>              \"location\": \"global\",<EOL>              \"model\": \"gemini-2.5-flash\"<EOL>            },<EOL>            \"quotaValue\": \"5\"<EOL>          }<EOL>        ]<EOL>      },<EOL>      {<EOL>        \"@type\": \"type.googleapis.com/google.rpc.RetryInfo\",<EOL>        \"retryDelay\": \"13s\"<EOL>      }<EOL>    ]<EOL>  }<EOL>}<EOL>\"",
+        "2026-10-30T11:47:46.158Z  WARN 61 --- [ecourtier-backend] [nio-8080-exec-3] c.e.d.ia.service.LlmExtractionService    : [MODE FALLBACK IA] Retombée sur le moteur de règles (timeout = false, nonRetryable = true, max essais = 1)."
+      ]
+    },
+    {
+      "id": 15,
+      "texte": "Nous sommes une famille avec un chat, on cherche une maison à Dakar 1,5 million par mois",
+      "attendu": {
+        "type": "VILLA",
+        "animauxAcceptes": true,
+        "lieu": "Dakar",
+        "budgetMax": 1500000,
+        "modeTransaction": "LOCATION"
+      },
+      "extrait": {
+        "type": "VILLA",
+        "modeTransaction": "LOCATION",
+        "budgetMax": null,
+        "quartier": null,
+        "ville": "Dakar",
+        "nombrePieces": null,
+        "etage": null,
+        "meuble": null,
+        "animauxAcceptes": null,
+        "superficieMin": null
+      },
+      "champs_ok": {
+        "type": true,
+        "animauxAcceptes": false,
+        "lieu": true,
+        "budgetMax": false,
+        "modeTransaction": true
+      },
+      "phrase_ok": false,
+      "reponse": "Pour affiner ma recherche, Quel est votre budget approximatif et le type de bien souhaité (ex: appartement, villa, studio) ?",
+      "relance": "Quel est votre budget approximatif et le type de bien souhaité (ex: appartement, villa, studio) ?",
+      "suggestions": [],
+      "suggestions_pertinentes": 0,
+      "nb_suggestions": 0,
+      "annonces_pertinentes_catalogue": [
+        "Villa de Luxe Almadies Sea View"
+      ],
+      "duree_s": 1.061,
+      "mode": "FALLBACK_REGLES",
+      "logs": [
+        "2026-10-30T11:47:47.751Z  INFO 61 --- [ecourtier-backend] [nio-8080-exec-1] c.e.d.ia.service.LlmExtractionService    : [MODE LLM IA] Appel à l'API LLM (provider: gemini, essai 1/2)",
+        "2026-10-30T11:47:48.790Z  WARN 61 --- [ecourtier-backend] [nio-8080-exec-1] c.e.d.ia.service.LlmExtractionService    : [MODE LLM IA] Échec de l'essai 1/2: 429 Too Many Requests: \"{<EOL>  \"error\": {<EOL>    \"code\": 429,<EOL>    \"message\": \"You exceeded your current quota, please check your plan and billing details. For more information on this error, head to: https://ai.google.dev/gemini-api/docs/rate-limits. To monitor your current usage, head to: https://ai.dev/rate-limit. \\n* Quota exceeded for metric: generativelanguage.googleapis.com/generate_content_free_tier_requests, limit: 5, model: gemini-2.5-flash, description: Generate content requests per minute limit exceeded on Free Tier. See https://ai.google.dev/gemini-api/docs/rate-limits.\\nPlease retry in 11.24523158s.\",<EOL>    \"status\": \"RESOURCE_EXHAUSTED\",<EOL>    \"details\": [<EOL>      {<EOL>        \"@type\": \"type.googleapis.com/google.rpc.Help\",<EOL>        \"links\": [<EOL>          {<EOL>            \"description\": \"Learn more about Gemini API quotas\",<EOL>            \"url\": \"https://ai.google.dev/gemini-api/docs/rate-limits\"<EOL>          }<EOL>        ]<EOL>      },<EOL>      {<EOL>        \"@type\": \"type.googleapis.com/google.rpc.QuotaFailure\",<EOL>        \"violations\": [<EOL>          {<EOL>            \"description\": \"Generate content requests per minute limit exceeded on Free Tier. See https://ai.google.dev/gemini-api/docs/rate-limits.\",<EOL>            \"quotaMetric\": \"generativelanguage.googleapis.com/generate_content_free_tier_requests\",<EOL>            \"quotaId\": \"GenerateRequestsPerMinutePerProjectPerModel-FreeTier\",<EOL>            \"quotaDimensions\": {<EOL>              \"location\": \"global\",<EOL>              \"model\": \"gemini-2.5-flash\"<EOL>            },<EOL>            \"quotaValue\": \"5\"<EOL>          }<EOL>        ]<EOL>      },<EOL>      {<EOL>        \"@type\": \"type.googleapis.com/google.rpc.RetryInfo\",<EOL>        \"retryDelay\": \"11s\"<EOL>      }<EOL>    ]<EOL>  }<EOL>}<EOL>\"",
+        "2026-10-30T11:47:48.791Z  WARN 61 --- [ecourtier-backend] [nio-8080-exec-1] c.e.d.ia.service.LlmExtractionService    : [MODE FALLBACK IA] Retombée sur le moteur de règles (timeout = false, nonRetryable = true, max essais = 1)."
+      ]
+    },
+    {
+      "id": 16,
+      "texte": "rez-de-chaussée obligatoire, F2 à Sacré-Cœur, budget 200 000",
+      "attendu": {
+        "type": "APPARTEMENT",
+        "etage": 0,
+        "nombrePieces": 2,
+        "lieu": "Sacré-Cœur",
+        "budgetMax": 200000
+      },
+      "extrait": {
+        "type": "APPARTEMENT",
+        "modeTransaction": null,
+        "budgetMax": 200000,
+        "quartier": "Sacré-Cœur",
+        "ville": null,
+        "nombrePieces": 2,
+        "etage": 0,
+        "meuble": null,
+        "animauxAcceptes": null,
+        "superficieMin": null
+      },
+      "champs_ok": {
+        "type": true,
+        "etage": true,
+        "nombrePieces": true,
+        "lieu": true,
+        "budgetMax": true
+      },
+      "phrase_ok": true,
+      "reponse": "J'ai bien analysé votre demande. Malheureusement, aucune annonce correspondant exactement à ces critères n'a été trouvée. Vous pouvez essayer d'élargir votre zone ou votre budget.",
+      "relance": null,
+      "suggestions": [],
+      "suggestions_pertinentes": 0,
+      "nb_suggestions": 0,
+      "annonces_pertinentes_catalogue": [],
+      "duree_s": 1.158,
+      "mode": "FALLBACK_REGLES",
+      "logs": [
+        "2026-10-30T11:47:50.332Z  INFO 61 --- [ecourtier-backend] [nio-8080-exec-2] c.e.d.ia.service.LlmExtractionService    : [MODE LLM IA] Appel à l'API LLM (provider: gemini, essai 1/2)",
+        "2026-10-30T11:47:51.463Z  WARN 61 --- [ecourtier-backend] [nio-8080-exec-2] c.e.d.ia.service.LlmExtractionService    : [MODE LLM IA] Échec de l'essai 1/2: 429 Too Many Requests: \"{<EOL>  \"error\": {<EOL>    \"code\": 429,<EOL>    \"message\": \"You exceeded your current quota, please check your plan and billing details. For more information on this error, head to: https://ai.google.dev/gemini-api/docs/rate-limits. To monitor your current usage, head to: https://ai.dev/rate-limit. \\n* Quota exceeded for metric: generativelanguage.googleapis.com/generate_content_free_tier_requests, limit: 5, model: gemini-2.5-flash, description: Generate content requests per minute limit exceeded on Free Tier. See https://ai.google.dev/gemini-api/docs/rate-limits.\\nPlease retry in 8.587622209s.\",<EOL>    \"status\": \"RESOURCE_EXHAUSTED\",<EOL>    \"details\": [<EOL>      {<EOL>        \"@type\": \"type.googleapis.com/google.rpc.Help\",<EOL>        \"links\": [<EOL>          {<EOL>            \"description\": \"Learn more about Gemini API quotas\",<EOL>            \"url\": \"https://ai.google.dev/gemini-api/docs/rate-limits\"<EOL>          }<EOL>        ]<EOL>      },<EOL>      {<EOL>        \"@type\": \"type.googleapis.com/google.rpc.QuotaFailure\",<EOL>        \"violations\": [<EOL>          {<EOL>            \"description\": \"Generate content requests per minute limit exceeded on Free Tier. See https://ai.google.dev/gemini-api/docs/rate-limits.\",<EOL>            \"quotaMetric\": \"generativelanguage.googleapis.com/generate_content_free_tier_requests\",<EOL>            \"quotaId\": \"GenerateRequestsPerMinutePerProjectPerModel-FreeTier\",<EOL>            \"quotaDimensions\": {<EOL>              \"location\": \"global\",<EOL>              \"model\": \"gemini-2.5-flash\"<EOL>            },<EOL>            \"quotaValue\": \"5\"<EOL>          }<EOL>        ]<EOL>      },<EOL>      {<EOL>        \"@type\": \"type.googleapis.com/google.rpc.RetryInfo\",<EOL>        \"retryDelay\": \"8s\"<EOL>      }<EOL>    ]<EOL>  }<EOL>}<EOL>\"",
+        "2026-10-30T11:47:51.463Z  WARN 61 --- [ecourtier-backend] [nio-8080-exec-2] c.e.d.ia.service.LlmExtractionService    : [MODE FALLBACK IA] Retombée sur le moteur de règles (timeout = false, nonRetryable = true, max essais = 1)."
+      ]
+    },
+    {
+      "id": 17,
+      "texte": "Je veux acheter un appartement à Mermoz",
+      "attendu": {
+        "type": "APPARTEMENT",
+        "modeTransaction": "VENTE",
+        "lieu": "Mermoz"
+      },
+      "extrait": {
+        "type": "APPARTEMENT",
+        "modeTransaction": "VENTE",
+        "budgetMax": null,
+        "quartier": null,
+        "ville": null,
+        "nombrePieces": null,
+        "etage": null,
+        "meuble": null,
+        "animauxAcceptes": null,
+        "superficieMin": null
+      },
+      "champs_ok": {
+        "type": true,
+        "modeTransaction": true,
+        "lieu": false
+      },
+      "phrase_ok": false,
+      "reponse": "Pour affiner ma recherche, Quel est votre budget approximatif et le type de bien souhaité (ex: appartement, villa, studio) ?",
+      "relance": "Quel est votre budget approximatif et le type de bien souhaité (ex: appartement, villa, studio) ?",
+      "suggestions": [],
+      "suggestions_pertinentes": 0,
+      "nb_suggestions": 0,
+      "annonces_pertinentes_catalogue": [],
+      "duree_s": 1.61,
+      "mode": "FALLBACK_REGLES",
+      "logs": [
+        "2026-10-30T11:47:53.003Z  INFO 61 --- [ecourtier-backend] [nio-8080-exec-5] c.e.d.ia.service.LlmExtractionService    : [MODE LLM IA] Appel à l'API LLM (provider: gemini, essai 1/2)",
+        "2026-10-30T11:47:54.589Z  WARN 61 --- [ecourtier-backend] [nio-8080-exec-5] c.e.d.ia.service.LlmExtractionService    : [MODE LLM IA] Échec de l'essai 1/2: 429 Too Many Requests: \"{<EOL>  \"error\": {<EOL>    \"code\": 429,<EOL>    \"message\": \"You exceeded your current quota, please check your plan and billing details. For more information on this error, head to: https://ai.google.dev/gemini-api/docs/rate-limits. To monitor your current usage, head to: https://ai.dev/rate-limit. \\n* Quota exceeded for metric: generativelanguage.googleapis.com/generate_content_free_tier_requests, limit: 5, model: gemini-2.5-flash, description: Generate content requests per minute limit exceeded on Free Tier. See https://ai.google.dev/gemini-api/docs/rate-limits.\\nPlease retry in 5.439651484s.\",<EOL>    \"status\": \"RESOURCE_EXHAUSTED\",<EOL>    \"details\": [<EOL>      {<EOL>        \"@type\": \"type.googleapis.com/google.rpc.Help\",<EOL>        \"links\": [<EOL>          {<EOL>            \"description\": \"Learn more about Gemini API quotas\",<EOL>            \"url\": \"https://ai.google.dev/gemini-api/docs/rate-limits\"<EOL>          }<EOL>        ]<EOL>      },<EOL>      {<EOL>        \"@type\": \"type.googleapis.com/google.rpc.QuotaFailure\",<EOL>        \"violations\": [<EOL>          {<EOL>            \"description\": \"Generate content requests per minute limit exceeded on Free Tier. See https://ai.google.dev/gemini-api/docs/rate-limits.\",<EOL>            \"quotaMetric\": \"generativelanguage.googleapis.com/generate_content_free_tier_requests\",<EOL>            \"quotaId\": \"GenerateRequestsPerMinutePerProjectPerModel-FreeTier\",<EOL>            \"quotaDimensions\": {<EOL>              \"location\": \"global\",<EOL>              \"model\": \"gemini-2.5-flash\"<EOL>            },<EOL>            \"quotaValue\": \"5\"<EOL>          }<EOL>        ]<EOL>      },<EOL>      {<EOL>        \"@type\": \"type.googleapis.com/google.rpc.RetryInfo\",<EOL>        \"retryDelay\": \"5s\"<EOL>      }<EOL>    ]<EOL>  }<EOL>}<EOL>\"",
+        "2026-10-30T11:47:54.589Z  WARN 61 --- [ecourtier-backend] [nio-8080-exec-5] c.e.d.ia.service.LlmExtractionService    : [MODE FALLBACK IA] Retombée sur le moteur de règles (timeout = false, nonRetryable = true, max essais = 1)."
+      ]
+    },
+    {
+      "id": 18,
+      "texte": "cherche chambre meublée dixieme thies 80k",
+      "attendu": {
+        "meuble": true,
+        "lieu": "Dixième",
+        "budgetMax": 80000
+      },
+      "extrait": {
+        "type": null,
+        "modeTransaction": null,
+        "budgetMax": null,
+        "quartier": null,
+        "ville": null,
+        "nombrePieces": null,
+        "etage": null,
+        "meuble": true,
+        "animauxAcceptes": null,
+        "superficieMin": null
+      },
+      "champs_ok": {
+        "meuble": true,
+        "lieu": false,
+        "budgetMax": false
+      },
+      "phrase_ok": false,
+      "reponse": "Pour affiner ma recherche, Quel est votre budget approximatif et le type de bien souhaité (ex: appartement, villa, studio) ?",
+      "relance": "Quel est votre budget approximatif et le type de bien souhaité (ex: appartement, villa, studio) ?",
+      "suggestions": [],
+      "suggestions_pertinentes": 0,
+      "nb_suggestions": 0,
+      "annonces_pertinentes_catalogue": [],
+      "duree_s": 0.611,
+      "mode": "FALLBACK_REGLES",
+      "logs": [
+        "2026-10-30T11:47:56.148Z  INFO 61 --- [ecourtier-backend] [nio-8080-exec-6] c.e.d.ia.service.LlmExtractionService    : [MODE LLM IA] Appel à l'API LLM (provider: gemini, essai 1/2)",
+        "2026-10-30T11:47:56.737Z  WARN 61 --- [ecourtier-backend] [nio-8080-exec-6] c.e.d.ia.service.LlmExtractionService    : [MODE LLM IA] Échec de l'essai 1/2: 429 Too Many Requests: \"{<EOL>  \"error\": {<EOL>    \"code\": 429,<EOL>    \"message\": \"You exceeded your current quota, please check your plan and billing details. For more information on this error, head to: https://ai.google.dev/gemini-api/docs/rate-limits. To monitor your current usage, head to: https://ai.dev/rate-limit. \\n* Quota exceeded for metric: generativelanguage.googleapis.com/generate_content_free_tier_requests, limit: 5, model: gemini-2.5-flash, description: Generate content requests per minute limit exceeded on Free Tier. See https://ai.google.dev/gemini-api/docs/rate-limits.\\nPlease retry in 3.291680933s.\",<EOL>    \"status\": \"RESOURCE_EXHAUSTED\",<EOL>    \"details\": [<EOL>      {<EOL>        \"@type\": \"type.googleapis.com/google.rpc.Help\",<EOL>        \"links\": [<EOL>          {<EOL>            \"description\": \"Learn more about Gemini API quotas\",<EOL>            \"url\": \"https://ai.google.dev/gemini-api/docs/rate-limits\"<EOL>          }<EOL>        ]<EOL>      },<EOL>      {<EOL>        \"@type\": \"type.googleapis.com/google.rpc.QuotaFailure\",<EOL>        \"violations\": [<EOL>          {<EOL>            \"description\": \"Generate content requests per minute limit exceeded on Free Tier. See https://ai.google.dev/gemini-api/docs/rate-limits.\",<EOL>            \"quotaMetric\": \"generativelanguage.googleapis.com/generate_content_free_tier_requests\",<EOL>            \"quotaId\": \"GenerateRequestsPerMinutePerProjectPerModel-FreeTier\",<EOL>            \"quotaDimensions\": {<EOL>              \"location\": \"global\",<EOL>              \"model\": \"gemini-2.5-flash\"<EOL>            },<EOL>            \"quotaValue\": \"5\"<EOL>          }<EOL>        ]<EOL>      },<EOL>      {<EOL>        \"@type\": \"type.googleapis.com/google.rpc.RetryInfo\",<EOL>        \"retryDelay\": \"3s\"<EOL>      }<EOL>    ]<EOL>  }<EOL>}<EOL>\"",
+        "2026-10-30T11:47:56.738Z  WARN 61 --- [ecourtier-backend] [nio-8080-exec-6] c.e.d.ia.service.LlmExtractionService    : [MODE FALLBACK IA] Retombée sur le moteur de règles (timeout = false, nonRetryable = true, max essais = 1)."
+      ]
+    },
+    {
+      "id": 19,
+      "texte": "Location villa avec piscine Almadies budget max 2 000 000 FCFA",
+      "attendu": {
+        "type": "VILLA",
+        "modeTransaction": "LOCATION",
+        "lieu": "Almadies",
+        "budgetMax": 2000000
+      },
+      "extrait": {
+        "type": "VILLA",
+        "modeTransaction": "LOCATION",
+        "budgetMax": 2000000,
+        "quartier": "Almadies",
+        "ville": null,
+        "nombrePieces": null,
+        "etage": null,
+        "meuble": null,
+        "animauxAcceptes": null,
+        "superficieMin": null
+      },
+      "champs_ok": {
+        "type": true,
+        "modeTransaction": true,
+        "lieu": true,
+        "budgetMax": true
+      },
+      "phrase_ok": true,
+      "reponse": "J'ai trouvé 1 annonce(s) correspondant à votre recherche à Almadies pour un budget max de 2000000 FCFA :",
+      "relance": null,
+      "suggestions": [
+        {
+          "titre": "Villa de Luxe Almadies Sea View",
+          "type": "VILLA",
+          "prix": 1500000.0,
+          "quartier": "Almadies",
+          "ville": "Dakar",
+          "etage": 0
+        }
+      ],
+      "suggestions_pertinentes": 1,
+      "nb_suggestions": 1,
+      "annonces_pertinentes_catalogue": [
+        "Villa de Luxe Almadies Sea View"
+      ],
+      "duree_s": 0.653,
+      "mode": "FALLBACK_REGLES",
+      "logs": [
+        "2026-10-30T11:47:58.282Z  INFO 61 --- [ecourtier-backend] [nio-8080-exec-3] c.e.d.ia.service.LlmExtractionService    : [MODE LLM IA] Appel à l'API LLM (provider: gemini, essai 1/2)",
+        "2026-10-30T11:47:58.905Z  WARN 61 --- [ecourtier-backend] [nio-8080-exec-3] c.e.d.ia.service.LlmExtractionService    : [MODE LLM IA] Échec de l'essai 1/2: 429 Too Many Requests: \"{<EOL>  \"error\": {<EOL>    \"code\": 429,<EOL>    \"message\": \"You exceeded your current quota, please check your plan and billing details. For more information on this error, head to: https://ai.google.dev/gemini-api/docs/rate-limits. To monitor your current usage, head to: https://ai.dev/rate-limit. \\n* Quota exceeded for metric: generativelanguage.googleapis.com/generate_content_free_tier_requests, limit: 5, model: gemini-2.5-flash, description: Generate content requests per minute limit exceeded on Free Tier. See https://ai.google.dev/gemini-api/docs/rate-limits.\\nPlease retry in 1.14478423s.\",<EOL>    \"status\": \"RESOURCE_EXHAUSTED\",<EOL>    \"details\": [<EOL>      {<EOL>        \"@type\": \"type.googleapis.com/google.rpc.Help\",<EOL>        \"links\": [<EOL>          {<EOL>            \"description\": \"Learn more about Gemini API quotas\",<EOL>            \"url\": \"https://ai.google.dev/gemini-api/docs/rate-limits\"<EOL>          }<EOL>        ]<EOL>      },<EOL>      {<EOL>        \"@type\": \"type.googleapis.com/google.rpc.QuotaFailure\",<EOL>        \"violations\": [<EOL>          {<EOL>            \"description\": \"Generate content requests per minute limit exceeded on Free Tier. See https://ai.google.dev/gemini-api/docs/rate-limits.\",<EOL>            \"quotaMetric\": \"generativelanguage.googleapis.com/generate_content_free_tier_requests\",<EOL>            \"quotaId\": \"GenerateRequestsPerMinutePerProjectPerModel-FreeTier\",<EOL>            \"quotaDimensions\": {<EOL>              \"location\": \"global\",<EOL>              \"model\": \"gemini-2.5-flash\"<EOL>            },<EOL>            \"quotaValue\": \"5\"<EOL>          }<EOL>        ]<EOL>      },<EOL>      {<EOL>        \"@type\": \"type.googleapis.com/google.rpc.RetryInfo\",<EOL>        \"retryDelay\": \"1s\"<EOL>      }<EOL>    ]<EOL>  }<EOL>}<EOL>\"",
+        "2026-10-30T11:47:58.905Z  WARN 61 --- [ecourtier-backend] [nio-8080-exec-3] c.e.d.ia.service.LlmExtractionService    : [MODE FALLBACK IA] Retombée sur le moteur de règles (timeout = false, nonRetryable = true, max essais = 1)."
+      ]
+    },
+    {
+      "id": 20,
+      "texte": "jcherche 3 pieces a ziguinchor pas plus de 100000",
+      "attendu": {
+        "nombrePieces": 3,
+        "lieu": "Ziguinchor",
+        "budgetMax": 100000
+      },
+      "extrait": {
+        "type": null,
+        "modeTransaction": null,
+        "budgetMax": 100000,
+        "quartier": null,
+        "ville": "Ziguinchor",
+        "nombrePieces": 3,
+        "etage": null,
+        "meuble": null,
+        "animauxAcceptes": null,
+        "superficieMin": null
+      },
+      "champs_ok": {
+        "nombrePieces": true,
+        "lieu": true,
+        "budgetMax": true
+      },
+      "phrase_ok": true,
+      "reponse": "J'ai trouvé 1 annonce(s) correspondant à votre recherche pour un budget max de 100000 FCFA :",
+      "relance": null,
+      "suggestions": [
+        {
+          "titre": "Appartement F3 Centre Boucotte",
+          "type": "APPARTEMENT",
+          "prix": 95000.0,
+          "quartier": "Boucotte",
+          "ville": "Ziguinchor",
+          "etage": 1
+        }
+      ],
+      "suggestions_pertinentes": 1,
+      "nb_suggestions": 1,
+      "annonces_pertinentes_catalogue": [
+        "Appartement F3 Centre Boucotte"
+      ],
+      "duree_s": 0.441,
+      "mode": "FALLBACK_REGLES",
+      "logs": [
+        "2026-10-30T11:48:00.444Z  INFO 61 --- [ecourtier-backend] [nio-8080-exec-1] c.e.d.ia.service.LlmExtractionService    : [MODE LLM IA] Appel à l'API LLM (provider: gemini, essai 1/2)",
+        "2026-10-30T11:48:00.848Z  WARN 61 --- [ecourtier-backend] [nio-8080-exec-1] c.e.d.ia.service.LlmExtractionService    : [MODE LLM IA] Échec de l'essai 1/2: 429 Too Many Requests: \"{<EOL>  \"error\": {<EOL>    \"code\": 429,<EOL>    \"message\": \"You exceeded your current quota, please check your plan and billing details. For more information on this error, head to: https://ai.google.dev/gemini-api/docs/rate-limits. To monitor your current usage, head to: https://ai.dev/rate-limit. \\n* Quota exceeded for metric: generativelanguage.googleapis.com/generate_content_free_tier_requests, limit: 5, model: gemini-2.5-flash, description: Generate content requests per minute limit exceeded on Free Tier. See https://ai.google.dev/gemini-api/docs/rate-limits.\\nPlease retry in 59.249091529s.\",<EOL>    \"status\": \"RESOURCE_EXHAUSTED\",<EOL>    \"details\": [<EOL>      {<EOL>        \"@type\": \"type.googleapis.com/google.rpc.Help\",<EOL>        \"links\": [<EOL>          {<EOL>            \"description\": \"Learn more about Gemini API quotas\",<EOL>            \"url\": \"https://ai.google.dev/gemini-api/docs/rate-limits\"<EOL>          }<EOL>        ]<EOL>      },<EOL>      {<EOL>        \"@type\": \"type.googleapis.com/google.rpc.QuotaFailure\",<EOL>        \"violations\": [<EOL>          {<EOL>            \"description\": \"Generate content requests per minute limit exceeded on Free Tier. See https://ai.google.dev/gemini-api/docs/rate-limits.\",<EOL>            \"quotaMetric\": \"generativelanguage.googleapis.com/generate_content_free_tier_requests\",<EOL>            \"quotaId\": \"GenerateRequestsPerMinutePerProjectPerModel-FreeTier\",<EOL>            \"quotaDimensions\": {<EOL>              \"location\": \"global\",<EOL>              \"model\": \"gemini-2.5-flash\"<EOL>            },<EOL>            \"quotaValue\": \"5\"<EOL>          }<EOL>        ]<EOL>      },<EOL>      {<EOL>        \"@type\": \"type.googleapis.com/google.rpc.RetryInfo\",<EOL>        \"retryDelay\": \"59s\"<EOL>      }<EOL>    ]<EOL>  }<EOL>}<EOL>\"",
+        "2026-10-30T11:48:00.848Z  WARN 61 --- [ecourtier-backend] [nio-8080-exec-1] c.e.d.ia.service.LlmExtractionService    : [MODE FALLBACK IA] Retombée sur le moteur de règles (timeout = false, nonRetryable = true, max essais = 1)."
+      ]
+    }
+  ],
+  "f6": [
+    {
+      "id": "F6-1",
+      "texte": "Je cherche un appartement à Mermoz, budget 500 000",
+      "manque": [
+        "superficie",
+        "etage",
+        "animaux",
+        "meuble"
+      ],
+      "reponse": "J'ai trouvé 4 annonce(s) correspondant à votre recherche pour un budget max de 500000 FCFA :",
+      "relance": null,
+      "criteresExtraits": {
+        "budgetMin": null,
+        "budgetMax": 500000,
+        "type": "APPARTEMENT",
+        "modeTransaction": null,
+        "quartier": null,
+        "ville": null,
+        "nombrePieces": null,
+        "etage": null,
+        "meuble": null,
+        "animauxAcceptes": null,
+        "superficieMin": null,
+        "confiance": 0.7,
+        "questionDeRelance": null
+      },
+      "nb_suggestions": 4,
+      "duree_s": 0.998,
+      "mode": "FALLBACK_REGLES",
+      "logs": [
+        "2026-10-30T11:48:02.376Z  INFO 61 --- [ecourtier-backend] [nio-8080-exec-2] c.e.d.ia.service.LlmExtractionService    : [MODE LLM IA] Appel à l'API LLM (provider: gemini, essai 1/2)",
+        "2026-10-30T11:48:03.338Z  WARN 61 --- [ecourtier-backend] [nio-8080-exec-2] c.e.d.ia.service.LlmExtractionService    : [MODE LLM IA] Échec de l'essai 1/2: 429 Too Many Requests: \"{<EOL>  \"error\": {<EOL>    \"code\": 429,<EOL>    \"message\": \"You exceeded your current quota, please check your plan and billing details. For more information on this error, head to: https://ai.google.dev/gemini-api/docs/rate-limits. To monitor your current usage, head to: https://ai.dev/rate-limit. \\n* Quota exceeded for metric: generativelanguage.googleapis.com/generate_content_free_tier_requests, limit: 5, model: gemini-2.5-flash, description: Generate content requests per minute limit exceeded on Free Tier. See https://ai.google.dev/gemini-api/docs/rate-limits.\\nPlease retry in 56.690909645s.\",<EOL>    \"status\": \"RESOURCE_EXHAUSTED\",<EOL>    \"details\": [<EOL>      {<EOL>        \"@type\": \"type.googleapis.com/google.rpc.Help\",<EOL>        \"links\": [<EOL>          {<EOL>            \"description\": \"Learn more about Gemini API quotas\",<EOL>            \"url\": \"https://ai.google.dev/gemini-api/docs/rate-limits\"<EOL>          }<EOL>        ]<EOL>      },<EOL>      {<EOL>        \"@type\": \"type.googleapis.com/google.rpc.QuotaFailure\",<EOL>        \"violations\": [<EOL>          {<EOL>            \"description\": \"Generate content requests per minute limit exceeded on Free Tier. See https://ai.google.dev/gemini-api/docs/rate-limits.\",<EOL>            \"quotaMetric\": \"generativelanguage.googleapis.com/generate_content_free_tier_requests\",<EOL>            \"quotaId\": \"GenerateRequestsPerMinutePerProjectPerModel-FreeTier\",<EOL>            \"quotaDimensions\": {<EOL>              \"model\": \"gemini-2.5-flash\",<EOL>              \"location\": \"global\"<EOL>            },<EOL>            \"quotaValue\": \"5\"<EOL>          }<EOL>        ]<EOL>      },<EOL>      {<EOL>        \"@type\": \"type.googleapis.com/google.rpc.RetryInfo\",<EOL>        \"retryDelay\": \"56s\"<EOL>      }<EOL>    ]<EOL>  }<EOL>}<EOL>\"",
+        "2026-10-30T11:48:03.339Z  WARN 61 --- [ecourtier-backend] [nio-8080-exec-2] c.e.d.ia.service.LlmExtractionService    : [MODE FALLBACK IA] Retombée sur le moteur de règles (timeout = false, nonRetryable = true, max essais = 1)."
+      ]
+    },
+    {
+      "id": "F6-2",
+      "texte": "studio à Nema 100k",
+      "manque": [
+        "superficie",
+        "etage",
+        "animaux"
+      ],
+      "reponse": "Pour affiner ma recherche, Quel est votre budget approximatif et le type de bien souhaité (ex: appartement, villa, studio) ?",
+      "relance": "Quel est votre budget approximatif et le type de bien souhaité (ex: appartement, villa, studio) ?",
+      "criteresExtraits": {
+        "budgetMin": null,
+        "budgetMax": null,
+        "type": "STUDIO",
+        "modeTransaction": null,
+        "quartier": "Nema",
+        "ville": null,
+        "nombrePieces": null,
+        "etage": null,
+        "meuble": null,
+        "animauxAcceptes": null,
+        "superficieMin": null,
+        "confiance": 0.7,
+        "questionDeRelance": "Quel est votre budget approximatif et le type de bien souhaité (ex: appartement, villa, studio) ?"
+      },
+      "nb_suggestions": 0,
+      "duree_s": 1.108,
+      "mode": "FALLBACK_REGLES",
+      "logs": [
+        "2026-10-30T11:48:04.911Z  INFO 61 --- [ecourtier-backend] [nio-8080-exec-5] c.e.d.ia.service.LlmExtractionService    : [MODE LLM IA] Appel à l'API LLM (provider: gemini, essai 1/2)",
+        "2026-10-30T11:48:05.998Z  WARN 61 --- [ecourtier-backend] [nio-8080-exec-5] c.e.d.ia.service.LlmExtractionService    : [MODE LLM IA] Échec de l'essai 1/2: 429 Too Many Requests: \"{<EOL>  \"error\": {<EOL>    \"code\": 429,<EOL>    \"message\": \"You exceeded your current quota, please check your plan and billing details. For more information on this error, head to: https://ai.google.dev/gemini-api/docs/rate-limits. To monitor your current usage, head to: https://ai.dev/rate-limit. \\n* Quota exceeded for metric: generativelanguage.googleapis.com/generate_content_free_tier_requests, limit: 5, model: gemini-2.5-flash, description: Generate content requests per minute limit exceeded on Free Tier. See https://ai.google.dev/gemini-api/docs/rate-limits.\\nPlease retry in 54.030084537s.\",<EOL>    \"status\": \"RESOURCE_EXHAUSTED\",<EOL>    \"details\": [<EOL>      {<EOL>        \"@type\": \"type.googleapis.com/google.rpc.Help\",<EOL>        \"links\": [<EOL>          {<EOL>            \"description\": \"Learn more about Gemini API quotas\",<EOL>            \"url\": \"https://ai.google.dev/gemini-api/docs/rate-limits\"<EOL>          }<EOL>        ]<EOL>      },<EOL>      {<EOL>        \"@type\": \"type.googleapis.com/google.rpc.QuotaFailure\",<EOL>        \"violations\": [<EOL>          {<EOL>            \"description\": \"Generate content requests per minute limit exceeded on Free Tier. See https://ai.google.dev/gemini-api/docs/rate-limits.\",<EOL>            \"quotaMetric\": \"generativelanguage.googleapis.com/generate_content_free_tier_requests\",<EOL>            \"quotaId\": \"GenerateRequestsPerMinutePerProjectPerModel-FreeTier\",<EOL>            \"quotaDimensions\": {<EOL>              \"location\": \"global\",<EOL>              \"model\": \"gemini-2.5-flash\"<EOL>            },<EOL>            \"quotaValue\": \"5\"<EOL>          }<EOL>        ]<EOL>      },<EOL>      {<EOL>        \"@type\": \"type.googleapis.com/google.rpc.RetryInfo\",<EOL>        \"retryDelay\": \"54s\"<EOL>      }<EOL>    ]<EOL>  }<EOL>}<EOL>\"",
+        "2026-10-30T11:48:05.998Z  WARN 61 --- [ecourtier-backend] [nio-8080-exec-5] c.e.d.ia.service.LlmExtractionService    : [MODE FALLBACK IA] Retombée sur le moteur de règles (timeout = false, nonRetryable = true, max essais = 1)."
+      ]
+    },
+    {
+      "id": "F6-3",
+      "texte": "J'ai un chien, je cherche une villa à Dakar",
+      "manque": [
+        "budget",
+        "superficie",
+        "etage"
+      ],
+      "reponse": "Pour affiner ma recherche, Quel est votre budget approximatif et le type de bien souhaité (ex: appartement, villa, studio) ?",
+      "relance": "Quel est votre budget approximatif et le type de bien souhaité (ex: appartement, villa, studio) ?",
+      "criteresExtraits": {
+        "budgetMin": null,
+        "budgetMax": null,
+        "type": "VILLA",
+        "modeTransaction": null,
+        "quartier": null,
+        "ville": "Dakar",
+        "nombrePieces": null,
+        "etage": null,
+        "meuble": null,
+        "animauxAcceptes": null,
+        "superficieMin": null,
+        "confiance": 0.55,
+        "questionDeRelance": "Quel est votre budget approximatif et le type de bien souhaité (ex: appartement, villa, studio) ?"
+      },
+      "nb_suggestions": 0,
+      "duree_s": 1.672,
+      "mode": "FALLBACK_REGLES",
+      "logs": [
+        "2026-10-30T11:48:07.591Z  INFO 61 --- [ecourtier-backend] [nio-8080-exec-6] c.e.d.ia.service.LlmExtractionService    : [MODE LLM IA] Appel à l'API LLM (provider: gemini, essai 1/2)",
+        "2026-10-30T11:48:09.242Z  WARN 61 --- [ecourtier-backend] [nio-8080-exec-6] c.e.d.ia.service.LlmExtractionService    : [MODE LLM IA] Échec de l'essai 1/2: 429 Too Many Requests: \"{<EOL>  \"error\": {<EOL>    \"code\": 429,<EOL>    \"message\": \"You exceeded your current quota, please check your plan and billing details. For more information on this error, head to: https://ai.google.dev/gemini-api/docs/rate-limits. To monitor your current usage, head to: https://ai.dev/rate-limit. \\n* Quota exceeded for metric: generativelanguage.googleapis.com/generate_content_free_tier_requests, limit: 5, model: gemini-2.5-flash, description: Generate content requests per minute limit exceeded on Free Tier. See https://ai.google.dev/gemini-api/docs/rate-limits.\\nPlease retry in 50.812690548s.\",<EOL>    \"status\": \"RESOURCE_EXHAUSTED\",<EOL>    \"details\": [<EOL>      {<EOL>        \"@type\": \"type.googleapis.com/google.rpc.Help\",<EOL>        \"links\": [<EOL>          {<EOL>            \"description\": \"Learn more about Gemini API quotas\",<EOL>            \"url\": \"https://ai.google.dev/gemini-api/docs/rate-limits\"<EOL>          }<EOL>        ]<EOL>      },<EOL>      {<EOL>        \"@type\": \"type.googleapis.com/google.rpc.QuotaFailure\",<EOL>        \"violations\": [<EOL>          {<EOL>            \"description\": \"Generate content requests per minute limit exceeded on Free Tier. See https://ai.google.dev/gemini-api/docs/rate-limits.\",<EOL>            \"quotaMetric\": \"generativelanguage.googleapis.com/generate_content_free_tier_requests\",<EOL>            \"quotaId\": \"GenerateRequestsPerMinutePerProjectPerModel-FreeTier\",<EOL>            \"quotaDimensions\": {<EOL>              \"location\": \"global\",<EOL>              \"model\": \"gemini-2.5-flash\"<EOL>            },<EOL>            \"quotaValue\": \"5\"<EOL>          }<EOL>        ]<EOL>      },<EOL>      {<EOL>        \"@type\": \"type.googleapis.com/google.rpc.RetryInfo\",<EOL>        \"retryDelay\": \"50s\"<EOL>      }<EOL>    ]<EOL>  }<EOL>}<EOL>\"",
+        "2026-10-30T11:48:09.242Z  WARN 61 --- [ecourtier-backend] [nio-8080-exec-6] c.e.d.ia.service.LlmExtractionService    : [MODE FALLBACK IA] Retombée sur le moteur de règles (timeout = false, nonRetryable = true, max essais = 1)."
+      ]
+    },
+    {
+      "id": "F6-4",
+      "texte": "Je veux louer quelque chose",
+      "manque": [
+        "budget",
+        "type",
+        "quartier",
+        "superficie",
+        "etage",
+        "animaux"
+      ],
+      "reponse": "Pour affiner ma recherche, Quel est votre budget approximatif et le type de bien souhaité (ex: appartement, villa, studio) ?",
+      "relance": "Quel est votre budget approximatif et le type de bien souhaité (ex: appartement, villa, studio) ?",
+      "criteresExtraits": {
+        "budgetMin": null,
+        "budgetMax": null,
+        "type": null,
+        "modeTransaction": "LOCATION",
+        "quartier": null,
+        "ville": null,
+        "nombrePieces": null,
+        "etage": null,
+        "meuble": null,
+        "animauxAcceptes": null,
+        "superficieMin": null,
+        "confiance": 0.55,
+        "questionDeRelance": "Quel est votre budget approximatif et le type de bien souhaité (ex: appartement, villa, studio) ?"
+      },
+      "nb_suggestions": 0,
+      "duree_s": 1.246,
+      "mode": "FALLBACK_REGLES",
+      "logs": [
+        "2026-10-30T11:48:10.790Z  INFO 61 --- [ecourtier-backend] [nio-8080-exec-3] c.e.d.ia.service.LlmExtractionService    : [MODE LLM IA] Appel à l'API LLM (provider: gemini, essai 1/2)",
+        "2026-10-30T11:48:12.014Z  WARN 61 --- [ecourtier-backend] [nio-8080-exec-3] c.e.d.ia.service.LlmExtractionService    : [MODE LLM IA] Échec de l'essai 1/2: 429 Too Many Requests: \"{<EOL>  \"error\": {<EOL>    \"code\": 429,<EOL>    \"message\": \"You exceeded your current quota, please check your plan and billing details. For more information on this error, head to: https://ai.google.dev/gemini-api/docs/rate-limits. To monitor your current usage, head to: https://ai.dev/rate-limit. \\n* Quota exceeded for metric: generativelanguage.googleapis.com/generate_content_free_tier_requests, limit: 5, model: gemini-2.5-flash, description: Generate content requests per minute limit exceeded on Free Tier. See https://ai.google.dev/gemini-api/docs/rate-limits.\\nPlease retry in 48.01306773s.\",<EOL>    \"status\": \"RESOURCE_EXHAUSTED\",<EOL>    \"details\": [<EOL>      {<EOL>        \"@type\": \"type.googleapis.com/google.rpc.Help\",<EOL>        \"links\": [<EOL>          {<EOL>            \"description\": \"Learn more about Gemini API quotas\",<EOL>            \"url\": \"https://ai.google.dev/gemini-api/docs/rate-limits\"<EOL>          }<EOL>        ]<EOL>      },<EOL>      {<EOL>        \"@type\": \"type.googleapis.com/google.rpc.QuotaFailure\",<EOL>        \"violations\": [<EOL>          {<EOL>            \"description\": \"Generate content requests per minute limit exceeded on Free Tier. See https://ai.google.dev/gemini-api/docs/rate-limits.\",<EOL>            \"quotaMetric\": \"generativelanguage.googleapis.com/generate_content_free_tier_requests\",<EOL>            \"quotaId\": \"GenerateRequestsPerMinutePerProjectPerModel-FreeTier\",<EOL>            \"quotaDimensions\": {<EOL>              \"location\": \"global\",<EOL>              \"model\": \"gemini-2.5-flash\"<EOL>            },<EOL>            \"quotaValue\": \"5\"<EOL>          }<EOL>        ]<EOL>      },<EOL>      {<EOL>        \"@type\": \"type.googleapis.com/google.rpc.RetryInfo\",<EOL>        \"retryDelay\": \"48s\"<EOL>      }<EOL>    ]<EOL>  }<EOL>}<EOL>\"",
+        "2026-10-30T11:48:12.015Z  WARN 61 --- [ecourtier-backend] [nio-8080-exec-3] c.e.d.ia.service.LlmExtractionService    : [MODE FALLBACK IA] Retombée sur le moteur de règles (timeout = false, nonRetryable = true, max essais = 1)."
+      ]
+    },
+    {
+      "id": "F6-5",
+      "texte": "F3 à Boucotte 150 000 FCFA",
+      "manque": [
+        "superficie",
+        "etage",
+        "animaux",
+        "meuble"
+      ],
+      "reponse": "J'ai trouvé 1 annonce(s) correspondant à votre recherche à Boucotte pour un budget max de 150000 FCFA :",
+      "relance": null,
+      "criteresExtraits": {
+        "budgetMin": null,
+        "budgetMax": 150000,
+        "type": "APPARTEMENT",
+        "modeTransaction": null,
+        "quartier": "Boucotte",
+        "ville": null,
+        "nombrePieces": 3,
+        "etage": null,
+        "meuble": null,
+        "animauxAcceptes": null,
+        "superficieMin": null,
+        "confiance": 1.0,
+        "questionDeRelance": null
+      },
+      "nb_suggestions": 1,
+      "duree_s": 0.799,
+      "mode": "FALLBACK_REGLES",
+      "logs": [
+        "2026-10-30T11:48:13.590Z  INFO 61 --- [ecourtier-backend] [nio-8080-exec-1] c.e.d.ia.service.LlmExtractionService    : [MODE LLM IA] Appel à l'API LLM (provider: gemini, essai 1/2)",
+        "2026-10-30T11:48:14.362Z  WARN 61 --- [ecourtier-backend] [nio-8080-exec-1] c.e.d.ia.service.LlmExtractionService    : [MODE LLM IA] Échec de l'essai 1/2: 429 Too Many Requests: \"{<EOL>  \"error\": {<EOL>    \"code\": 429,<EOL>    \"message\": \"You exceeded your current quota, please check your plan and billing details. For more information on this error, head to: https://ai.google.dev/gemini-api/docs/rate-limits. To monitor your current usage, head to: https://ai.dev/rate-limit. \\n* Quota exceeded for metric: generativelanguage.googleapis.com/generate_content_free_tier_requests, limit: 5, model: gemini-2.5-flash, description: Generate content requests per minute limit exceeded on Free Tier. See https://ai.google.dev/gemini-api/docs/rate-limits.\\nPlease retry in 45.706813777s.\",<EOL>    \"status\": \"RESOURCE_EXHAUSTED\",<EOL>    \"details\": [<EOL>      {<EOL>        \"@type\": \"type.googleapis.com/google.rpc.Help\",<EOL>        \"links\": [<EOL>          {<EOL>            \"description\": \"Learn more about Gemini API quotas\",<EOL>            \"url\": \"https://ai.google.dev/gemini-api/docs/rate-limits\"<EOL>          }<EOL>        ]<EOL>      },<EOL>      {<EOL>        \"@type\": \"type.googleapis.com/google.rpc.QuotaFailure\",<EOL>        \"violations\": [<EOL>          {<EOL>            \"description\": \"Generate content requests per minute limit exceeded on Free Tier. See https://ai.google.dev/gemini-api/docs/rate-limits.\",<EOL>            \"quotaMetric\": \"generativelanguage.googleapis.com/generate_content_free_tier_requests\",<EOL>            \"quotaId\": \"GenerateRequestsPerMinutePerProjectPerModel-FreeTier\",<EOL>            \"quotaDimensions\": {<EOL>              \"model\": \"gemini-2.5-flash\",<EOL>              \"location\": \"global\"<EOL>            },<EOL>            \"quotaValue\": \"5\"<EOL>          }<EOL>        ]<EOL>      },<EOL>      {<EOL>        \"@type\": \"type.googleapis.com/google.rpc.RetryInfo\",<EOL>        \"retryDelay\": \"45s\"<EOL>      }<EOL>    ]<EOL>  }<EOL>}<EOL>\"",
+        "2026-10-30T11:48:14.362Z  WARN 61 --- [ecourtier-backend] [nio-8080-exec-1] c.e.d.ia.service.LlmExtractionService    : [MODE FALLBACK IA] Retombée sur le moteur de règles (timeout = false, nonRetryable = true, max essais = 1)."
+      ]
+    }
+  ],
+  "s6": [
+    {
+      "id": "S6-01",
+      "texte": "Studio meublé à Nema pour 90 000 FCFA",
+      "duree_s": 1.522,
+      "mode": "FALLBACK_REGLES",
+      "nb_suggestions": 2,
+      "logs": [
+        "2026-10-30T11:48:15.948Z  INFO 61 --- [ecourtier-backend] [nio-8080-exec-2] c.e.d.ia.service.LlmExtractionService    : [MODE LLM IA] Appel à l'API LLM (provider: gemini, essai 1/2)",
+        "2026-10-30T11:48:17.437Z  WARN 61 --- [ecourtier-backend] [nio-8080-exec-2] c.e.d.ia.service.LlmExtractionService    : [MODE LLM IA] Échec de l'essai 1/2: 429 Too Many Requests: \"{<EOL>  \"error\": {<EOL>    \"code\": 429,<EOL>    \"message\": \"You exceeded your current quota, please check your plan and billing details. For more information on this error, head to: https://ai.google.dev/gemini-api/docs/rate-limits. To monitor your current usage, head to: https://ai.dev/rate-limit. \\n* Quota exceeded for metric: generativelanguage.googleapis.com/generate_content_free_tier_requests, limit: 5, model: gemini-2.5-flash, description: Generate content requests per minute limit exceeded on Free Tier. See https://ai.google.dev/gemini-api/docs/rate-limits.\\nPlease retry in 43.460234676s.\",<EOL>    \"status\": \"RESOURCE_EXHAUSTED\",<EOL>    \"details\": [<EOL>      {<EOL>        \"@type\": \"type.googleapis.com/google.rpc.Help\",<EOL>        \"links\": [<EOL>          {<EOL>            \"description\": \"Learn more about Gemini API quotas\",<EOL>            \"url\": \"https://ai.google.dev/gemini-api/docs/rate-limits\"<EOL>          }<EOL>        ]<EOL>      },<EOL>      {<EOL>        \"@type\": \"type.googleapis.com/google.rpc.QuotaFailure\",<EOL>        \"violations\": [<EOL>          {<EOL>            \"description\": \"Generate content requests per minute limit exceeded on Free Tier. See https://ai.google.dev/gemini-api/docs/rate-limits.\",<EOL>            \"quotaMetric\": \"generativelanguage.googleapis.com/generate_content_free_tier_requests\",<EOL>            \"quotaId\": \"GenerateRequestsPerMinutePerProjectPerModel-FreeTier\",<EOL>            \"quotaDimensions\": {<EOL>              \"location\": \"global\",<EOL>              \"model\": \"gemini-2.5-flash\"<EOL>            },<EOL>            \"quotaValue\": \"5\"<EOL>          }<EOL>        ]<EOL>      },<EOL>      {<EOL>        \"@type\": \"type.googleapis.com/google.rpc.RetryInfo\",<EOL>        \"retryDelay\": \"43s\"<EOL>      }<EOL>    ]<EOL>  }<EOL>}<EOL>\"",
+        "2026-10-30T11:48:17.437Z  WARN 61 --- [ecourtier-backend] [nio-8080-exec-2] c.e.d.ia.service.LlmExtractionService    : [MODE FALLBACK IA] Retombée sur le moteur de règles (timeout = false, nonRetryable = true, max essais = 1)."
+      ]
+    },
+    {
+      "id": "S6-02",
+      "texte": "Appartement F3 à Boucotte budget 120 000 FCFA",
+      "duree_s": 0.846,
+      "mode": "FALLBACK_REGLES",
+      "nb_suggestions": 1,
+      "logs": [
+        "2026-10-30T11:48:19.020Z  INFO 61 --- [ecourtier-backend] [nio-8080-exec-5] c.e.d.ia.service.LlmExtractionService    : [MODE LLM IA] Appel à l'API LLM (provider: gemini, essai 1/2)",
+        "2026-10-30T11:48:19.837Z  WARN 61 --- [ecourtier-backend] [nio-8080-exec-5] c.e.d.ia.service.LlmExtractionService    : [MODE LLM IA] Échec de l'essai 1/2: 429 Too Many Requests: \"{<EOL>  \"error\": {<EOL>    \"code\": 429,<EOL>    \"message\": \"You exceeded your current quota, please check your plan and billing details. For more information on this error, head to: https://ai.google.dev/gemini-api/docs/rate-limits. To monitor your current usage, head to: https://ai.dev/rate-limit. \\n* Quota exceeded for metric: generativelanguage.googleapis.com/generate_content_free_tier_requests, limit: 5, model: gemini-2.5-flash, description: Generate content requests per minute limit exceeded on Free Tier. See https://ai.google.dev/gemini-api/docs/rate-limits.\\nPlease retry in 40.205385114s.\",<EOL>    \"status\": \"RESOURCE_EXHAUSTED\",<EOL>    \"details\": [<EOL>      {<EOL>        \"@type\": \"type.googleapis.com/google.rpc.Help\",<EOL>        \"links\": [<EOL>          {<EOL>            \"description\": \"Learn more about Gemini API quotas\",<EOL>            \"url\": \"https://ai.google.dev/gemini-api/docs/rate-limits\"<EOL>          }<EOL>        ]<EOL>      },<EOL>      {<EOL>        \"@type\": \"type.googleapis.com/google.rpc.QuotaFailure\",<EOL>        \"violations\": [<EOL>          {<EOL>            \"description\": \"Generate content requests per minute limit exceeded on Free Tier. See https://ai.google.dev/gemini-api/docs/rate-limits.\",<EOL>            \"quotaMetric\": \"generativelanguage.googleapis.com/generate_content_free_tier_requests\",<EOL>            \"quotaId\": \"GenerateRequestsPerMinutePerProjectPerModel-FreeTier\",<EOL>            \"quotaDimensions\": {<EOL>              \"model\": \"gemini-2.5-flash\",<EOL>              \"location\": \"global\"<EOL>            },<EOL>            \"quotaValue\": \"5\"<EOL>          }<EOL>        ]<EOL>      },<EOL>      {<EOL>        \"@type\": \"type.googleapis.com/google.rpc.RetryInfo\",<EOL>        \"retryDelay\": \"40s\"<EOL>      }<EOL>    ]<EOL>  }<EOL>}<EOL>\"",
+        "2026-10-30T11:48:19.837Z  WARN 61 --- [ecourtier-backend] [nio-8080-exec-5] c.e.d.ia.service.LlmExtractionService    : [MODE FALLBACK IA] Retombée sur le moteur de règles (timeout = false, nonRetryable = true, max essais = 1)."
+      ]
+    },
+    {
+      "id": "S6-03",
+      "texte": "Villa à louer aux Almadies max 2 000 000 FCFA",
+      "duree_s": 2.434,
+      "mode": "GEMINI_OK",
+      "nb_suggestions": 1,
+      "logs": [
+        "2026-10-30T11:48:21.380Z  INFO 61 --- [ecourtier-backend] [nio-8080-exec-6] c.e.d.ia.service.LlmExtractionService    : [MODE LLM IA] Appel à l'API LLM (provider: gemini, essai 1/2)"
+      ]
+    },
+    {
+      "id": "S6-04",
+      "texte": "Je cherche une villa à vendre à Ziguinchor pour 50 millions",
+      "duree_s": 1.833,
+      "mode": "GEMINI_OK",
+      "nb_suggestions": 2,
+      "logs": [
+        "2026-10-30T11:48:25.359Z  INFO 61 --- [ecourtier-backend] [nio-8080-exec-3] c.e.d.ia.service.LlmExtractionService    : [MODE LLM IA] Appel à l'API LLM (provider: gemini, essai 1/2)"
+      ]
+    },
+    {
+      "id": "S6-05",
+      "texte": "Appartement 4 pièces meublé à Mermoz 450 000 FCFA",
+      "duree_s": 2.541,
+      "mode": "FALLBACK_REGLES",
+      "nb_suggestions": 1,
+      "logs": [
+        "2026-10-30T11:48:28.767Z  INFO 61 --- [ecourtier-backend] [nio-8080-exec-1] c.e.d.ia.service.LlmExtractionService    : [MODE LLM IA] Appel à l'API LLM (provider: gemini, essai 1/2)",
+        "2026-10-30T11:48:31.280Z  WARN 61 --- [ecourtier-backend] [nio-8080-exec-1] c.e.d.ia.service.LlmExtractionService    : [MODE LLM IA] Échec de l'essai 1/2: Error while extracting response for type [java.lang.String] and content type [application/octet-stream]",
+        "2026-10-30T11:48:31.280Z  WARN 61 --- [ecourtier-backend] [nio-8080-exec-1] c.e.d.ia.service.LlmExtractionService    : [MODE FALLBACK IA] Retombée sur le moteur de règles (timeout = true, nonRetryable = false, max essais = 1)."
+      ]
+    },
+    {
+      "id": "S6-06",
+      "texte": "Maison avec jardin à Thiès animaux acceptés 200 000 FCFA",
+      "duree_s": 1.692,
+      "mode": "GEMINI_OK",
+      "nb_suggestions": 1,
+      "logs": [
+        "2026-10-30T11:48:32.881Z  INFO 61 --- [ecourtier-backend] [nio-8080-exec-2] c.e.d.ia.service.LlmExtractionService    : [MODE LLM IA] Appel à l'API LLM (provider: gemini, essai 1/2)"
+      ]
+    },
+    {
+      "id": "S6-07",
+      "texte": "Villa de vacances à acheter à Saly budget 90 000 000 FCFA",
+      "duree_s": 2.564,
+      "mode": "FALLBACK_REGLES",
+      "nb_suggestions": 3,
+      "logs": [
+        "2026-10-30T11:48:36.123Z  INFO 61 --- [ecourtier-backend] [nio-8080-exec-5] c.e.d.ia.service.LlmExtractionService    : [MODE LLM IA] Appel à l'API LLM (provider: gemini, essai 1/2)",
+        "2026-10-30T11:48:38.634Z  WARN 61 --- [ecourtier-backend] [nio-8080-exec-5] c.e.d.ia.service.LlmExtractionService    : [MODE LLM IA] Échec de l'essai 1/2: Error while extracting response for type [java.lang.String] and content type [application/octet-stream]",
+        "2026-10-30T11:48:38.634Z  WARN 61 --- [ecourtier-backend] [nio-8080-exec-5] c.e.d.ia.service.LlmExtractionService    : [MODE FALLBACK IA] Retombée sur le moteur de règles (timeout = true, nonRetryable = false, max essais = 1)."
+      ]
+    },
+    {
+      "id": "S6-08",
+      "texte": "Appartement à louer à Mbour budget 110 000 FCFA",
+      "duree_s": 4.84,
+      "mode": "FALLBACK_REGLES",
+      "nb_suggestions": 2,
+      "logs": [
+        "2026-10-30T11:48:40.250Z  INFO 61 --- [ecourtier-backend] [nio-8080-exec-6] c.e.d.ia.service.LlmExtractionService    : [MODE LLM IA] Appel à l'API LLM (provider: gemini, essai 1/2)",
+        "2026-10-30T11:48:45.048Z  WARN 61 --- [ecourtier-backend] [nio-8080-exec-6] c.e.d.ia.service.LlmExtractionService    : [MODE LLM IA] Échec de l'essai 1/2: Error while extracting response for type [java.lang.String] and content type [application/octet-stream]",
+        "2026-10-30T11:48:45.048Z  WARN 61 --- [ecourtier-backend] [nio-8080-exec-6] c.e.d.ia.service.LlmExtractionService    : [MODE FALLBACK IA] Retombée sur le moteur de règles (timeout = true, nonRetryable = false, max essais = 1)."
+      ]
+    },
+    {
+      "id": "S6-09",
+      "texte": "Cherche logement à Dakar sans budget précis",
+      "duree_s": 5.028,
+      "mode": "GEMINI_OK",
+      "nb_suggestions": 0,
+      "logs": [
+        "2026-10-30T11:48:46.646Z  INFO 61 --- [ecourtier-backend] [nio-8080-exec-3] c.e.d.ia.service.LlmExtractionService    : [MODE LLM IA] Appel à l'API LLM (provider: gemini, essai 1/2)"
+      ]
+    },
+    {
+      "id": "S6-10",
+      "texte": "F3 non meublé Sacré-Cœur 300 000 FCFA",
+      "duree_s": 0.638,
+      "mode": "FALLBACK_REGLES",
+      "nb_suggestions": 1,
+      "logs": [
+        "2026-10-30T11:48:53.243Z  INFO 61 --- [ecourtier-backend] [nio-8080-exec-1] c.e.d.ia.service.LlmExtractionService    : [MODE LLM IA] Appel à l'API LLM (provider: gemini, essai 1/2)",
+        "2026-10-30T11:48:53.852Z  WARN 61 --- [ecourtier-backend] [nio-8080-exec-1] c.e.d.ia.service.LlmExtractionService    : [MODE LLM IA] Échec de l'essai 1/2: 429 Too Many Requests: \"{<EOL>  \"error\": {<EOL>    \"code\": 429,<EOL>    \"message\": \"You exceeded your current quota, please check your plan and billing details. For more information on this error, head to: https://ai.google.dev/gemini-api/docs/rate-limits. To monitor your current usage, head to: https://ai.dev/rate-limit. \\n* Quota exceeded for metric: generativelanguage.googleapis.com/generate_content_free_tier_requests, limit: 5, model: gemini-2.5-flash, description: Generate content requests per minute limit exceeded on Free Tier. See https://ai.google.dev/gemini-api/docs/rate-limits.\\nPlease retry in 6.171110246s.\",<EOL>    \"status\": \"RESOURCE_EXHAUSTED\",<EOL>    \"details\": [<EOL>      {<EOL>        \"@type\": \"type.googleapis.com/google.rpc.Help\",<EOL>        \"links\": [<EOL>          {<EOL>            \"description\": \"Learn more about Gemini API quotas\",<EOL>            \"url\": \"https://ai.google.dev/gemini-api/docs/rate-limits\"<EOL>          }<EOL>        ]<EOL>      },<EOL>      {<EOL>        \"@type\": \"type.googleapis.com/google.rpc.QuotaFailure\",<EOL>        \"violations\": [<EOL>          {<EOL>            \"description\": \"Generate content requests per minute limit exceeded on Free Tier. See https://ai.google.dev/gemini-api/docs/rate-limits.\",<EOL>            \"quotaMetric\": \"generativelanguage.googleapis.com/generate_content_free_tier_requests\",<EOL>            \"quotaId\": \"GenerateRequestsPerMinutePerProjectPerModel-FreeTier\",<EOL>            \"quotaDimensions\": {<EOL>              \"location\": \"global\",<EOL>              \"model\": \"gemini-2.5-flash\"<EOL>            },<EOL>            \"quotaValue\": \"5\"<EOL>          }<EOL>        ]<EOL>      },<EOL>      {<EOL>        \"@type\": \"type.googleapis.com/google.rpc.RetryInfo\",<EOL>        \"retryDelay\": \"6s\"<EOL>      }<EOL>    ]<EOL>  }<EOL>}<EOL>\"",
+        "2026-10-30T11:48:53.852Z  WARN 61 --- [ecourtier-backend] [nio-8080-exec-1] c.e.d.ia.service.LlmExtractionService    : [MODE FALLBACK IA] Retombée sur le moteur de règles (timeout = false, nonRetryable = true, max essais = 1)."
+      ]
+    }
+  ]
+}

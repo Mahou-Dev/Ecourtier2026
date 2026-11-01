@@ -4,6 +4,8 @@ import com.ecourtier.domain.transaction.dto.TransactionResponseDTO;
 import com.ecourtier.domain.transaction.entity.TransactionEntity;
 import org.springframework.stereotype.Component;
 
+import java.math.BigDecimal;
+
 @Component
 public class TransactionMapper {
 
@@ -15,6 +17,12 @@ public class TransactionMapper {
         String proprietaireNom = entity.getProprietaire() != null ?
                 (entity.getProprietaire().getPrenom() + " " + entity.getProprietaire().getNom()).trim() : null;
 
+        BigDecimal montantCaution = entity.getMontantCaution() != null ? entity.getMontantCaution() : BigDecimal.ZERO;
+        BigDecimal montantPremierLoyer = entity.getMontantPremierLoyer() != null ? entity.getMontantPremierLoyer() : BigDecimal.ZERO;
+        BigDecimal fraisDossier = entity.getFraisDossier() != null ? entity.getFraisDossier() : BigDecimal.ZERO;
+        BigDecimal montantTotalSequestre = entity.getMontantTotalSequestre();
+        BigDecimal montantVerseProprietaire = entity.getMontantVerseProprietaire();
+
         return TransactionResponseDTO.builder()
                 .id(entity.getId())
                 .annonceId(entity.getAnnonce() != null ? entity.getAnnonce().getId() : null)
@@ -23,8 +31,11 @@ public class TransactionMapper {
                 .locataireNomComplet(locataireNom)
                 .proprietaireId(entity.getProprietaire() != null ? entity.getProprietaire().getId() : null)
                 .proprietaireNomComplet(proprietaireNom)
-                .montantCaution(entity.getMontantCaution())
-                .fraisDossier(entity.getFraisDossier())
+                .montantCaution(montantCaution)
+                .montantPremierLoyer(montantPremierLoyer)
+                .fraisDossier(fraisDossier)
+                .montantTotalSequestre(montantTotalSequestre)
+                .montantVerseProprietaire(montantVerseProprietaire)
                 .statutSequestre(entity.getStatutSequestre())
                 .referenceWave(entity.getReferenceWave())
                 .statutBail(entity.getStatutBail())

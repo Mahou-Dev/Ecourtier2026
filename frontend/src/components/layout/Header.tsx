@@ -1,14 +1,35 @@
 import React from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
-import { Home, Sparkles, Search, LayoutDashboard, User, LogOut } from 'lucide-react';
+import { Home, Sparkles, Search, LayoutDashboard, User, LogOut, Heart, MessageSquare, ShieldCheck } from 'lucide-react';
+import { useQuery } from '@tanstack/react-query';
+import { AnimatePresence, motion } from 'framer-motion';
 import { Button } from '../ui/Button';
 import { useAuthStore } from '../../store/useAuthStore';
+import { apiFetch } from '../../services/api';
+import { messagerieService } from '../../services/messagerie.service';
+import { AnnonceDTO, PageResponse } from '../../types';
 import { toast } from 'sonner';
 
 export const Header: React.FC = () => {
   const location = useLocation();
   const navigate = useNavigate();
   const { utilisateur, logout } = useAuthStore();
+
+  const { data: favorisData } = useQuery({
+    queryKey: ['favoris-count'],
+    queryFn: () => apiFetch<PageResponse<AnnonceDTO>>('/api/v1/utilisateurs/moi/favoris?size=1'),
+    enabled: !!utilisateur,
+  });
+
+  const { data: messagesUnreadCount } = useQuery({
+    queryKey: ['messages-unread-count'],
+    queryFn: () => messagerieService.compterMessagesNonLus(),
+    enabled: !!utilisateur,
+    refetchInterval: 10000,
+  });
+
+  const favorisCount = favorisData?.totalElements || 0;
+  const unreadCount = messagesUnreadCount || 0;
 
   const handleLogout = () => {
     logout();
@@ -48,6 +69,70 @@ export const Header: React.FC = () => {
             <Search className="w-3.5 h-3.5 text-terracotta-500" />
             <span>Rechercher</span>
           </Link>
+
+          {utilisateur && (
+            <>
+              <Link
+                to="/favoris"
+                className={`flex items-center gap-1.5 hover:text-terracotta-600 transition-colors ${
+                  location.pathname === '/favoris' ? 'text-terracotta-600 font-extrabold' : ''
+                }`}
+              >
+                <Heart className="w-3.5 h-3.5 text-rose-500 fill-rose-500/20" />
+                <span>Favoris</span>
+                {favorisCount > 0 && (
+                  <AnimatePresence mode="popLayout">
+                    <motion.span
+                      key={favorisCount}
+                      initial={{ scale: 0.6, opacity: 0 }}
+                      animate={{ scale: 1, opacity: 1 }}
+                      exit={{ scale: 0.6, opacity: 0 }}
+                      transition={{ type: 'spring', stiffness: 500, damping: 20 }}
+                      className="bg-terracotta-500 text-white text-[10px] font-extrabold px-1.5 py-0.5 rounded-full min-w-[18px] text-center shadow-xs"
+                    >
+                      {favorisCount}
+                    </motion.span>
+                  </AnimatePresence>
+                )}
+              </Link>
+
+              <Link
+                to="/dashboard?tab=messages"
+                className={`flex items-center gap-1.5 hover:text-terracotta-600 transition-colors ${
+                  location.pathname === '/dashboard' && location.search.includes('messages') ? 'text-terracotta-600 font-extrabold' : ''
+                }`}
+              >
+                <MessageSquare className="w-3.5 h-3.5 text-amber-600" />
+                <span>Messages</span>
+                {unreadCount > 0 && (
+                  <AnimatePresence mode="popLayout">
+                    <motion.span
+                      key={unreadCount}
+                      initial={{ scale: 0.6, opacity: 0 }}
+                      animate={{ scale: 1, opacity: 1 }}
+                      exit={{ scale: 0.6, opacity: 0 }}
+                      transition={{ type: 'spring', stiffness: 500, damping: 20 }}
+                      className="bg-amber-600 text-white text-[10px] font-extrabold px-1.5 py-0.5 rounded-full min-w-[18px] text-center shadow-xs"
+                    >
+                      {unreadCount}
+                    </motion.span>
+                  </AnimatePresence>
+                )}
+              </Link>
+            </>
+          )}
+
+          {utilisateur?.role === 'ADMIN' && (
+            <Link
+              to="/admin/dashboard"
+              className={`flex items-center gap-1.5 hover:text-terracotta-600 transition-colors ${
+                location.pathname.startsWith('/admin') ? 'text-terracotta-600 font-extrabold' : ''
+              }`}
+            >
+              <ShieldCheck className="w-3.5 h-3.5 text-terracotta-500" />
+              <span>Administration</span>
+            </Link>
+          )}
 
           {(utilisateur?.role === 'PROPRIETAIRE' || utilisateur?.role === 'AGENT' || utilisateur?.role === 'ADMIN') && (
             <Link

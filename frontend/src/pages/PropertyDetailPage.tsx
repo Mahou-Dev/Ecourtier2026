@@ -11,16 +11,19 @@ import {
   Star,
   AlertTriangle,
   Compass,
-  UserCheck
+  UserCheck,
+  MessageSquare
 } from 'lucide-react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { apiFetch, getPhotoUrl } from '../services/api';
+import { messagerieService } from '../services/messagerie.service';
 import { 
   AnnonceDTO, 
   RendezVousResponseDTO, 
   TransactionResponseDTO, 
   AvisSummaryDTO, 
-  ReputationDTO 
+  ReputationDTO,
+  ConversationChatDTO
 } from '../types';
 import { useAuthStore } from '../store/useAuthStore';
 import { LeafletMap } from '../components/map/LeafletMap';
@@ -28,6 +31,7 @@ import { Button } from '../components/ui/Button';
 import { Badge } from '../components/ui/Badge';
 import { Card, CardBody } from '../components/ui/Card';
 import { Modal } from '../components/ui/Modal';
+import { ChatDrawer } from '../components/messagerie/ChatDrawer';
 import { Avatar } from '../components/ui/Avatar';
 import { Skeleton } from '../components/ui/Skeleton';
 import Lightbox from 'yet-another-react-lightbox';
@@ -35,6 +39,7 @@ import 'yet-another-react-lightbox/styles.css';
 import { toast } from 'sonner';
 import { TransactionDetailsModal } from '../components/transaction/TransactionDetailsModal';
 import { SignalementModal } from '../components/ui/SignalementModal';
+import { FavoriteButton } from '../components/ui/FavoriteButton';
 
 export const PropertyDetailPage: React.FC = () => {
   const { id } = useParams<{ id: string }>();
@@ -56,6 +61,30 @@ export const PropertyDetailPage: React.FC = () => {
 
   const [isSignalementModalOpen, setIsSignalementModalOpen] = useState(false);
   const [is360ModalOpen, setIs360ModalOpen] = useState(false);
+
+  // Chat Drawer state
+  const [isChatOpen, setIsChatOpen] = useState(false);
+  const [activeConversation, setActiveConversation] = useState<ConversationChatDTO | null>(null);
+  const [isInitiatingChat, setIsInitiatingChat] = useState(false);
+
+  const handleContacterProprietaire = async () => {
+    if (!utilisateur) {
+      toast.info('Veuillez vous connecter pour contacter le propriétaire');
+      navigate('/connexion', { state: { from: location } });
+      return;
+    }
+    if (!id) return;
+    try {
+      setIsInitiatingChat(true);
+      const conv = await messagerieService.initierConversation(id);
+      setActiveConversation(conv);
+      setIsChatOpen(true);
+    } catch (err: any) {
+      toast.error(err.message || 'Impossible d\'ouvrir la discussion');
+    } finally {
+      setIsInitiatingChat(false);
+    }
+  };
 
   // Avis Form state
   const [newRating, setNewRating] = useState<number>(5);
@@ -233,20 +262,35 @@ export const PropertyDetailPage: React.FC = () => {
           <span>Retour aux résultats</span>
         </Link>
 
-        <button
-          onClick={() => {
-            if (!utilisateur) {
-              toast.info('Veuillez vous connecter pour signaler une annonce');
-              navigate('/connexion', { state: { from: location.pathname } });
-              return;
-            }
-            setIsSignalementModalOpen(true);
-          }}
-          className="inline-flex items-center gap-1.5 text-xs text-charcoal-500 hover:text-rose-600 transition-colors py-1 px-2.5 rounded-lg border border-transparent hover:border-rose-200"
-        >
-          <AlertTriangle className="w-3.5 h-3.5 text-rose-500" />
-          <span>Signaler cette annonce</span>
-        </button>
+        <div className="flex items-center gap-2">
+          {id && property && (
+            <div className="flex items-center gap-1.5 bg-white border border-sand-300 px-3 py-1 rounded-xl shadow-xs">
+              <FavoriteButton
+                annonceId={id}
+                estFavori={property.estFavori || false}
+                size="md"
+              />
+              <span className="text-xs font-semibold text-charcoal-700">
+                {property.estFavori ? 'Dans vos favoris' : 'Ajouter aux favoris'}
+              </span>
+            </div>
+          )}
+
+          <button
+            onClick={() => {
+              if (!utilisateur) {
+                toast.info('Veuillez vous connecter pour signaler une annonce');
+                navigate('/connexion', { state: { from: location.pathname } });
+                return;
+              }
+              setIsSignalementModalOpen(true);
+            }}
+            className="inline-flex items-center gap-1.5 text-xs text-charcoal-500 hover:text-rose-600 transition-colors py-1 px-2.5 rounded-lg border border-transparent hover:border-rose-200"
+          >
+            <AlertTriangle className="w-3.5 h-3.5 text-rose-500" />
+            <span>Signaler</span>
+          </button>
+        </div>
       </div>
 
       {/* HEADER TITLE & BADGES & RATING SUMMARY */}
@@ -556,7 +600,7 @@ export const PropertyDetailPage: React.FC = () => {
                         Visite effectuée avec succès !
                       </p>
                       <p className="text-[11px] text-sahel-600">
-                        Vous pouvez dès maintenant réserver ce bien et consigner la caution sous séquestre.
+                        Vous pouvez dès maintenant réserver ce bien et consigner les fonds (caution + 1er loyer + frais) sous séquestre sécurisé.
                       </p>
                       <Button
                         variant="primary"
@@ -577,6 +621,20 @@ export const PropertyDetailPage: React.FC = () => {
                       onClick={handleDemanderVisiteClick}
                     >
                       Demander une visite du bien
+                    </Button>
+                  )}
+
+                  {/* Button Contacter le propriétaire */}
+                  {(!utilisateur || (utilisateur.id !== property.auteur?.id)) && (
+                    <Button
+                      variant="outline"
+                      size="lg"
+                      className="w-full justify-center border-amber-600 text-amber-700 hover:bg-amber-50 dark:hover:bg-amber-950/30"
+                      isLoading={isInitiatingChat}
+                      onClick={handleContacterProprietaire}
+                      leftIcon={<MessageSquare className="w-4 h-4 text-amber-600" />}
+                    >
+                      Contacter le propriétaire
                     </Button>
                   )}
 
@@ -700,6 +758,13 @@ export const PropertyDetailPage: React.FC = () => {
         close={() => setIsLightboxOpen(false)}
         index={selectedPhotoIndex}
         slides={photosList.map((src) => ({ src }))}
+      />
+
+      {/* CHAT DRAWER */}
+      <ChatDrawer
+        isOpen={isChatOpen}
+        onClose={() => setIsChatOpen(false)}
+        conversation={activeConversation}
       />
 
     </div>

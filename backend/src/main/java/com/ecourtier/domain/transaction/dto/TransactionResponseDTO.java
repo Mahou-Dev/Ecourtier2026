@@ -25,7 +25,10 @@ public class TransactionResponseDTO {
     private UUID proprietaireId;
     private String proprietaireNomComplet;
     private BigDecimal montantCaution;
+    private BigDecimal montantPremierLoyer;
     private BigDecimal fraisDossier;
+    private BigDecimal montantTotalSequestre;
+    private BigDecimal montantVerseProprietaire;
     private StatutSequestre statutSequestre;
     private String referenceWave;
     private StatutBail statutBail;

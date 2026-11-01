@@ -1,0 +1,67 @@
+{
+  "total_files": 47,
+  "total_raw_bytes": 1832355,
+  "total_gzip_bytes": 721499,
+  "top_chunks": [
+    {
+      "file": "assets/AdminDashboardPage-27v0mGHX.js",
+      "raw_bytes": 426041,
+      "gzip_bytes": 121758
+    },
+    {
+      "file": "assets/vendor-react-DNiAfDM5.js",
+      "raw_bytes": 247772,
+      "gzip_bytes": 80940
+    },
+    {
+      "file": "hero-dakar-bg.jpg",
+      "raw_bytes": 233550,
+      "gzip_bytes": 233072
+    },
+    {
+      "file": "assets/vendor-leaflet-zcXIbfmv.js",
+      "raw_bytes": 198881,
+      "gzip_bytes": 60114
+    },
+    {
+      "file": "assets/vendor-motion-ahEpz3f1.js",
+      "raw_bytes": 128966,
+      "gzip_bytes": 42394
+    },
+    {
+      "file": "assets/DashboardPage-x8Uwlf9b.js",
+      "raw_bytes": 120301,
+      "gzip_bytes": 32833
+    },
+    {
+      "file": "assets/index-DUBKqNuR.js",
+      "raw_bytes": 101920,
+      "gzip_bytes": 30878
+    },
+    {
+      "file": "assets/vendor-radix-B2aMrg1q.js",
+      "raw_bytes": 78301,
+      "gzip_bytes": 26519
+    },
+    {
+      "file": "assets/index-DDVMUsJ4.css",
+      "raw_bytes": 60399,
+      "gzip_bytes": 10192
+    },
+    {
+      "file": "assets/PropertyDetailPage-xo3OhQzP.js",
+      "raw_bytes": 59856,
+      "gzip_bytes": 19936
+    },
+    {
+      "file": "assets/TransactionDetailsModal-D0frsiLe.js",
+      "raw_bytes": 37632,
+      "gzip_bytes": 10677
+    },
+    {
+      "file": "workbox-dc521307.js",
+      "raw_bytes": 22100,
+      "gzip_bytes": 7531
+    }
+  ]
+}

@@ -1,5 +1,6 @@
 package com.ecourtier.domain.annonce.service;
 
+import java.time.LocalDateTime;
 import com.ecourtier.common.service.FileStorageService;
 import com.ecourtier.domain.annonce.dto.AnnonceCreateDTO;
 import com.ecourtier.domain.annonce.dto.AnnonceResponseDTO;
@@ -23,6 +24,7 @@ import com.ecourtier.domain.annonce.repository.AnnonceRepository;
 import com.ecourtier.domain.annonce.repository.AnnonceSpecification;
 import com.ecourtier.domain.annonce.repository.DocumentVerificationRepository;
 import com.ecourtier.domain.annonce.repository.PhotoAnnonceRepository;
+import com.ecourtier.domain.favori.repository.FavoriRepository;
 import com.ecourtier.domain.utilisateur.entity.UtilisateurEntity;
 import com.ecourtier.domain.utilisateur.repository.UtilisateurRepository;
 import lombok.RequiredArgsConstructor;
@@ -39,6 +41,7 @@ import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 import java.util.UUID;
 
 @Service
@@ -51,6 +54,7 @@ public class AnnonceService {
     private final UtilisateurRepository utilisateurRepository;
     private final FileStorageService fileStorageService;
     private final AnnonceMapper annonceMapper;
+    private final FavoriRepository favoriRepository;
 
     @Transactional
     public AnnonceResponseDTO creerAnnonce(AnnonceCreateDTO dto, String userEmail) {
@@ -87,9 +91,15 @@ public class AnnonceService {
 
     @Transactional(readOnly = true)
     public AnnonceResponseDTO obtenirAnnonceParId(UUID id) {
+        return obtenirAnnonceParId(id, null);
+    }
+
+    @Transactional(readOnly = true)
+    public AnnonceResponseDTO obtenirAnnonceParId(UUID id, String userEmail) {
         AnnonceEntity annonce = annonceRepository.findByIdAndSupprimeFalse(id)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Annonce introuvable ou supprimée"));
-        return annonceMapper.toResponseDTO(annonce);
+        Set<UUID> favorisIds = getFavorisIds(userEmail);
+        return annonceMapper.toResponseDTO(annonce, favorisIds);
     }
 
     @Transactional
@@ -196,6 +206,49 @@ public class AnnonceService {
 
         return annonceRepository.findAll(spec, pageable)
                 .map(annonceMapper::toResponseDTO);
+    }
+
+    @Transactional(readOnly = true)
+    public Page<AnnonceResponseDTO> rechercherAnnonces(
+            Pageable pageable,
+            BigDecimal budgetMin,
+            BigDecimal budgetMax,
+            TypeBien type,
+            ModeTransaction modeTransaction,
+            Double superficieMin,
+            Integer nombrePieces,
+            String quartier,
+            String ville,
+            Boolean meuble,
+            Boolean animauxAcceptes,
+            StatutVerification statutVerification,
+            ProximiteTag proximite,
+            Boolean includeIndisponibles,
+            String auteurEmail,
+            String userEmail
+    ) {
+        Specification<AnnonceEntity> spec = AnnonceSpecification.filterAnnonces(
+                budgetMin, budgetMax, type, modeTransaction, superficieMin,
+                nombrePieces, quartier, ville, meuble, animauxAcceptes,
+                statutVerification, proximite, includeIndisponibles, auteurEmail
+        );
+
+        Set<UUID> favorisIds = getFavorisIds(userEmail);
+        return annonceRepository.findAll(spec, pageable)
+                .map(entity -> annonceMapper.toResponseDTO(entity, favorisIds));
+    }
+
+    /**
+     * Charge les IDs des annonces favorites de l'utilisateur courant.
+     * Retourne un Set vide si l'email est null (utilisateur anonyme).
+     */
+    private Set<UUID> getFavorisIds(String userEmail) {
+        if (userEmail == null) {
+            return Set.of();
+        }
+        return utilisateurRepository.findByEmail(userEmail)
+                .map(user -> new HashSet<UUID>(favoriRepository.findAnnonceIdsByUtilisateurId(user.getId())))
+                .orElse(new HashSet<>());
     }
 
     @Transactional
@@ -323,6 +376,7 @@ public class AnnonceService {
         }
 
         annonce.setStatutVerification(decision.getStatutVerification());
+        annonce.setDateVerification(LocalDateTime.now());
 
         // Update status of associated documents
         List<DocumentVerificationEntity> docs = documentVerificationRepository.findByAnnonceId(id);

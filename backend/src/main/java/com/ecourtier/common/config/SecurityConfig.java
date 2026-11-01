@@ -36,7 +36,7 @@ public class SecurityConfig {
 
     private final JwtAuthenticationFilter jwtAuthenticationFilter;
 
-    @Value("${ecourtier.cors.allowed-origins:http://localhost:3000,http://127.0.0.1:3000}")
+    @Value("${ecourtier.cors.allowed-origins:http://localhost:3000,http://127.0.0.1:3000,http://localhost:5173}")
     private String allowedOriginsConfig;
 
     @Bean
@@ -65,10 +65,17 @@ public class SecurityConfig {
                     "/api/v1/health/**",
                     "/api/v1/auth/**",
                     "/api/v1/uploads/annonces/**",
-                    "/api/v1/ia/**"
+                    "/api/v1/ia/**",
+                    "/ws/**"
                 ).permitAll()
+                .requestMatchers("/api/v1/conversations/**").authenticated()
+                .requestMatchers(HttpMethod.POST, "/api/v1/annonces/*/conversations").authenticated()
                 .requestMatchers("/api/v1/annonces/*/documents/*/fichier").authenticated()
                 .requestMatchers("/api/v1/annonces/*/rendez-vous").authenticated()
+                .requestMatchers(HttpMethod.POST, "/api/v1/annonces/*/favoris").authenticated()
+                .requestMatchers(HttpMethod.DELETE, "/api/v1/annonces/*/favoris").authenticated()
+                .requestMatchers("/api/v1/utilisateurs/moi/favoris/**").authenticated()
+                .requestMatchers("/api/v1/utilisateurs/moi/favoris").authenticated()
                 .requestMatchers("/api/v1/rendez-vous/**").authenticated()
                 .requestMatchers("/api/v1/transactions/**").authenticated()
                 .requestMatchers(HttpMethod.GET, "/api/v1/annonces", "/api/v1/annonces/*", "/api/v1/annonces/*/avis", "/api/v1/utilisateurs/*/reputation").permitAll()
