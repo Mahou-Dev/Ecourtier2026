@@ -29,6 +29,15 @@
   .gradient-sand-hero {
     background: radial-gradient(circle at 50% 0%, #FAF5EC 0%, #FDFBF7 100%);
   }
+
+  /* Utility to hide scrollbars while preserving scrolling functionality */
+  .no-scrollbar::-webkit-scrollbar {
+    display: none;
+  }
+  .no-scrollbar {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
 }
 
 /* LEAFLET RESPONSIVE CONTROL OVERRIDES */
@@ -47,5 +56,27 @@
   white-space: nowrap !important;
   overflow: hidden !important;
   text-overflow: ellipsis !important;
+}
+
+@keyframes shimmer {
+  0% {
+    background-position: -200% 0;
+  }
+  100% {
+    background-position: 200% 0;
+  }
+}
+
+.animate-shimmer {
+  background: linear-gradient(90deg, #FAF5EC 0%, #EFE5D3 50%, #FAF5EC 100%);
+  background-size: 200% 100%;
+  animation: shimmer 1.8s infinite ease-in-out;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .animate-shimmer {
+    animation: none !important;
+    background: #EFE5D3 !important;
+  }
 }
 

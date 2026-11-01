@@ -20,7 +20,7 @@ export const Skeleton: React.FC<SkeletonProps> = ({
   return (
     <div
       className={cn(
-        'bg-gradient-to-r from-sand-200 via-sand-300 to-sand-200 animate-pulse',
+        'animate-shimmer border border-argile-200/50',
         variants[variant],
         className
       )}

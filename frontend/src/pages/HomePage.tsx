@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { Search, MapPin, Sparkles, ShieldCheck, Lock, FileText, ArrowRight, ChevronRight } from 'lucide-react';
 import { useQuery } from '@tanstack/react-query';
+import { motion, useReducedMotion } from 'framer-motion';
 import { apiFetch, getPhotoUrl } from '../services/api';
 import { AnnonceDTO, PageResponse } from '../types';
 import { Button } from '../components/ui/Button';
@@ -20,6 +21,7 @@ const NEIGHBORHOODS_LIST = [
 ];
 
 export const HomePage: React.FC = () => {
+  const shouldReduceMotion = useReducedMotion();
   const navigate = useNavigate();
   const [transactionType, setTransactionType] = useState<'LOCATION' | 'VENTE'>('LOCATION');
   const [naturalQuery, setNaturalQuery] = useState('');
@@ -41,11 +43,23 @@ export const HomePage: React.FC = () => {
   return (
     <div className="space-y-20 pb-20 bg-sand-100/60 overflow-hidden">
       
-      {/* 1. ASYMMETRICAL EDITORIAL HERO WITH SIGNATURE CLAUSTRA WATERMARK */}
-      <section className="relative bg-gradient-sand-hero border-b border-argile-200/90 pt-10 pb-20 px-4 xs:px-6 lg:px-12 overflow-hidden">
+      {/* 1. ASYMMETRICAL EDITORIAL HERO */}
+      <section className="relative min-h-[600px] lg:min-h-[680px] flex items-center border-b border-argile-200/90 pt-12 pb-20 px-4 xs:px-6 lg:px-12 overflow-hidden">
         
+        {/* Background Image with strong, impactful visibility */}
+        <div className="absolute inset-0 z-0 pointer-events-none overflow-hidden">
+          <img
+            src="/hero-dakar-bg.jpg"
+            alt="Panorama littoral E-Courtier Sénégal"
+            className="w-full h-full object-cover object-center select-none opacity-95"
+          />
+          {/* Soft scrim preserving maximum visual strength of the artwork while keeping text readable */}
+          <div className="absolute inset-0 bg-gradient-to-r from-sand-50/50 via-sand-50/15 to-transparent" />
+          <div className="absolute inset-0 bg-gradient-to-b from-sand-50/15 via-transparent to-sand-100/60" />
+        </div>
+
         {/* Signature Claustra Motif Backdrop */}
-        <PatternClaustra variant="terracotta" opacity={0.05} scale={1.2} />
+        <PatternClaustra variant="terracotta" opacity={0.03} scale={1.2} />
 
         <div className="max-w-7xl mx-auto grid grid-cols-1 lg:grid-cols-12 gap-12 items-center relative z-10">
           
@@ -232,24 +246,45 @@ export const HomePage: React.FC = () => {
           </Link>
         </div>
 
-        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-4">
+        <motion.div
+          initial={shouldReduceMotion ? 'visible' : 'hidden'}
+          whileInView="visible"
+          viewport={{ once: true, margin: '-40px' }}
+          variants={{
+            hidden: { opacity: 0 },
+            visible: {
+              opacity: 1,
+              transition: {
+                staggerChildren: shouldReduceMotion ? 0 : 0.05,
+              },
+            },
+          }}
+          className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-4"
+        >
           {NEIGHBORHOODS_LIST.map((nh, idx) => (
-            <Link
+            <motion.div
               key={idx}
-              to={`/recherche?city=${nh.city}`}
-              className="group relative h-48 rounded-xl overflow-hidden border border-argile-200 transition-all duration-300 hover:border-terracotta-400 hover:shadow-terracotta-card"
+              variants={{
+                hidden: { opacity: 0, y: shouldReduceMotion ? 0 : 16 },
+                visible: { opacity: 1, y: 0, transition: { duration: 0.3 } },
+              }}
             >
-              <img src={nh.image} alt={nh.name} className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105" />
-              <div className="absolute inset-0 bg-gradient-to-t from-charcoal-900/90 via-charcoal-900/40 to-transparent p-3.5 flex flex-col justify-end text-white">
-                <span className="text-[10px] font-bold text-ocher-400 uppercase tracking-wider">{nh.city}</span>
-                <h3 className="font-display font-bold text-sm text-white group-hover:text-terracotta-200 transition-colors">{nh.name}</h3>
-                <p className="text-[10px] text-ocher-300 font-semibold mt-0.5 flex items-center gap-0.5">
-                  <span>Voir biens</span> &rarr;
-                </p>
-              </div>
-            </Link>
+              <Link
+                to={`/recherche?city=${nh.city}`}
+                className="group relative h-48 rounded-xl overflow-hidden border border-argile-200 transition-all duration-300 hover:border-terracotta-400 hover:shadow-terracotta-card flex flex-col justify-end"
+              >
+                <img src={nh.image} alt={nh.name} className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105 absolute inset-0" />
+                <div className="absolute inset-0 bg-gradient-to-t from-charcoal-900/90 via-charcoal-900/40 to-transparent p-3.5 flex flex-col justify-end text-white z-10">
+                  <span className="text-[10px] font-bold text-ocher-400 uppercase tracking-wider">{nh.city}</span>
+                  <h3 className="font-display font-bold text-sm text-white group-hover:text-terracotta-200 transition-colors">{nh.name}</h3>
+                  <p className="text-[10px] text-ocher-300 font-semibold mt-0.5 flex items-center gap-0.5">
+                    <span>Voir biens</span> &rarr;
+                  </p>
+                </div>
+              </Link>
+            </motion.div>
           ))}
-        </div>
+        </motion.div>
       </section>
 
       {/* 3. NARRATIVE STORYTELLING "COMMENT ÇA MARCHE" */}
