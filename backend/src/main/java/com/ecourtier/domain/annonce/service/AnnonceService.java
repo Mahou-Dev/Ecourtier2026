@@ -376,6 +376,7 @@ public class AnnonceService {
         }
 
         annonce.setStatutVerification(decision.getStatutVerification());
+        annonce.setDateVerification(LocalDateTime.now());
 
         // Update status of associated documents
         List<DocumentVerificationEntity> docs = documentVerificationRepository.findByAnnonceId(id);

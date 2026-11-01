@@ -48,6 +48,9 @@ public class MessageIAEntity {
     @Column(name = "criteres_extraits", columnDefinition = "TEXT")
     private String criteresExtraits;
 
+    @Column(name = "nombre_annonces_suggerees")
+    private Integer nombreAnnoncesSuggerees;
+
     @CreationTimestamp
     @Column(name = "date_envoi", nullable = false, updatable = false)
     private LocalDateTime dateEnvoi;

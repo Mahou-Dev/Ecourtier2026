@@ -163,6 +163,7 @@ public class IAService {
                 .role(RoleMessageIA.ASSISTANT)
                 .contenu(textReponse)
                 .criteresExtraits(criteresJson)
+                .nombreAnnoncesSuggerees(annoncesSuggeres != null ? annoncesSuggeres.size() : 0)
                 .dateEnvoi(nowAssistant)
                 .build();
         MessageIAEntity savedAssistant = messageIARepository.save(assistantMessage);
