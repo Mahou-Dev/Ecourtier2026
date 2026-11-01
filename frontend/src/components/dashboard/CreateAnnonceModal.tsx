@@ -25,6 +25,7 @@ const annonceSchema = z.object({
   longitude: z.coerce.number().default(-17.4677),
   meuble: z.boolean().default(false),
   animauxAcceptes: z.boolean().default(false),
+  confirmationAutomatique: z.boolean().default(true),
   lienVisite360: z.string().optional(),
 });
 
@@ -65,6 +66,7 @@ export const CreateAnnonceModal: React.FC<CreateAnnonceModalProps> = ({
       nombrePieces: 3,
       meuble: true,
       animauxAcceptes: false,
+      confirmationAutomatique: true,
     },
   });
 
@@ -240,7 +242,19 @@ export const CreateAnnonceModal: React.FC<CreateAnnonceModalProps> = ({
               <input type="checkbox" className="rounded text-terracotta-500 focus:ring-terracotta-500" {...register('animauxAcceptes')} />
               <span>Animaux acceptés</span>
             </label>
+            <label className="flex items-center gap-2 text-xs font-semibold text-sahel-800 cursor-pointer">
+              <input
+                type="checkbox"
+                data-testid="confirmation-automatique-create"
+                className="rounded text-terracotta-500 focus:ring-terracotta-500"
+                {...register('confirmationAutomatique')}
+              />
+              <span>Confirmation automatique des visites</span>
+            </label>
           </div>
+          <p className="text-[11px] text-sahel-600">
+            Si cochée, une demande de visite est confirmée immédiatement lorsqu'aucune autre visite confirmée n'existe à ±60 min.
+          </p>
         </div>
 
         {/* Photo Upload Section */}

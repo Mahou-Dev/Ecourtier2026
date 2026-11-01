@@ -62,6 +62,7 @@ export interface AnnonceDTO {
   longitude: number;
   meuble: boolean;
   animauxAcceptes: boolean;
+  confirmationAutomatique?: boolean;
   lienVisite360?: string;
   statutVerification: 'EN_ATTENTE' | 'VERIFIEE' | 'REJETEE';
   statutPublication: 'DISPONIBLE' | 'RESERVEE' | 'LOUEE' | 'VENDUE' | 'SUSPENDUE';
@@ -126,6 +127,9 @@ export interface TransactionResponseDTO {
   id: string;
   annonceId: string;
   annonceTitre: string;
+  modeTransaction?: 'LOCATION' | 'VENTE';
+  annoncePrix?: number;
+  acomptePourcentage?: number;
   locataireId: string;
   locataireNomComplet: string;
   proprietaireId?: string;
@@ -142,6 +146,20 @@ export interface TransactionResponseDTO {
   dateSignatureProprietaire?: string;
   dateLiberation?: string;
   pdfBailPath?: string;
+  dateCreation: string;
+}
+
+export type TypeNotificationSms = 'RDV_DEMANDE' | 'RDV_CONFIRME' | 'RDV_ANNULE' | 'RDV_RAPPEL';
+
+export interface NotificationSmsDTO {
+  id: string;
+  utilisateurId?: string;
+  telephone?: string;
+  type: TypeNotificationSms;
+  message: string;
+  statut: string;
+  rdvId?: string;
+  annonceTitre?: string;
   dateCreation: string;
 }
 
@@ -164,6 +182,7 @@ export interface AnnonceCreateInput {
   longitude: number;
   meuble?: boolean;
   animauxAcceptes?: boolean;
+  confirmationAutomatique?: boolean;
   lienVisite360?: string;
   equipements?: string[];
   proximites?: string[];
