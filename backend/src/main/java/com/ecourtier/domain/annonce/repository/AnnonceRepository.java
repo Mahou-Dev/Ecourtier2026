@@ -15,4 +15,7 @@ import java.util.UUID;
 public interface AnnonceRepository extends JpaRepository<AnnonceEntity, UUID>, JpaSpecificationExecutor<AnnonceEntity> {
     Optional<AnnonceEntity> findByIdAndSupprimeFalse(UUID id);
     Page<AnnonceEntity> findByStatutVerificationAndSupprimeFalse(StatutVerification statutVerification, Pageable pageable);
+
+    @org.springframework.data.jpa.repository.Query("SELECT DISTINCT a.quartier FROM AnnonceEntity a WHERE a.supprime = false AND a.statutPublication = com.ecourtier.domain.annonce.entity.StatutPublication.DISPONIBLE AND a.quartier IS NOT NULL AND TRIM(a.quartier) != '' ORDER BY a.quartier ASC")
+    java.util.List<String> findDistinctQuartiers();
 }
