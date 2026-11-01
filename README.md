@@ -32,8 +32,8 @@ La recherche de logement au Sénégal fait souvent face à plusieurs défis :
 
 **E-Courtier Sénégal** apporte des solutions concrètes :
 - **Vérification Administrative Stricte** : Téléversement des titres fonciers, baux précédents et pièces d'identité par les propriétaires, contrôlés par l'administration.
-- **Séquestre Automatisé (Wave Sandbox)** : Consignation sous séquestre de la caution (1 mois de loyer), du premier loyer et des frais de dossier plateforme (5 000 FCFA). Les fonds (caution + 1er loyer) sont libérés en faveur du bailleur dès la double signature effective du contrat de bail, la plateforme retenant les frais de dossier.
-- **Bail numérique avec double signature électronique** : Consentement mutuel horodaté du locataire et du propriétaire avec génération automatique d'un contrat de bail PDF.
+- **Séquestre Automatisé (Wave Sandbox)** : Consignation sous séquestre de la caution + premier loyer en LOCATION, ou de l'acompte de réservation (10 % du prix) en VENTE, majorés des frais de dossier plateforme (5 000 FCFA). Les fonds sont libérés en faveur du bailleur/vendeur dès la double signature effective, la plateforme retenant les frais de dossier.
+- **Bail numérique avec double signature électronique** : Consentement mutuel horodaté des deux parties avec génération automatique d'un document récapitulatif PDF (contrat de bail en LOCATION, récapitulatif de réservation d'achat en VENTE).
 - **Assistant IA Immobilier Localisé** : Extraction intelligente des besoins en langage naturel (Wolof/Français), recommandations personnalisées et shortlist instantanée.
 
 ---
@@ -50,7 +50,7 @@ graph TD
 
 - **Backend** : Java 21, Spring Boot 3.4.3, Spring Security, Spring Data JPA, Bean Validation, Bucket4j Rate Limiting, JaCoCo.
 - **Frontend** : React 18, Vite, TanStack Query (React Query v5), Lucide React, CSS Modern System, PWA ready.
-- **Base de Données** : PostgreSQL 16 Alpine avec contraintes `CHECK` strictes et Flyway Migrations (V1 à V5).
+- **Base de Données** : PostgreSQL 16 Alpine avec contraintes `CHECK` strictes et Flyway Migrations (V1 à V11).
 - **Conteneurisation** : Docker & Docker Compose (`backend`, `frontend`, `db`).
 
 ---
@@ -172,18 +172,18 @@ sequenceDiagram
     participant DB as Base PostgreSQL
 
     Locataire->>API: POST /api/v1/annonces/{id}/transactions (Initie réserv.)
-    Note over API: Calcul serveur déterministe :<br/>LOCATION : caution + 1er loyer + 5 000 FCFA frais<br/>VENTE : caution (prix) + 5 000 FCFA frais
+    Note over API: Calcul serveur déterministe :<br/>LOCATION : caution + 1er loyer + 5 000 FCFA frais<br/>VENTE : acompte (10 % du prix, arrondi au franc) + 5 000 FCFA frais
     API->>DB: Sauvegarde Transaction (statutSequestre = INITIALISE)
     Locataire->>API: POST /api/v1/transactions/{id}/paiement-caution
     Note over API: Paiement simulé Wave Sandbox<br/>Montant total séquestre consigné
     API->>DB: MAJ statutSequestre = BLOQUE
-    Proprio->>API: POST /api/v1/transactions/{id}/bail/signer (Propriétaire)
+    Proprio->>API: POST /api/v1/transactions/{id}/bail/signer (Propriétaire / Vendeur)
     API->>DB: Enregistre dateSignatureProprietaire, statutBail = SIGNE_PROPRIETAIRE
-    Locataire->>API: POST /api/v1/transactions/{id}/bail/signer (Locataire)
+    Locataire->>API: POST /api/v1/transactions/{id}/bail/signer (Locataire / Acheteur)
     API->>DB: Enregistre dateSignatureLocataire, statutBail = SIGNE_COMPLET
-    Note over API: Déclenchement automatique de libération :<br/>Propriétaire reçoit (Caution + 1er loyer)<br/>Plateforme conserve frais de dossier (5 000 FCFA)
+    Note over API: Déclenchement automatique de libération :<br/>LOCATION : bailleur reçoit (Caution + 1er loyer) ; VENTE : vendeur reçoit l'acompte (10 %)<br/>Plateforme conserve les frais de dossier (5 000 FCFA)
     API->>DB: MAJ statutSequestre = LIBERE, Annonce = LOUEE/VENDUE
-    API-->>Locataire: Bail numérique PDF horodaté & séquestre libéré
+    API-->>Locataire: Document récapitulatif PDF horodaté & séquestre libéré
 ```
 
 ---
@@ -269,13 +269,13 @@ mvn test jacoco:report
     - `montantPremierLoyer` = 1 mois de loyer (premier mois de loyer).
     - `fraisDossier` = Frais fixes de dossier de la plateforme (`5 000 FCFA`).
     - `montantTotalSequestre` = `montantCaution + montantPremierLoyer + 5 000 FCFA` (consignés via paiement simulé Wave Sandbox).
-    - **Libération** : Dès la double signature du bail numérique (`SIGNE_COMPLET`), la caution et le premier loyer (`montantVerseProprietaire = montantCaution + montantPremierLoyer`) sont libérés pour le propriétaire, tandis que la plateforme retient les `5 000 FCFA` de frais de dossier.
+    - **Libération** : Dès la double signature du bail numérique (`SIGNE_COMPLET`), la caution et le premier loyer (`montantVerseProprietaire = montantCaution + montantPremierLoyer`) sont libérés pour le propriétaire, tandis que la plateforme retient les `5 000 FCFA` de frais de dossier. Le PDF généré porte la mention « *Document récapitulatif généré par la plateforme* ».
   - **VENTE** :
     - `montantPremierLoyer` = `0 FCFA` (sans objet pour les ventes).
-    - `montantCaution` = Montant du bien affiché sur l'annonce.
+    - `montantCaution` = Acompte de réservation = `prix × ecourtier.vente.acompte-pourcentage / 100` (défaut `10 %`, arrondi au franc via `HALF_UP`).
     - `fraisDossier` = `5 000 FCFA` forfaitaires.
-    - `montantTotalSequestre` = `montantCaution + 5 000 FCFA`.
-    - **Libération** : À la double signature électronique, `montantCaution` est libéré pour le vendeur et l'annonce passe au statut `VENDUE`.
+    - `montantTotalSequestre` = `acompte + 5 000 FCFA`.
+    - **Libération** : À la double signature électronique, l'acompte (`montantCaution`) est libéré pour le vendeur, la plateforme conserve les `5 000 FCFA` de frais de dossier, l'annonce passe au statut `VENDUE`, et un PDF intitulé « *RÉCAPITULATIF DE RÉSERVATION D'ACHAT* » est généré avec la mention « *Document récapitulatif généré par la plateforme ; il ne constitue pas un acte de vente* ».
   - **Calcul serveur exclusif** : Tous les montants sont calculés côté serveur dans `TransactionService` à partir du prix de l'annonce en base ; toute valeur transmise par le client est ignorée.
 - **Référentiel Géographique Local** : Prise en compte fine des quartiers phares de Dakar (Almadies, Mermoz, Sacré-Cœur, Médina, Fann), Thiès (Dixième), Ziguinchor (Boucotte, Nema), Saly, Mbour, Saint-Louis.
 - **Proximités Stratégiques** : BRT (Bus Rapid Transit), UCAD, Plage, Écoles, Hôpitaux.
@@ -306,6 +306,8 @@ Le fichier `render.yaml` à la racine du dépôt définit 3 services isolés :
 | `ADMIN_BOOTSTRAP_EMAIL` | Backend | `admin@ecourtier.sn` | Email du compte admin initial |
 | `ADMIN_BOOTSTRAP_PASSWORD` | Backend | Saisie manuelle forte | Mot de passe administrateur prod (ex: `P@sswordProd2026!`) |
 | `ECOURTIER_CORS_ALLOWED_ORIGINS` | Backend | `fromService(ecourtier-frontend, url)` | Origine autorisée pour CORS |
+| `ECOURTIER_RDV_RAPPEL_CRON` | Backend | `0 0 9 * * *` (optionnel) | Expression cron du rappel quotidien des visites (zone `Africa/Dakar`) |
+| `ECOURTIER_VENTE_ACOMPTE_POURCENTAGE` | Backend | `10` (optionnel) | Pourcentage d'acompte de réservation appliqué en mode `VENTE` |
 | `VITE_API_BASE_URL` | Frontend | `fromService(ecourtier-backend, url)` | URL du backend pour le client React |
 
 > [!IMPORTANT]

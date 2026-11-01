@@ -169,7 +169,7 @@ public class AnnonceController {
     @PostMapping(value = "/{id}/documents", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     @PreAuthorize("@annonceSecurityService.isOwnerOrAdmin(#id, authentication)")
     @SecurityRequirement(name = "bearerAuth")
-    @Operation(summary = "Soumettre un document justificatif pour vérification", description = "Téléverser un document (titre foncier, bail précédent, pièce d'identité) pour l'attribution du badge certifié.")
+    @Operation(summary = "Soumettre un document justificatif pour vérification", description = "Téléverser un document (titre foncier, bail précédent, pièce d'identité) pour l'attribution du badge vérifié.")
     public ResponseEntity<DocumentVerificationResponseDTO> ajouterDocumentVerification(
             @PathVariable UUID id,
             @RequestParam("typeDocument") TypeDocumentVerification typeDocument,
