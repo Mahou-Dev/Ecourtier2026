@@ -9,10 +9,12 @@ import {
   ShieldCheck,
   CheckCircle2,
   Clock,
-  Building
+  Building,
+  MessageSquare
 } from 'lucide-react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { apiFetch, getPhotoUrl } from '../services/api';
+import { messagerieService } from '../services/messagerie.service';
 import { AnnonceDTO, PageResponse, RendezVousResponseDTO, TransactionResponseDTO } from '../types';
 import { useAuthStore } from '../store/useAuthStore';
 import { Button } from '../components/ui/Button';
@@ -20,16 +22,24 @@ import { Badge } from '../components/ui/Badge';
 import { Card, CardBody } from '../components/ui/Card';
 import { Avatar } from '../components/ui/Avatar';
 import { Skeleton } from '../components/ui/Skeleton';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { CreateAnnonceModal } from '../components/dashboard/CreateAnnonceModal';
 import { TransactionDetailsModal } from '../components/transaction/TransactionDetailsModal';
+import { ConversationsTab } from '../components/messagerie/ConversationsTab';
 import { toast } from 'sonner';
 
 export const DashboardPage: React.FC = () => {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const queryClient = useQueryClient();
   const { utilisateur, logout } = useAuthStore();
-  const [activeTab, setActiveTab] = useState<'ANNONCES' | 'VISITES' | 'SEQUESTRES'>('ANNONCES');
+  const [activeTab, setActiveTab] = useState<'ANNONCES' | 'VISITES' | 'SEQUESTRES' | 'MESSAGES'>('ANNONCES');
+
+  React.useEffect(() => {
+    if (searchParams.get('tab') === 'messages') {
+      setActiveTab('MESSAGES');
+    }
+  }, [searchParams]);
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [selectedTransaction, setSelectedTransaction] = useState<TransactionResponseDTO | null>(null);
   const [isTxModalOpen, setIsTxModalOpen] = useState(false);
@@ -63,9 +73,18 @@ export const DashboardPage: React.FC = () => {
     enabled: !!utilisateur,
   });
 
+  // 4. Fetch unread messages count
+  const { data: unreadCountData } = useQuery({
+    queryKey: ['messages-unread-count'],
+    queryFn: () => messagerieService.compterMessagesNonLus(),
+    enabled: !!utilisateur,
+    refetchInterval: 10000,
+  });
+
   const annoncesList = annoncesData?.content || [];
   const visitsList = visitsData || [];
   const transactionsList = transactionsData || [];
+  const unreadCount = unreadCountData || 0;
 
   // Action Handlers for Visits
   const handleConfirmVisit = async (visitId: string) => {
@@ -200,6 +219,23 @@ export const DashboardPage: React.FC = () => {
               <Badge variant="neutral" className="bg-sahel-800 text-white border-0 text-[10px]">
                 {transactionsList.length}
               </Badge>
+            </button>
+
+            <button
+              onClick={() => setActiveTab('MESSAGES')}
+              className={`w-full flex items-center justify-between px-4 py-3 rounded-xl text-xs font-semibold transition-colors ${
+                activeTab === 'MESSAGES' ? 'bg-terracotta-500 text-white shadow-terracotta-glow' : 'text-sahel-200 hover:bg-sahel-800'
+              }`}
+            >
+              <div className="flex items-center gap-2.5">
+                <MessageSquare className="w-4 h-4 text-amber-400" />
+                <span>Messagerie</span>
+              </div>
+              {unreadCount > 0 && (
+                <Badge variant="neutral" className="bg-amber-500 text-white border-0 text-[10px] font-bold">
+                  {unreadCount}
+                </Badge>
+              )}
             </button>
           </nav>
         </div>
@@ -452,15 +488,16 @@ export const DashboardPage: React.FC = () => {
                             Locataire: <strong>{tx.locataireNomComplet}</strong> | Propriétaire: <strong>{tx.proprietaireNomComplet || 'Agent'}</strong>
                           </p>
                           <p className="text-xs text-terracotta-700 font-bold">
-                            Caution : {tx.montantCaution.toLocaleString('fr-FR')} FCFA (+ 5 000 FCFA frais)
+                            Total séquestre : {(tx.montantTotalSequestre ?? (tx.montantCaution + (tx.montantPremierLoyer || 0) + tx.fraisDossier)).toLocaleString('fr-FR')} FCFA
+                            {tx.montantPremierLoyer > 0 ? ` (Caution: ${tx.montantCaution.toLocaleString('fr-FR')} + 1er Loyer: ${tx.montantPremierLoyer.toLocaleString('fr-FR')} + Frais: 5 000)` : ` (Caution: ${tx.montantCaution.toLocaleString('fr-FR')} + Frais: 5 000)`}
                           </p>
                         </div>
 
                         <div className="flex flex-wrap items-center gap-3">
-                          {tx.statutSequestre === 'INITIALISE' && <Badge variant="warning">Caution : À consigner</Badge>}
-                          {tx.statutSequestre === 'BLOQUE' && <Badge variant="info">Caution : Consignée</Badge>}
-                          {tx.statutSequestre === 'LIBERE' && <Badge variant="success">Caution : Libérée</Badge>}
-                          {tx.statutSequestre === 'REMBOURSE' && <Badge variant="neutral">Caution : Remboursée</Badge>}
+                          {tx.statutSequestre === 'INITIALISE' && <Badge variant="warning">Séquestre : À consigner</Badge>}
+                          {tx.statutSequestre === 'BLOQUE' && <Badge variant="info">Séquestre : Bloqué</Badge>}
+                          {tx.statutSequestre === 'LIBERE' && <Badge variant="success">Séquestre : Libéré</Badge>}
+                          {tx.statutSequestre === 'REMBOURSE' && <Badge variant="neutral">Séquestre : Remboursé</Badge>}
 
                           {tx.statutBail === 'NON_SIGNE' && <Badge variant="neutral">Bail : Non signé</Badge>}
                           {(tx.statutBail === 'SIGNE_LOCATAIRE' || tx.statutBail === 'SIGNE_PROPRIETAIRE') && (
@@ -484,6 +521,9 @@ export const DashboardPage: React.FC = () => {
             )}
           </div>
         )}
+
+        {/* TAB 4: MESSAGERIE */}
+        {activeTab === 'MESSAGES' && <ConversationsTab />}
 
       </main>
 
