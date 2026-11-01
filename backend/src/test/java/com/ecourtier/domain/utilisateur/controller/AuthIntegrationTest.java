@@ -41,6 +41,12 @@ class AuthIntegrationTest {
     private UtilisateurRepository utilisateurRepository;
 
     @Autowired
+    private com.ecourtier.domain.transaction.repository.TransactionRepository transactionRepository;
+
+    @Autowired
+    private com.ecourtier.domain.rendezvous.repository.RendezVousRepository rendezVousRepository;
+
+    @Autowired
     private com.ecourtier.domain.annonce.repository.AnnonceRepository annonceRepository;
 
     @Autowired
@@ -48,6 +54,8 @@ class AuthIntegrationTest {
 
     @BeforeEach
     void setUp() {
+        transactionRepository.deleteAll();
+        rendezVousRepository.deleteAll();
         annonceRepository.deleteAll();
         utilisateurRepository.deleteAll();
     }

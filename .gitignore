@@ -5,15 +5,37 @@
 *.swp
 *.swo
 
-# Environment files
+# Environment files & secrets
 .env
-.env.local
+.env.*
+**/.env
+**/.env.*
+!.env.example
+!**/.env.example
+*.pem
+*.key
 
-# Logs
+# Logs & local archives
 *.log
 logs/
+docs.zip
 
-# Build outputs
+# Build outputs & runtime uploads
 dist/
 target/
 node_modules/
+backend/uploads/
+
+# QA captures: keep only .md reports and 10 selected representative screenshots in docs/tests
+docs/tests/*.png
+docs/tests/locataire/*.png
+!docs/tests/hero_dakar_nouvelle_image.png
+!docs/tests/locataire/A1.png
+!docs/tests/locataire/B1.png
+!docs/tests/locataire/C1.png
+!docs/tests/locataire/D3.png
+!docs/tests/locataire/E10_1_widget_backend_up.png
+!docs/tests/locataire/F3.png
+!docs/tests/locataire/G2.png
+!docs/tests/locataire/I5.png
+!docs/tests/locataire/J5_dashboard.png

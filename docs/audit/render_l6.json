@@ -1,0 +1,57 @@
+{
+  "executed_at": "2026-10-30T12:07:33.219420+00:00",
+  "probes": {
+    "backend_health": {
+      "url": "https://ecourtier-backend.onrender.com/api/v1/health",
+      "status": null,
+      "dt_sec": 90.524,
+      "x_render_routing": null,
+      "content_type": null,
+      "error": "TimeoutError('The read operation timed out')",
+      "body_preview": ""
+    },
+    "backend_swagger_ui": {
+      "url": "https://ecourtier-backend.onrender.com/swagger-ui/index.html",
+      "status": null,
+      "dt_sec": 90.492,
+      "x_render_routing": null,
+      "content_type": null,
+      "error": "TimeoutError('The read operation timed out')",
+      "body_preview": ""
+    },
+    "backend_api_docs": {
+      "url": "https://ecourtier-backend.onrender.com/v3/api-docs",
+      "status": null,
+      "dt_sec": 90.405,
+      "x_render_routing": null,
+      "content_type": null,
+      "error": "TimeoutError('The read operation timed out')",
+      "body_preview": ""
+    },
+    "backend_annonces_db": {
+      "url": "https://ecourtier-backend.onrender.com/api/v1/annonces?size=5",
+      "status": null,
+      "dt_sec": 90.398,
+      "x_render_routing": null,
+      "content_type": null,
+      "error": "TimeoutError('The read operation timed out')",
+      "body_preview": ""
+    },
+    "frontend_root": {
+      "url": "https://ecourtier-frontend.onrender.com/",
+      "status": 200,
+      "dt_sec": 0.936,
+      "x_render_routing": null,
+      "content_type": "text/html; charset=utf-8",
+      "body_preview": "<!DOCTYPE html>\n<html lang=\"fr\">\n  <head>\n    <meta charset=\"UTF-8\" />\n    <link rel=\"icon\" type=\"image/svg+xml\" href=\"/favicon.svg\" />\n    <meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0, maximum-scale=5.0\" />\n    <title>E-Courtier — La Recherche Immobilier Intelligente & Sécurisée au Sénégal</title>\n    <meta name=\"description\" content=\"Plateforme intelligente de recherche de logement au Sénégal (Dakar, Ziguinchor, Thiès, Saly). Assistant IA, annonces certifiées et caution"
+    },
+    "frontend_spa_route": {
+      "url": "https://ecourtier-frontend.onrender.com/recherche",
+      "status": 404,
+      "dt_sec": 0.737,
+      "x_render_routing": null,
+      "content_type": "text/plain; charset=utf-8",
+      "body_preview": "Not Found\n"
+    }
+  }
+}

@@ -1,0 +1,169 @@
+{
+  "executedAt": "2026-10-30T12:12:01.629Z",
+  "mobile360": {
+    "accueil": {
+      "innerWidth": 360,
+      "innerHeight": 800,
+      "docScrollWidth": 360,
+      "bodyScrollWidth": 360,
+      "overflowPx": 0,
+      "hasHorizontalOverflow": false
+    },
+    "recherche": {
+      "innerWidth": 360,
+      "innerHeight": 800,
+      "docScrollWidth": 360,
+      "bodyScrollWidth": 360,
+      "overflowPx": 0,
+      "hasHorizontalOverflow": false
+    },
+    "ficheAnnonce": {
+      "innerWidth": 376,
+      "innerHeight": 834,
+      "docScrollWidth": 376,
+      "bodyScrollWidth": 375,
+      "overflowPx": 0,
+      "hasHorizontalOverflow": false
+    },
+    "connexion": {
+      "innerWidth": 360,
+      "innerHeight": 800,
+      "docScrollWidth": 360,
+      "bodyScrollWidth": 360,
+      "overflowPx": 0,
+      "hasHorizontalOverflow": false
+    },
+    "dashboard": {
+      "innerWidth": 360,
+      "innerHeight": 800,
+      "docScrollWidth": 360,
+      "bodyScrollWidth": 360,
+      "overflowPx": 0,
+      "hasHorizontalOverflow": false
+    }
+  },
+  "uiChecks": {
+    "chatbotReact": {
+      "widgetOpen": true,
+      "shortlistCardsRendered": 3
+    },
+    "recherche": {
+      "leafletPresent": true,
+      "leafletMarkers": 2,
+      "cardsImagesTotal": 9,
+      "cardsImagesLazyCount": 0,
+      "visibleTextSample": "E-Courtier\nSN\nRechercher\nConnexion\nInscription\nTrouver un bien\nLogements Disponibles (13)\n\nDakar, Ziguinchor, Saly • Annonces contrôlées par E-Courtier\n\nFiltres Avancés\nToutes les villes\nDakar\nZiguinchor\nSaly\nThiès\nVérifiées uniquement\nVérifié\nMermoz, Dakar\n350 000 FCFA / mois\nAppartement Témoin Audit Visite 360 & Galerie\n110 m²\n4 pièces\nMeublé\nAPPARTEMENT\nBabacar Diouf\nVoir la fiche\nPlateau, Daka"
+    },
+    "rechercheFiltresDrawer": {
+      "labels": [
+        "Ville",
+        "Mode de Transaction",
+        "Type de bien",
+        "Proximité (Écoles, Hôpitaux, Transports...)",
+        "Uniquement avec titre & propriété vérifiés",
+        "Logements meublés uniquement"
+      ],
+      "selects": [],
+      "sliders": [
+        {
+          "min": "50000",
+          "max": "2000000",
+          "now": "800000"
+        }
+      ],
+      "checkboxes": [
+        {
+          "checked": false,
+          "parentText": "Uniquement avec titre & propriété vérifiés"
+        },
+        {
+          "checked": false,
+          "parentText": "Logements meublés uniquement"
+        }
+      ],
+      "hasSurfaceInput": false,
+      "hasPiecesInput": false,
+      "hasQuartierInput": false,
+      "hasNonMeubleFilter": false
+    },
+    "propertyDetail": {
+      "hasVerifiedBadge": true,
+      "has360Button": true,
+      "hasLeafletMap": true,
+      "galleryThumbButtons": 0,
+      "lazyImagesCount": 2,
+      "totalContentImages": 4,
+      "rendersEquipementClimatisation": false,
+      "rendersEquipementReserveEau": false,
+      "rendersEquipementSectionHeading": true,
+      "rendersProximites": false
+    },
+    "visite360ModalOpen": true,
+    "avisAndSignalement": {
+      "hasReviewComment": true,
+      "hasSignalementButton": true,
+      "hasReputationStars": true
+    },
+    "dashboardProprio": {
+      "buttons": [
+        "Déconnexion",
+        "Trouver un bien",
+        "Mes Annonces\n20",
+        "Agenda Visites\n12",
+        "Suivi Transactions\n4",
+        "Messagerie\n3",
+        "Déconnexion",
+        "Créer une annonce",
+        "Consulter",
+        "Consulter",
+        "Consulter",
+        "Consulter",
+        "Consulter",
+        "Consulter",
+        "Consulter",
+        "Consulter",
+        "Consulter",
+        "Consulter",
+        "Consulter",
+        "Consulter",
+        "Consulter",
+        "Consulter",
+        "Consulter",
+        "Consulter",
+        "Consulter",
+        "Consulter",
+        "Consulter",
+        "Consulter",
+        "Assistant IA E-Courtier"
+      ],
+      "hasEditAnnonceButton": false,
+      "hasDeleteAnnonceButton": false
+    },
+    "createAnnonceModal": {
+      "opened": false
+    },
+    "adminVerification": {
+      "pendingCardsCount": 11,
+      "hasDocumentDownloadLink": false
+    }
+  },
+  "screenshots": [
+    "docs/audit/screenshots/01_accueil_mobile_360_t3.png",
+    "docs/audit/screenshots/02_chatbot_react_s6.png",
+    "docs/audit/screenshots/03_recherche_carte_leaflet_f4.png",
+    "docs/audit/screenshots/04_recherche_filtres_f7_f13.png",
+    "docs/audit/screenshots/05_recherche_mobile_360_t3.png",
+    "docs/audit/screenshots/06_fiche_annonce_galerie_badge_c2_f2.png",
+    "docs/audit/screenshots/07_fiche_annonce_visite360_f3.png",
+    "docs/audit/screenshots/09_fiche_annonce_mobile_360_t3.png",
+    "docs/audit/screenshots/08_fiche_annonce_avis_f20.png",
+    "docs/audit/screenshots/10_inscription_role_agent_f27.png",
+    "docs/audit/screenshots/11_dashboard_proprietaire_annonces_f23.png",
+    "docs/audit/screenshots/12_modal_creation_preuves_f14_f5.png",
+    "docs/audit/screenshots/13_dashboard_visites_agenda_f15_f24.png",
+    "docs/audit/screenshots/14_dashboard_transactions_modal_c3_f25.png",
+    "docs/audit/screenshots/15_admin_dashboard_statistiques_f26.png",
+    "docs/audit/screenshots/16a_admin_verification_c2.png",
+    "docs/audit/screenshots/16b_admin_signalements_f22.png"
+  ]
+}

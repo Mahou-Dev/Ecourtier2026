@@ -17,7 +17,12 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-@SpringBootTest
+@SpringBootTest(properties = {
+    "ADMIN_BOOTSTRAP_PASSWORD=TestAdminProdPassword123!",
+    "spring.datasource.driver-class-name=org.h2.Driver",
+    "spring.flyway.enabled=false",
+    "spring.jpa.hibernate.ddl-auto=create-drop"
+})
 @ActiveProfiles("prod")
 public class DataSeedProfileTest {
 

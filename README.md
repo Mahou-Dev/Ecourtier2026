@@ -32,8 +32,8 @@ La recherche de logement au Sénégal fait souvent face à plusieurs défis :
 
 **E-Courtier Sénégal** apporte des solutions concrètes :
 - **Vérification Administrative Strict** : Téléversement des titres fonciers et baux par les propriétaires, contrôlés par des agents immobiliers agréés.
-- **Séquestre Bancaire Automatisé** : Blocage sécurisé du montant de la caution jusqu'à la signature effective du bail.
-- **Double-Signature Numérique du Bail** : Consentement mutuel et irrévocable du locataire et du propriétaire.
+- **Séquestre Bancaire Automatisé (Cahier des charges §4)** : Consignation sécurisée sous séquestre de la caution, du premier loyer et des frais de dossier plateforme (5 000 FCFA). Les fonds (caution + 1er loyer) sont libérés et reversés au bailleur dès la double signature effective du contrat de bail, la plateforme retenant les frais.
+- **Double-Signature Numérique du Bail** : Consentement mutuel et irrévocable du locataire et du propriétaire avec génération d'un contrat de bail PDF officiel.
 - **Assistant IA Immobilier Localisé** : Extraction intelligente des besoins en langage naturel (Wolof/Français), recommandations personnalisées et shortlist instantanée.
 
 ---
@@ -171,16 +171,19 @@ sequenceDiagram
     participant API as Backend Spring Boot
     participant DB as Base PostgreSQL
 
-    Locataire->>API: POST /api/v1/transactions (Initie réserv.)
-    API->>DB: Sauvegarde Transaction (EN_ATTENTE_CAUTION)
-    Locataire->>API: PUT /api/v1/transactions/{id}/payer-caution
-    API->>DB: MAJ statutSequestre = SEQUESTRE_BLOQUE
-    Proprio->>API: PUT /api/v1/transactions/{id}/signer-bail (Propriétaire)
+    Locataire->>API: POST /api/v1/annonces/{id}/transactions (Initie réserv.)
+    Note over API: Calcul serveur déterministe :<br/>LOCATION : caution + 1er loyer + 5 000 FCFA frais<br/>VENTE : caution (prix) + 5 000 FCFA frais
+    API->>DB: Sauvegarde Transaction (statutSequestre = INITIALISE)
+    Locataire->>API: POST /api/v1/transactions/{id}/paiement-caution
+    Note over API: Paiement simulé Wave Sandbox<br/>Montant total séquestre consigné
+    API->>DB: MAJ statutSequestre = BLOQUE
+    Proprio->>API: POST /api/v1/transactions/{id}/bail/signer (Propriétaire)
     API->>DB: Enregistre dateSignatureProprietaire, statutBail = SIGNE_PROPRIETAIRE
-    Locataire->>API: PUT /api/v1/transactions/{id}/signer-bail (Locataire)
+    Locataire->>API: POST /api/v1/transactions/{id}/bail/signer (Locataire)
     API->>DB: Enregistre dateSignatureLocataire, statutBail = SIGNE_COMPLET
-    API->>DB: MAJ statutSequestre = SEQUESTRE_LIBERE, Annonce = LOUEE
-    API-->>Locataire: Bail validé et caution transférée
+    Note over API: Déclenchement automatique de libération :<br/>Propriétaire reçoit (Caution + 1er loyer)<br/>Plateforme conserve frais de dossier (5 000 FCFA)
+    API->>DB: MAJ statutSequestre = LIBERE, Annonce = LOUEE/VENDUE
+    API-->>Locataire: Bail numérique PDF horodaté & séquestre libéré
 ```
 
 ---
@@ -258,9 +261,22 @@ mvn test jacoco:report
 
 ---
 
-## 9. Spécificités du Marché Sénégalais
+## 9. Spécificités du Marché Sénégalais & Règles de Séquestre
 
-- **Séquestre Légale 2 Mois** : Respect de la loi n° 2014-03 régissant les baux à usage d'habitation au Sénégal.
+- **Séquestre Conforme au Cahier des Charges (§4) & Loi n° 2014-03** :
+  - **LOCATION** :
+    - `montantCaution` = Loyer mensuel (prix de l'annonce).
+    - `montantPremierLoyer` = Premier mois de loyer (prix de l'annonce).
+    - `fraisDossier` = Frais administratifs de la plateforme (5 000 FCFA forfaitaires).
+    - `montantTotalSequestre` = Caution + Premier Loyer + Frais de dossier.
+    - **Libération** : À la double signature du bail (`SIGNE_COMPLET`), la caution et le premier loyer (`montantVerseProprietaire = montantCaution + montantPremierLoyer`) sont reversés au bailleur, tandis que la plateforme conserve les 5 000 FCFA de frais de dossier.
+  - **VENTE** :
+    - `montantPremierLoyer` = 0 FCFA (sans objet pour les ventes).
+    - `montantCaution` = Montant de vente (garantie/séquestre correspondant au prix du bien).
+    - `fraisDossier` = 5 000 FCFA forfaitaires.
+    - `montantTotalSequestre` = Caution + 5 000 FCFA.
+    - **Libération** : À la signature complète de l'acte, le montant de garantie est reversé au vendeur.
+  - **Sécurité & Intégrité** : Tous les montants sont calculés exclusivement côté serveur à partir de l'annonce enregistrée en base. Tout montant fourni dans le corps de requête client (ex: tentative de falsification avec `montantCaution = 1`) est expressément ignoré.
 - **Référentiel Géographique Local** : Prise en compte fine des quartiers phares de Dakar (Almadies, Mermoz, Sacré-Cœur, Médina, Fann), Thiès (Dixième), Ziguinchor (Boucotte, Nema), Saly, Mbour, Saint-Louis.
 - **Proximités Stratégiques** : BRT (Bus Rapid Transit), UCAD, Plage, Écoles, Hôpitaux.
 
