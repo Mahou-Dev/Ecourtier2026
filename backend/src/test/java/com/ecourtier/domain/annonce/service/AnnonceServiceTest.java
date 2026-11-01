@@ -334,4 +334,40 @@ public class AnnonceServiceTest {
         Page<AnnonceResponseDTO> page = annonceService.listerAnnoncesEnAttenteVerification(PageRequest.of(0, 10));
         assertEquals(1, page.getTotalElements());
     }
+
+    @Test
+    @DisplayName("Création d'une annonce avec coordonnées hors Sénégal -> 400 BAD REQUEST")
+    void testCreerAnnonceCoordonneesHorsSenegalEchoue400() {
+        when(utilisateurRepository.findByEmail("proprio@test.sn")).thenReturn(Optional.of(proprio));
+
+        AnnonceCreateDTO dtoHorsSenegal = AnnonceCreateDTO.builder()
+                .titre("Appartement à Paris")
+                .description("Superbe appartement dans le 16e arrondissement")
+                .type(TypeBien.APPARTEMENT)
+                .modeTransaction(ModeTransaction.LOCATION)
+                .prix(BigDecimal.valueOf(1500000))
+                .superficie(75.0)
+                .nombrePieces(3)
+                .quartier("Passy")
+                .ville("Paris")
+                .latitude(48.8566)
+                .longitude(2.3522)
+                .build();
+
+        ResponseStatusException ex = assertThrows(ResponseStatusException.class,
+                () -> annonceService.creerAnnonce(dtoHorsSenegal, "proprio@test.sn"));
+
+        assertEquals(400, ex.getStatusCode().value());
+        assertTrue(ex.getReason().contains("Sénégal"));
+    }
+
+    @Test
+    @DisplayName("Obtenir les quartiers distincts des annonces disponibles")
+    void testObtenirQuartiersDisponibles() {
+        when(annonceRepository.findDistinctQuartiers()).thenReturn(List.of("Almadies", "Mermoz", "Ngor"));
+
+        List<String> quartiers = annonceService.obtenirQuartiersDisponibles();
+        assertEquals(3, quartiers.size());
+        assertEquals("Almadies", quartiers.get(0));
+    }
 }

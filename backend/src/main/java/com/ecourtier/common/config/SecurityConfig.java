@@ -87,6 +87,8 @@ public class SecurityConfig {
                     "/api/v1/health/**",
                     "/api/v1/auth/**",
                     "/api/v1/uploads/annonces/**",
+                    "/api/v1/references",
+                    "/api/v1/references/**",
                     "/api/v1/ia/**",
                     "/ws/**"
                 ).permitAll()
@@ -101,7 +103,7 @@ public class SecurityConfig {
                 .requestMatchers("/api/v1/rendez-vous/**").authenticated()
                 .requestMatchers("/api/v1/notifications-sms/**").authenticated()
                 .requestMatchers("/api/v1/transactions/**").authenticated()
-                .requestMatchers(HttpMethod.GET, "/api/v1/annonces", "/api/v1/annonces/*", "/api/v1/annonces/*/avis", "/api/v1/utilisateurs/*/reputation").permitAll()
+                .requestMatchers(HttpMethod.GET, "/api/v1/annonces", "/api/v1/annonces/*", "/api/v1/annonces/quartiers", "/api/v1/annonces/*/avis", "/api/v1/utilisateurs/*/reputation").permitAll()
                 .requestMatchers("/api/v1/admin/**").hasRole("ADMIN")
                 .anyRequest().authenticated()
             )

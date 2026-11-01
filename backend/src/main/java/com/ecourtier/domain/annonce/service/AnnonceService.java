@@ -61,6 +61,8 @@ public class AnnonceService {
         UtilisateurEntity user = utilisateurRepository.findByEmail(userEmail)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Utilisateur non trouvé"));
 
+        validerCoordonneesSenegal(dto.getLatitude(), dto.getLongitude());
+
         AnnonceEntity annonce = AnnonceEntity.builder()
                 .titre(dto.getTitre())
                 .description(dto.getDescription())
@@ -107,6 +109,10 @@ public class AnnonceService {
     public AnnonceResponseDTO modifierAnnonce(UUID id, AnnonceUpdateDTO dto) {
         AnnonceEntity annonce = annonceRepository.findByIdAndSupprimeFalse(id)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Annonce introuvable ou supprimée"));
+
+        Double effectiveLat = dto.getLatitude() != null ? dto.getLatitude() : annonce.getLatitude();
+        Double effectiveLon = dto.getLongitude() != null ? dto.getLongitude() : annonce.getLongitude();
+        validerCoordonneesSenegal(effectiveLat, effectiveLon);
 
         if (dto.getTitre() != null) annonce.setTitre(dto.getTitre());
         if (dto.getDescription() != null) annonce.setDescription(dto.getDescription());
@@ -229,15 +235,63 @@ public class AnnonceService {
             String auteurEmail,
             String userEmail
     ) {
+        return rechercherAnnonces(
+                pageable, budgetMin, budgetMax,
+                type != null ? List.of(type) : null,
+                modeTransaction, superficieMin, nombrePieces,
+                quartier, ville, meuble, animauxAcceptes,
+                statutVerification,
+                proximite != null ? List.of(proximite) : null,
+                includeIndisponibles, auteurEmail, userEmail
+        );
+    }
+
+    @Transactional(readOnly = true)
+    public Page<AnnonceResponseDTO> rechercherAnnonces(
+            Pageable pageable,
+            BigDecimal budgetMin,
+            BigDecimal budgetMax,
+            List<TypeBien> types,
+            ModeTransaction modeTransaction,
+            Double superficieMin,
+            Integer nombrePieces,
+            String quartier,
+            String ville,
+            Boolean meuble,
+            Boolean animauxAcceptes,
+            StatutVerification statutVerification,
+            List<ProximiteTag> proximites,
+            Boolean includeIndisponibles,
+            String auteurEmail,
+            String userEmail
+    ) {
         Specification<AnnonceEntity> spec = AnnonceSpecification.filterAnnonces(
-                budgetMin, budgetMax, type, modeTransaction, superficieMin,
+                budgetMin, budgetMax, types, modeTransaction, superficieMin,
                 nombrePieces, quartier, ville, meuble, animauxAcceptes,
-                statutVerification, proximite, includeIndisponibles, auteurEmail
+                statutVerification, proximites, includeIndisponibles, auteurEmail
         );
 
         Set<UUID> favorisIds = getFavorisIds(userEmail);
         return annonceRepository.findAll(spec, pageable)
                 .map(entity -> annonceMapper.toResponseDTO(entity, favorisIds));
+    }
+
+    @Transactional(readOnly = true)
+    public List<String> obtenirQuartiersDisponibles() {
+        return annonceRepository.findDistinctQuartiers();
+    }
+
+    private void validerCoordonneesSenegal(Double lat, Double lon) {
+        if (lat == null && lon == null) {
+            return;
+        }
+        if (lat == null || lon == null) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "La latitude et la longitude doivent être fournies ensemble");
+        }
+        if (lat < 12.0 || lat > 17.0 || lon < -17.8 || lon > -11.0) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                    "Les coordonnées géographiques doivent se situer au Sénégal (latitude entre 12.0 et 17.0, longitude entre -17.8 et -11.0).");
+        }
     }
 
     /**

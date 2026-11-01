@@ -71,8 +71,31 @@ export interface AnnonceDTO {
   photos: PhotoAnnonceDTO[];
   equipements: string[];
   proximites: string[];
-  documentsVerification?: any[];
+  documentsVerification?: DocumentVerificationDTO[];
   estFavori?: boolean;
+}
+
+export interface ReferenceItem {
+  valeur: string;
+  libelle: string;
+  description?: string;
+}
+
+export interface ReferencesResponse {
+  typesBien: ReferenceItem[];
+  equipements: ReferenceItem[];
+  proximites: ReferenceItem[];
+  modesTransaction: ReferenceItem[];
+  typesDocument: ReferenceItem[];
+}
+
+export interface DocumentVerificationDTO {
+  id: string;
+  typeDocument: 'TITRE_FONCIER' | 'BAIL_PRECEDENT' | 'PIECE_IDENTITE';
+  url: string;
+  statut: 'EN_ATTENTE' | 'VALIDE' | 'REJETE';
+  motifRejet?: string;
+  dateCreation: string;
 }
 
 export interface PageResponse<T> {

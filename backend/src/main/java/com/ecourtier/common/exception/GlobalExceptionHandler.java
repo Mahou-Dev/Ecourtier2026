@@ -108,4 +108,30 @@ public class GlobalExceptionHandler {
                 .contentType(APPLICATION_JSON_UTF8)
                 .body(response);
     }
+
+    @ExceptionHandler(org.springframework.web.method.annotation.MethodArgumentTypeMismatchException.class)
+    public ResponseEntity<Map<String, Object>> handleTypeMismatch(org.springframework.web.method.annotation.MethodArgumentTypeMismatchException ex) {
+        Map<String, Object> response = new HashMap<>();
+        response.put("timestamp", LocalDateTime.now());
+        response.put("status", HttpStatus.BAD_REQUEST.value());
+        String paramName = ex.getName();
+        Object val = ex.getValue();
+        response.put("error", String.format("Valeur invalide '%s' pour le paramètre '%s'", val, paramName));
+
+        return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                .contentType(APPLICATION_JSON_UTF8)
+                .body(response);
+    }
+
+    @ExceptionHandler(org.springframework.http.converter.HttpMessageNotReadableException.class)
+    public ResponseEntity<Map<String, Object>> handleNotReadable(org.springframework.http.converter.HttpMessageNotReadableException ex) {
+        Map<String, Object> response = new HashMap<>();
+        response.put("timestamp", LocalDateTime.now());
+        response.put("status", HttpStatus.BAD_REQUEST.value());
+        response.put("error", "Format de requête invalide ou valeur non reconnue");
+
+        return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                .contentType(APPLICATION_JSON_UTF8)
+                .body(response);
+    }
 }

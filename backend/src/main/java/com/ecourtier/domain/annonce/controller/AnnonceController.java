@@ -94,13 +94,19 @@ public class AnnonceController {
         return ResponseEntity.noContent().build();
     }
 
+    @GetMapping("/quartiers")
+    @Operation(summary = "Liste des quartiers distincts des annonces disponibles", description = "Accès public pour l'autocomplétion.")
+    public ResponseEntity<List<String>> obtenirQuartiersDisponibles() {
+        return ResponseEntity.ok(annonceService.obtenirQuartiersDisponibles());
+    }
+
     @GetMapping
     @Operation(summary = "Recherche paginée d'annonces avec filtres avancés", description = "Accès public avec critères multiples (budget, superficie, ville, meublé, proximité, etc.).")
     public ResponseEntity<Page<AnnonceResponseDTO>> rechercherAnnonces(
             @PageableDefault(size = 12, sort = "dateCreation", direction = Sort.Direction.DESC) Pageable pageable,
             @RequestParam(required = false) BigDecimal budgetMin,
             @RequestParam(required = false) BigDecimal budgetMax,
-            @RequestParam(required = false) TypeBien type,
+            @RequestParam(name = "type", required = false) List<TypeBien> types,
             @RequestParam(required = false) ModeTransaction modeTransaction,
             @RequestParam(required = false) Double superficieMin,
             @RequestParam(required = false) Integer nombrePieces,
@@ -109,7 +115,7 @@ public class AnnonceController {
             @RequestParam(required = false) Boolean meuble,
             @RequestParam(required = false) Boolean animauxAcceptes,
             @RequestParam(required = false) StatutVerification statutVerification,
-            @RequestParam(required = false) ProximiteTag proximite,
+            @RequestParam(name = "proximite", required = false) List<ProximiteTag> proximites,
             @RequestParam(name = "include_indisponibles", required = false, defaultValue = "false") Boolean includeIndisponibles,
             @RequestParam(name = "mes_annonces", required = false, defaultValue = "false") Boolean mesAnnonces,
             @RequestParam(name = "mes-annonces", required = false, defaultValue = "false") Boolean mesAnnoncesDash,
@@ -123,9 +129,9 @@ public class AnnonceController {
         String userEmail = authentication != null ? authentication.getName() : null;
 
         Page<AnnonceResponseDTO> result = annonceService.rechercherAnnonces(
-                pageable, budgetMin, budgetMax, type, modeTransaction,
+                pageable, budgetMin, budgetMax, types, modeTransaction,
                 superficieMin, nombrePieces, quartier, ville, meuble,
-                animauxAcceptes, statutVerification, proximite, includeIndisponibles, auteurEmail, userEmail
+                animauxAcceptes, statutVerification, proximites, includeIndisponibles, auteurEmail, userEmail
         );
         return ResponseEntity.ok(result);
     }
