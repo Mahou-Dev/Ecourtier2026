@@ -11,6 +11,9 @@ RUN npm install
 # Copy source code
 COPY . .
 
+# Fix permissions on /app for non-root node user
+RUN chown -R node:node /app
+
 # Run container as non-root node user
 USER node
 
