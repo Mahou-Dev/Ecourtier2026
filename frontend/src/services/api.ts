@@ -47,7 +47,20 @@ export async function apiFetch<T>(
     headers,
   });
 
-  // Intercept 401 Unauthorized for token refresh
+  // Never attempt token refresh or logout on 403 Forbidden (insufficient role/permissions)
+  if (response.status === 403) {
+    let errorMessage = 'Accès refusé — Droits insuffisants';
+    try {
+      const errorJson = await response.json();
+      if (errorJson.error) errorMessage = errorJson.error;
+      else if (errorJson.message) errorMessage = errorJson.message;
+    } catch (_) {}
+    const err: any = new Error(errorMessage);
+    err.status = 403;
+    throw err;
+  }
+
+  // Intercept strictly 401 Unauthorized for token refresh (never on 403)
   if (
     response.status === 401 &&
     !isRetry &&
