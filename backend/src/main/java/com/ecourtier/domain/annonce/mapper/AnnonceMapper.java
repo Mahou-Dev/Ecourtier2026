@@ -53,6 +53,7 @@ public class AnnonceMapper {
                 .longitude(entity.getLongitude())
                 .meuble(entity.isMeuble())
                 .animauxAcceptes(entity.isAnimauxAcceptes())
+                .confirmationAutomatique(entity.isConfirmationAutomatique())
                 .lienVisite360(entity.getLienVisite360())
                 .statutVerification(entity.getStatutVerification())
                 .statutPublication(entity.getStatutPublication())

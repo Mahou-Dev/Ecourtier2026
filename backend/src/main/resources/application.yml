@@ -45,6 +45,10 @@ ecourtier:
     base-url: ${IA_BASE_URL:}
   cors:
     allowed-origins: ${ECOURTIER_CORS_ALLOWED_ORIGINS:http://localhost:3000,http://127.0.0.1:3000,http://localhost:5173}
+  rdv:
+    rappel-cron: "${ECOURTIER_RDV_RAPPEL_CRON:0 0 9 * * *}"
+  vente:
+    acompte-pourcentage: ${ECOURTIER_VENTE_ACOMPTE_POURCENTAGE:10}
 
 
 # Springdoc OpenAPI Configuration

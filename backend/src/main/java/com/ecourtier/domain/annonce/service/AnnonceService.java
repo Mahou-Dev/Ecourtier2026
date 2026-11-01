@@ -76,6 +76,7 @@ public class AnnonceService {
                 .longitude(dto.getLongitude())
                 .meuble(dto.isMeuble())
                 .animauxAcceptes(dto.isAnimauxAcceptes())
+                .confirmationAutomatique(dto.getConfirmationAutomatique() == null || dto.getConfirmationAutomatique())
                 .lienVisite360(dto.getLienVisite360())
                 .statutVerification(StatutVerification.EN_ATTENTE)
                 .statutPublication(StatutPublication.DISPONIBLE)
@@ -121,6 +122,7 @@ public class AnnonceService {
         if (dto.getLongitude() != null) annonce.setLongitude(dto.getLongitude());
         if (dto.getMeuble() != null) annonce.setMeuble(dto.getMeuble());
         if (dto.getAnimauxAcceptes() != null) annonce.setAnimauxAcceptes(dto.getAnimauxAcceptes());
+        if (dto.getConfirmationAutomatique() != null) annonce.setConfirmationAutomatique(dto.getConfirmationAutomatique());
         if (dto.getLienVisite360() != null) annonce.setLienVisite360(dto.getLienVisite360());
         if (dto.getStatutPublication() != null) annonce.setStatutPublication(dto.getStatutPublication());
         if (dto.getEquipements() != null) annonce.setEquipements(dto.getEquipements());

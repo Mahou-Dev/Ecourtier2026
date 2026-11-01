@@ -10,6 +10,9 @@ import com.ecourtier.domain.avis.entity.MotifSignalement;
 import com.ecourtier.domain.avis.entity.SignalementEntity;
 import com.ecourtier.domain.avis.entity.StatutSignalement;
 import com.ecourtier.domain.avis.repository.SignalementRepository;
+import com.ecourtier.domain.rendezvous.entity.NotificationSmsEntity;
+import com.ecourtier.domain.rendezvous.entity.TypeNotificationSms;
+import com.ecourtier.domain.rendezvous.repository.NotificationSmsRepository;
 import com.ecourtier.domain.transaction.entity.StatutBail;
 import com.ecourtier.domain.transaction.entity.StatutSequestre;
 import com.ecourtier.domain.transaction.entity.TransactionEntity;
@@ -45,6 +48,9 @@ public class EnumConsistencyIntegrationTest {
 
     @Autowired
     private SignalementRepository signalementRepository;
+
+    @Autowired
+    private NotificationSmsRepository notificationSmsRepository;
 
     @Test
     @DisplayName("Vérifie l'insertion et la persistance en base de toutes les valeurs des Enums métiers (Contraintes CHECK)")
@@ -118,6 +124,18 @@ public class EnumConsistencyIntegrationTest {
                     assertEquals(motif, sig.getMotif());
                     assertEquals(statSig, sig.getStatut());
                 }
+            }
+
+            // 5. TypeNotificationSms
+            for (TypeNotificationSms typeSms : TypeNotificationSms.values()) {
+                NotificationSmsEntity sms = notificationSmsRepository.save(NotificationSmsEntity.builder()
+                        .utilisateur(owner)
+                        .telephone(owner.getTelephone())
+                        .type(typeSms)
+                        .message("Test enum SMS " + typeSms.name())
+                        .statut("SIMULE")
+                        .build());
+                assertEquals(typeSms, sms.getType());
             }
         });
     }
