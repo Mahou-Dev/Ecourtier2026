@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { useSearchParams, Link } from 'react-router-dom';
 import { SlidersHorizontal, MapPin, ShieldCheck, Search, RefreshCw, ChevronLeft, ChevronRight } from 'lucide-react';
 import { useQuery } from '@tanstack/react-query';
+import { motion, useReducedMotion } from 'framer-motion';
 import { apiFetch, getPhotoUrl } from '../services/api';
 import { AnnonceDTO, PageResponse } from '../types';
 import { LeafletMap } from '../components/map/LeafletMap';
@@ -12,8 +13,10 @@ import { Select } from '../components/ui/Select';
 import { Drawer } from '../components/ui/Drawer';
 import { Skeleton } from '../components/ui/Skeleton';
 import { PatternClaustra } from '../components/ui/PatternClaustra';
+import { FavoriteButton } from '../components/ui/FavoriteButton';
 
 export const SearchResultsPage: React.FC = () => {
+  const shouldReduceMotion = useReducedMotion();
   const [searchParams, setSearchParams] = useSearchParams();
   const [selectedPropertyId, setSelectedPropertyId] = useState<string | null>(null);
   const [isFilterDrawerOpen, setIsFilterDrawerOpen] = useState(false);
@@ -181,20 +184,42 @@ export const SearchResultsPage: React.FC = () => {
             </div>
           ) : (
             <>
+            <motion.div
+              initial={shouldReduceMotion ? 'visible' : 'hidden'}
+              animate="visible"
+              variants={{
+                hidden: { opacity: 0 },
+                visible: {
+                  opacity: 1,
+                  transition: {
+                    staggerChildren: shouldReduceMotion ? 0 : 0.05,
+                  },
+                },
+              }}
+              className="space-y-4"
+            >
               {properties.map((prop) => {
                 const isSelected = prop.id === selectedPropertyId;
                 const firstPhoto = prop.photos && prop.photos.length > 0 ? getPhotoUrl(prop.photos[0].url) : getPhotoUrl();
                 return (
-                  <div
+                  <motion.div
                     key={prop.id}
+                    variants={{
+                      hidden: { opacity: 0, y: shouldReduceMotion ? 0 : 12 },
+                      visible: {
+                        opacity: 1,
+                        y: 0,
+                        transition: { duration: 0.25, ease: 'easeOut' },
+                      },
+                    }}
                     onMouseEnter={() => setSelectedPropertyId(prop.id)}
-                    className={`bg-white rounded-xl border transition-all duration-200 overflow-hidden shadow-warm-card flex flex-col sm:flex-row ${
+                    className={`bg-white rounded-xl border transition-all duration-200 overflow-hidden shadow-warm-card flex flex-col sm:flex-row hover:-translate-y-0.5 hover:shadow-lg ${
                       isSelected ? 'border-terracotta-500 ring-2 ring-terracotta-500/20 shadow-terracotta-card' : 'border-argile-200 hover:border-terracotta-400'
                     }`}
                   >
                     {/* Property Image Container */}
-                    <div className="relative w-full sm:w-52 h-44 sm:h-auto shrink-0 bg-sand-200">
-                      <img src={firstPhoto} alt={prop.titre} className="w-full h-full object-cover" />
+                    <div className="relative w-full sm:w-52 h-44 sm:h-auto shrink-0 bg-sand-200 overflow-hidden group">
+                      <img src={firstPhoto} alt={prop.titre} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" />
                       {prop.statutVerification === 'VERIFIEE' && (
                         <div className="absolute top-2 left-2">
                           <Badge variant="sahel" className="text-[10px] px-2 py-0.5 font-bold">
@@ -202,6 +227,12 @@ export const SearchResultsPage: React.FC = () => {
                           </Badge>
                         </div>
                       )}
+                      <div className="absolute top-2 right-2">
+                        <FavoriteButton
+                          annonceId={prop.id}
+                          estFavori={prop.estFavori ?? false}
+                        />
+                      </div>
                     </div>
 
                     {/* Property Details */}
@@ -212,7 +243,7 @@ export const SearchResultsPage: React.FC = () => {
                             <MapPin className="w-3.5 h-3.5 text-terracotta-500" />
                             {prop.quartier}, {prop.ville}
                           </span>
-                          <span className="text-terracotta-600 font-extrabold text-sm">
+                          <span className="text-terracotta-600 font-extrabold text-sm group-hover:scale-105 transition-transform origin-right">
                             {prop.prix.toLocaleString('fr-FR')} FCFA {prop.modeTransaction === 'LOCATION' ? '/ mois' : ''}
                           </span>
                         </div>
@@ -240,9 +271,10 @@ export const SearchResultsPage: React.FC = () => {
                         </Link>
                       </div>
                     </div>
-                  </div>
+                  </motion.div>
                 );
               })}
+            </motion.div>
 
               {/* REAL SPRING PAGEABLE PAGINATION */}
               {data && data.totalPages > 1 && (

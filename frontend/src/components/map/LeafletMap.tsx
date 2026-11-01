@@ -28,7 +28,10 @@ const MapController: React.FC<{
     if (selectedPropertyId) {
       const selected = properties.find((p) => p.id === selectedPropertyId);
       if (selected && selected.latitude && selected.longitude) {
-        map.setView([selected.latitude, selected.longitude], 15, { animate: true });
+        map.flyTo([selected.latitude, selected.longitude], 15, {
+          duration: 0.8,
+          easeLinearity: 0.25,
+        });
       }
     } else if (properties.length > 1) {
       const validPoints = properties
@@ -36,12 +39,18 @@ const MapController: React.FC<{
         .map((p) => [p.latitude, p.longitude] as [number, number]);
       if (validPoints.length > 0) {
         const bounds = L.latLngBounds(validPoints);
-        map.fitBounds(bounds, { padding: [40, 40], maxZoom: 15 });
+        map.fitBounds(bounds, { padding: [40, 40], maxZoom: 15, animate: true, duration: 0.8 });
       }
     } else if (properties.length === 1 && properties[0].latitude && properties[0].longitude) {
-      map.setView([properties[0].latitude, properties[0].longitude], 14, { animate: true });
+      map.flyTo([properties[0].latitude, properties[0].longitude], 14, {
+        duration: 0.8,
+        easeLinearity: 0.25,
+      });
     } else {
-      map.setView(defaultCenter, defaultZoom);
+      map.flyTo(defaultCenter, defaultZoom, {
+        duration: 0.8,
+        easeLinearity: 0.25,
+      });
     }
   }, [map, properties, selectedPropertyId, defaultCenter, defaultZoom]);
 
