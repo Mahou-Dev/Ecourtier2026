@@ -314,15 +314,15 @@ class WorkflowTransactionIntegrationTest {
     }
 
     @Test
-    @DisplayName("Test 7 : Calcul des montants VENTE (premier loyer à 0, caution = prix de vente)")
+    @DisplayName("Test 7 (F29) : VENTE à 45 000 000 FCFA donne un acompte de 4 500 000 FCFA, ignore le montant forgé et verse l'acompte au vendeur")
     @WithMockUser(username = "loc.tx.test@ecourtier.sn", roles = {"LOCATAIRE"})
-    void testCalculMontantsVente() throws Exception {
+    void testCalculMontantsVente45MillionsAcompte10PourcentEtLiberation() throws Exception {
         AnnonceEntity annonceVente = annonceRepository.save(AnnonceEntity.builder()
                 .titre("Villa Fann Résidence")
-                .description("Grande villa standing")
+                .description("Grande villa standing en vente")
                 .type(TypeBien.VILLA)
                 .modeTransaction(ModeTransaction.VENTE)
-                .prix(BigDecimal.valueOf(50000000))
+                .prix(BigDecimal.valueOf(45000000))
                 .superficie(350.0)
                 .nombrePieces(7)
                 .quartier("Fann")
@@ -344,22 +344,50 @@ class WorkflowTransactionIntegrationTest {
                 .statut(StatutRendezVous.EFFECTUE)
                 .build());
 
-        mockMvc.perform(post("/api/v1/annonces/" + annonceVente.getId() + "/transactions")
+        // Montant client falsifié (1 FCFA) envoyé exprès -> doit être ignoré au profit de 10 % de 45 000 000 = 4 500 000 FCFA
+        MvcResult txRes = mockMvc.perform(post("/api/v1/annonces/" + annonceVente.getId() + "/transactions")
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content("{}"))
+                        .content("{\"montantCaution\": 1}"))
                 .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.modeTransaction", is("VENTE")))
+                .andExpect(jsonPath("$.acomptePourcentage").value(10))
                 .andExpect(jsonPath("$.statutSequestre", is("INITIALISE")))
-                .andExpect(jsonPath("$.montantCaution").value(50000000))
+                .andExpect(jsonPath("$.montantCaution").value(4500000))
                 .andExpect(jsonPath("$.montantPremierLoyer").value(0))
                 .andExpect(jsonPath("$.fraisDossier").value(5000))
-                .andExpect(jsonPath("$.montantTotalSequestre").value(50005000))
-                .andExpect(jsonPath("$.montantVerseProprietaire").value(50000000));
+                .andExpect(jsonPath("$.montantTotalSequestre").value(4505000))
+                .andExpect(jsonPath("$.montantVerseProprietaire").value(4500000))
+                .andReturn();
+
+        String txVenteId = objectMapper.readTree(txRes.getResponse().getContentAsString()).get("id").asText();
+
+        // Paiement Wave Sandbox + double signature -> le vendeur reçoit 4 500 000 FCFA, la plateforme garde 5 000 FCFA
+        mockMvc.perform(post("/api/v1/transactions/" + txVenteId + "/paiement-caution"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.statutSequestre", is("BLOQUE")));
+
+        mockMvc.perform(post("/api/v1/transactions/" + txVenteId + "/bail/signer"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.statutBail", is("SIGNE_LOCATAIRE")));
+
+        mockMvc.perform(post("/api/v1/transactions/" + txVenteId + "/bail/signer")
+                        .with(org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.user("prop.tx.test@ecourtier.sn").roles("PROPRIETAIRE")))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.statutBail", is("SIGNE_COMPLET")))
+                .andExpect(jsonPath("$.statutSequestre", is("LIBERE")))
+                .andExpect(jsonPath("$.montantTotalSequestre").value(4505000))
+                .andExpect(jsonPath("$.montantVerseProprietaire").value(4500000))
+                .andExpect(jsonPath("$.fraisDossier").value(5000));
+
+        AnnonceEntity updatedVente = annonceRepository.findById(annonceVente.getId()).orElseThrow();
+        assertEquals(StatutPublication.VENDUE, updatedVente.getStatutPublication());
     }
 
     @Test
-    @DisplayName("Test 8 : Vérification de la génération du PDF du bail avec le détail complet des conditions financières")
-    void testPdfContientDetailConditionsFinancieres() throws Exception {
-        TransactionEntity tx = TransactionEntity.builder()
+    @DisplayName("Test 8 (F29) : Vérification des libellés PDF en LOCATION et en VENTE")
+    void testPdfContientDetailConditionsFinancieresEtLibellesLocationEtVente() throws Exception {
+        // 1. PDF LOCATION
+        TransactionEntity txLocation = TransactionEntity.builder()
                 .id(UUID.randomUUID())
                 .annonce(annonce)
                 .locataire(locataire)
@@ -372,22 +400,63 @@ class WorkflowTransactionIntegrationTest {
                 .referenceWave("WAVE-TEST-999")
                 .build();
 
-        String pdfPath = pdfBailGeneratorService.generatePdfBail(tx);
-        java.io.File pdfFile = new java.io.File(pdfPath);
-        assertTrue(pdfFile.exists());
-        assertTrue(pdfFile.length() > 0);
+        String pdfLocPath = pdfBailGeneratorService.generatePdfBail(txLocation);
+        java.io.File pdfLocFile = new java.io.File(pdfLocPath);
+        assertTrue(pdfLocFile.exists());
+        assertTrue(pdfLocFile.length() > 0);
 
-        com.lowagie.text.pdf.PdfReader reader = new com.lowagie.text.pdf.PdfReader(new java.io.FileInputStream(pdfFile));
-        byte[] pageContent = reader.getPageContent(1);
-        String text = new String(pageContent, java.nio.charset.StandardCharsets.ISO_8859_1);
-        reader.close();
+        com.lowagie.text.pdf.PdfReader readerLoc = new com.lowagie.text.pdf.PdfReader(new java.io.FileInputStream(pdfLocFile));
+        String textLoc = new com.lowagie.text.pdf.parser.PdfTextExtractor(readerLoc).getTextFromPage(1);
+        readerLoc.close();
 
-        assertTrue(text.contains("CONDITIONS FINANCI"));
-        assertTrue(text.contains("250000"));
-        assertTrue(text.contains("5000"));
-        assertTrue(text.contains("505000"));
-        assertTrue(text.contains("500000"));
+        assertTrue(textLoc.contains("CONTRAT DE BAIL NUMÉRIQUE E-COURTIER SÉNÉGAL"));
+        assertTrue(textLoc.contains("Document récapitulatif généré par la plateforme"));
+        assertTrue(!textLoc.contains("il ne constitue pas un acte de vente"));
+        assertTrue(textLoc.contains("CONDITIONS FINANCIÈRES"));
+        assertTrue(textLoc.contains("250000"));
+        assertTrue(textLoc.contains("5000"));
+        assertTrue(textLoc.contains("505000"));
+        assertTrue(textLoc.contains("500000"));
+        pdfLocFile.delete();
 
-        pdfFile.delete();
+        // 2. PDF VENTE
+        AnnonceEntity annonceVente = AnnonceEntity.builder()
+                .id(UUID.randomUUID())
+                .titre("Villa Almadies Vente")
+                .type(TypeBien.VILLA)
+                .modeTransaction(ModeTransaction.VENTE)
+                .prix(BigDecimal.valueOf(45000000))
+                .quartier("Almadies")
+                .ville("Dakar")
+                .utilisateur(proprietaire)
+                .build();
+
+        TransactionEntity txVente = TransactionEntity.builder()
+                .id(UUID.randomUUID())
+                .annonce(annonceVente)
+                .locataire(locataire)
+                .proprietaire(proprietaire)
+                .montantCaution(BigDecimal.valueOf(4500000))
+                .montantPremierLoyer(BigDecimal.ZERO)
+                .fraisDossier(BigDecimal.valueOf(5000))
+                .statutSequestre(StatutSequestre.LIBERE)
+                .statutBail(StatutBail.SIGNE_COMPLET)
+                .referenceWave("WAVE-VENTE-45M")
+                .build();
+
+        String pdfVentePath = pdfBailGeneratorService.generatePdfBail(txVente);
+        java.io.File pdfVenteFile = new java.io.File(pdfVentePath);
+        assertTrue(pdfVenteFile.exists());
+        assertTrue(pdfVenteFile.length() > 0);
+
+        com.lowagie.text.pdf.PdfReader readerVente = new com.lowagie.text.pdf.PdfReader(new java.io.FileInputStream(pdfVenteFile));
+        String textVente = new com.lowagie.text.pdf.parser.PdfTextExtractor(readerVente).getTextFromPage(1);
+        readerVente.close();
+
+        assertTrue(textVente.contains("RÉCAPITULATIF DE RÉSERVATION D'ACHAT"));
+        assertTrue(textVente.contains("Document récapitulatif généré par la plateforme ; il ne constitue pas un acte de vente"));
+        assertTrue(textVente.contains("Acompte de réservation (10 % du prix) : 4500000 FCFA"));
+        assertTrue(textVente.contains("4505000"));
+        pdfVenteFile.delete();
     }
 }

@@ -1,7 +1,9 @@
 package com.ecourtier.domain.transaction.dto;
 
+import com.ecourtier.domain.annonce.entity.ModeTransaction;
 import com.ecourtier.domain.transaction.entity.StatutBail;
 import com.ecourtier.domain.transaction.entity.StatutSequestre;
+import io.swagger.v3.oas.annotations.media.Schema;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
@@ -20,6 +22,16 @@ public class TransactionResponseDTO {
     private UUID id;
     private UUID annonceId;
     private String annonceTitre;
+
+    @Schema(description = "Mode de transaction de l'annonce (LOCATION ou VENTE)")
+    private ModeTransaction modeTransaction;
+
+    @Schema(description = "Prix affiché sur l'annonce (loyer mensuel ou prix de vente)")
+    private BigDecimal annoncePrix;
+
+    @Schema(description = "Pourcentage d'acompte appliqué en mode VENTE (ex: 10)")
+    private Integer acomptePourcentage;
+
     private UUID locataireId;
     private String locataireNomComplet;
     private UUID proprietaireId;
