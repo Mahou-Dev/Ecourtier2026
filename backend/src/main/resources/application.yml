@@ -5,9 +5,9 @@ spring:
     active: ${SPRING_PROFILES_ACTIVE:dev}
 
   datasource:
-    url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://localhost:5432/ecourtier_db}
-    username: ${SPRING_DATASOURCE_USERNAME:ecourtier_user}
-    password: ${SPRING_DATASOURCE_PASSWORD:ecourtier_secure_pass_2026}
+    url: ${SPRING_DATASOURCE_URL:}
+    username: ${SPRING_DATASOURCE_USERNAME:}
+    password: ${SPRING_DATASOURCE_PASSWORD:}
     driver-class-name: org.postgresql.Driver
 
   flyway:
@@ -32,7 +32,7 @@ server:
 # JWT Security Configuration
 ecourtier:
   jwt:
-    secret: ${JWT_SECRET:404E635266556A586E3272357538782F413F4428472B4B6250645367566B5970}
+    secret: ${JWT_SECRET:}
     access-token-expiration-ms: 3600000 # 1 hour (3600s * 1000)
     refresh-token-expiration-ms: 604800000 # 7 days (7 * 86400s * 1000)
   admin:

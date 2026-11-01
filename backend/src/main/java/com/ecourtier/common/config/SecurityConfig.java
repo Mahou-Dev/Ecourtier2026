@@ -23,6 +23,8 @@ import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.security.web.header.writers.ReferrerPolicyHeaderWriter;
 
+import java.nio.charset.StandardCharsets;
+import java.time.LocalDateTime;
 import java.util.Arrays;
 import java.util.List;
 
@@ -53,12 +55,32 @@ public class SecurityConfig {
             .exceptionHandling(ex -> ex
                 .authenticationEntryPoint((request, response, authException) -> {
                     response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
-                    response.setContentType("application/json");
-                    response.getWriter().write("{\"error\":\"Non authentifié — Jeton invalide ou expiré\",\"status\":401}");
+                    response.setCharacterEncoding(StandardCharsets.UTF_8.name());
+                    response.setContentType("application/json;charset=UTF-8");
+                    String safePath = request.getRequestURI() != null ? request.getRequestURI().replace("\"", "") : "";
+                    String body = String.format(
+                        "{\"timestamp\":\"%s\",\"status\":401,\"error\":\"Non authentifié — Jeton manquant, invalide ou expiré\",\"path\":\"%s\"}",
+                        LocalDateTime.now(),
+                        safePath
+                    );
+                    response.getOutputStream().write(body.getBytes(StandardCharsets.UTF_8));
+                })
+                .accessDeniedHandler((request, response, accessDeniedException) -> {
+                    response.setStatus(HttpServletResponse.SC_FORBIDDEN);
+                    response.setCharacterEncoding(StandardCharsets.UTF_8.name());
+                    response.setContentType("application/json;charset=UTF-8");
+                    String safePath = request.getRequestURI() != null ? request.getRequestURI().replace("\"", "") : "";
+                    String body = String.format(
+                        "{\"timestamp\":\"%s\",\"status\":403,\"error\":\"Accès refusé — Droits insuffisants pour cette ressource\",\"path\":\"%s\"}",
+                        LocalDateTime.now(),
+                        safePath
+                    );
+                    response.getOutputStream().write(body.getBytes(StandardCharsets.UTF_8));
                 })
             )
             .authorizeHttpRequests(auth -> auth
                 .requestMatchers(
+                    "/error",
                     "/swagger-ui.html",
                     "/swagger-ui/**",
                     "/v3/api-docs/**",

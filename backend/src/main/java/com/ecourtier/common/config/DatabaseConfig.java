@@ -17,13 +17,13 @@ import java.net.URI;
 @Slf4j
 public class DatabaseConfig {
 
-    @Value("${spring.datasource.url:jdbc:postgresql://localhost:5432/ecourtier_db}")
+    @Value("${spring.datasource.url:}")
     private String rawUrl;
 
-    @Value("${spring.datasource.username:ecourtier_user}")
+    @Value("${spring.datasource.username:}")
     private String username;
 
-    @Value("${spring.datasource.password:ecourtier_secure_pass_2026}")
+    @Value("${spring.datasource.password:}")
     private String password;
 
     @Value("${spring.datasource.driver-class-name:org.postgresql.Driver}")
@@ -32,11 +32,16 @@ public class DatabaseConfig {
     @Bean
     @Primary
     public DataSource dataSource() {
-        String finalUrl = formatJdbcUrl(rawUrl);
-        String finalUsername = extractUsername(rawUrl, username);
-        String finalPassword = extractPassword(rawUrl, password);
+        boolean isH2Driver = driverClassName != null && driverClassName.toLowerCase().contains("h2");
+        String finalUrl = resolveJdbcUrl(rawUrl, driverClassName);
+        String finalUsername = isH2Driver && (username == null || username.isBlank())
+                ? "sa"
+                : extractUsername(rawUrl, username);
+        String finalPassword = isH2Driver && password == null
+                ? ""
+                : extractPassword(rawUrl, password);
 
-        log.info("[DATABASE CONFIG] Initialisation du DataSource avec l'URL JDBC : {}", finalUrl);
+        log.info("[DATABASE CONFIG] Initialisation du DataSource ({}) avec l'URL JDBC : {}", driverClassName, finalUrl);
 
         HikariConfig config = new HikariConfig();
         config.setJdbcUrl(finalUrl);
@@ -49,9 +54,25 @@ public class DatabaseConfig {
         return new HikariDataSource(config);
     }
 
+    public static String resolveJdbcUrl(String rawUrl, String driverClassName) {
+        boolean isH2Driver = driverClassName != null && driverClassName.toLowerCase().contains("h2");
+        if (isH2Driver) {
+            if (rawUrl != null && rawUrl.trim().startsWith("jdbc:h2:")) {
+                return rawUrl.trim();
+            }
+            return "jdbc:h2:mem:ecourtier_mem;DB_CLOSE_DELAY=-1;MODE=PostgreSQL;DATABASE_TO_LOWER=TRUE";
+        }
+        if (rawUrl == null || rawUrl.trim().isEmpty()) {
+            throw new IllegalStateException(
+                    "Démarrage refusé : SPRING_DATASOURCE_URL (spring.datasource.url) est obligatoire."
+            );
+        }
+        return formatJdbcUrl(rawUrl);
+    }
+
     public static String formatJdbcUrl(String rawUrl) {
         if (rawUrl == null || rawUrl.trim().isEmpty()) {
-            return "jdbc:postgresql://localhost:5432/ecourtier_db";
+            return "";
         }
         String urlToParse = rawUrl.trim();
         if (urlToParse.startsWith("jdbc:")) {

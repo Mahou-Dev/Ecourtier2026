@@ -1,4 +1,9 @@
 spring:
+  datasource:
+    url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://localhost:5432/ecourtier_db}
+    username: ${SPRING_DATASOURCE_USERNAME:ecourtier_user}
+    password: ${SPRING_DATASOURCE_PASSWORD:ecourtier_secure_pass_2026}
+    driver-class-name: org.postgresql.Driver
   jpa:
     hibernate:
       ddl-auto: validate
@@ -15,6 +20,8 @@ logging:
     org.hibernate.type.descriptor.sql: TRACE
 
 ecourtier:
+  jwt:
+    secret: ${JWT_SECRET:404E635266556A586E3272357538782F413F4428472B4B6250645367566B5970}
   ia:
     provider: gemini
 
