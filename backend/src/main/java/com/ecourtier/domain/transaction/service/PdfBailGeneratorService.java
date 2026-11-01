@@ -59,7 +59,10 @@ public class PdfBailGeneratorService {
 
             document.add(new Paragraph("3. CONDITIONS FINANCIÈRES", sectionFont));
             document.add(new Paragraph("Montant de la caution : " + transaction.getMontantCaution() + " FCFA", bodyFont));
+            document.add(new Paragraph("Montant du premier loyer : " + transaction.getMontantPremierLoyer() + " FCFA", bodyFont));
             document.add(new Paragraph("Frais de dossier plateforme : " + transaction.getFraisDossier() + " FCFA", bodyFont));
+            document.add(new Paragraph("Montant total consigné en séquestre : " + transaction.getMontantTotalSequestre() + " FCFA", bodyFont));
+            document.add(new Paragraph("Montant versé au bailleur à la libération : " + transaction.getMontantVerseProprietaire() + " FCFA", bodyFont));
             document.add(new Paragraph("Référence paiement Wave : " + (transaction.getReferenceWave() != null ? transaction.getReferenceWave() : "En attente"), bodyFont));
             document.add(new Paragraph(" ", bodyFont));
 

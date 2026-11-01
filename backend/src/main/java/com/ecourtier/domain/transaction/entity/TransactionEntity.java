@@ -53,6 +53,10 @@ public class TransactionEntity {
     @Column(name = "montant_caution", nullable = false, precision = 15, scale = 2)
     private BigDecimal montantCaution;
 
+    @Column(name = "montant_premier_loyer", nullable = false, precision = 15, scale = 2)
+    @Builder.Default
+    private BigDecimal montantPremierLoyer = BigDecimal.ZERO;
+
     @Column(name = "frais_dossier", nullable = false, precision = 15, scale = 2)
     @Builder.Default
     private BigDecimal fraisDossier = BigDecimal.valueOf(5000);
@@ -94,11 +98,27 @@ public class TransactionEntity {
         if (fraisDossier == null) {
             fraisDossier = BigDecimal.valueOf(5000);
         }
+        if (montantPremierLoyer == null) {
+            montantPremierLoyer = BigDecimal.ZERO;
+        }
         if (statutSequestre == null) {
             statutSequestre = StatutSequestre.INITIALISE;
         }
         if (statutBail == null) {
             statutBail = StatutBail.NON_SIGNE;
         }
+    }
+
+    public BigDecimal getMontantTotalSequestre() {
+        BigDecimal caution = montantCaution != null ? montantCaution : BigDecimal.ZERO;
+        BigDecimal premierLoyer = montantPremierLoyer != null ? montantPremierLoyer : BigDecimal.ZERO;
+        BigDecimal frais = fraisDossier != null ? fraisDossier : BigDecimal.ZERO;
+        return caution.add(premierLoyer).add(frais);
+    }
+
+    public BigDecimal getMontantVerseProprietaire() {
+        BigDecimal caution = montantCaution != null ? montantCaution : BigDecimal.ZERO;
+        BigDecimal premierLoyer = montantPremierLoyer != null ? montantPremierLoyer : BigDecimal.ZERO;
+        return caution.add(premierLoyer);
     }
 }

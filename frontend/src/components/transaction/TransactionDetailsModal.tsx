@@ -48,7 +48,7 @@ export const TransactionDetailsModal: React.FC<TransactionDetailsModalProps> = (
         `/api/v1/transactions/${transaction.id}/paiement-caution`,
         { method: 'POST' }
       );
-      toast.success(`Paiement de la caution effectué ! Réf Wave: ${res.referenceWave}`);
+      toast.success(`Paiement du séquestre effectué ! Réf Wave: ${res.referenceWave}`);
       onRefresh();
     } catch (err: any) {
       if (err.status === 403) {
@@ -152,7 +152,7 @@ export const TransactionDetailsModal: React.FC<TransactionDetailsModalProps> = (
           <div className="flex items-center justify-between">
             <h4 className="font-display font-bold text-sm text-sahel-900 flex items-center gap-2">
               <CreditCard className="w-4 h-4 text-terracotta-500" />
-              <span>1. Caution Séquestre Bancaire</span>
+              <span>1. Séquestre Bancaire (Caution + 1er Loyer)</span>
             </h4>
             {transaction.statutSequestre === 'BLOQUE' || transaction.statutSequestre === 'LIBERE' ? (
               <span className="text-xs font-bold text-emerald-700 flex items-center gap-1">
@@ -165,19 +165,23 @@ export const TransactionDetailsModal: React.FC<TransactionDetailsModalProps> = (
             )}
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-xs">
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-xs">
             <div className="p-3 rounded-xl bg-sand-50 border border-sand-200">
-              <p className="text-sahel-600">Montant Caution</p>
+              <p className="text-sahel-600">Caution</p>
               <p className="font-display font-bold text-sm text-sahel-900">{transaction.montantCaution.toLocaleString('fr-FR')} FCFA</p>
+            </div>
+            <div className="p-3 rounded-xl bg-sand-50 border border-sand-200">
+              <p className="text-sahel-600">Premier loyer</p>
+              <p className="font-display font-bold text-sm text-sahel-900">{(transaction.montantPremierLoyer || 0).toLocaleString('fr-FR')} FCFA</p>
             </div>
             <div className="p-3 rounded-xl bg-sand-50 border border-sand-200">
               <p className="text-sahel-600">Frais de dossier</p>
               <p className="font-display font-bold text-sm text-sahel-900">{transaction.fraisDossier.toLocaleString('fr-FR')} FCFA</p>
             </div>
-            <div className="p-3 rounded-xl bg-sand-50 border border-sand-200">
-              <p className="text-sahel-600">Total à consigner</p>
+            <div className="p-3 rounded-xl bg-terracotta-50/50 border border-terracotta-200">
+              <p className="text-terracotta-800 font-semibold">Total consigné</p>
               <p className="font-display font-bold text-sm text-terracotta-700">
-                {(transaction.montantCaution + transaction.fraisDossier).toLocaleString('fr-FR')} FCFA
+                {(transaction.montantTotalSequestre ?? (transaction.montantCaution + (transaction.montantPremierLoyer || 0) + transaction.fraisDossier)).toLocaleString('fr-FR')} FCFA
               </p>
             </div>
           </div>
@@ -185,7 +189,22 @@ export const TransactionDetailsModal: React.FC<TransactionDetailsModalProps> = (
           {transaction.referenceWave && (
             <div className="p-3 rounded-xl bg-emerald-50 border border-emerald-200 text-xs text-emerald-900 flex items-center justify-between">
               <span>Référence Wave Sandbox : <strong>{transaction.referenceWave}</strong></span>
-              <Badge variant="success">Consigné</Badge>
+              <Badge variant="success">Séquestre bloqué</Badge>
+            </div>
+          )}
+
+          {transaction.statutSequestre === 'LIBERE' && (
+            <div className="p-3.5 rounded-xl bg-emerald-50 border border-emerald-200 text-xs text-emerald-900 space-y-1">
+              <div className="flex items-center gap-1.5 font-bold">
+                <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+                <span>Fonds libérés avec succès</span>
+              </div>
+              <p>
+                Montant versé au propriétaire ({transaction.proprietaireNomComplet || 'Bailleur'}) : <strong>{(transaction.montantVerseProprietaire ?? (transaction.montantCaution + (transaction.montantPremierLoyer || 0))).toLocaleString('fr-FR')} FCFA</strong> (caution + premier loyer).
+              </p>
+              <p className="text-emerald-700">
+                Frais de plateforme conservés : <strong>{transaction.fraisDossier.toLocaleString('fr-FR')} FCFA</strong>.
+              </p>
             </div>
           )}
 
@@ -198,11 +217,11 @@ export const TransactionDetailsModal: React.FC<TransactionDetailsModalProps> = (
                   isLoading={isPaying}
                   onClick={handlePaiementCaution}
                 >
-                  Payer via Wave (Sandbox)
+                  Payer {(transaction.montantTotalSequestre ?? (transaction.montantCaution + (transaction.montantPremierLoyer || 0) + transaction.fraisDossier)).toLocaleString('fr-FR')} FCFA via Wave (Sandbox)
                 </Button>
               ) : (
                 <p className="text-xs text-sahel-600 italic">
-                  En attente du paiement de la caution par le locataire ({transaction.locataireNomComplet}).
+                  En attente du paiement du séquestre par le locataire ({transaction.locataireNomComplet}).
                 </p>
               )}
             </div>

@@ -65,12 +65,24 @@ public class TransactionService {
             );
         }
 
+        // Calcul des montants strictement côté serveur à partir de l'annonce (§4)
+        // LOCATION : caution = 1 mois de loyer (prix), 1er loyer = prix, frais = 5 000 FCFA
+        // VENTE : caution = prix (acompte/garantie), 1er loyer = 0, frais = 5 000 FCFA
+        // Tout montant envoyé par le client dans la requête est délibérément ignoré
+        BigDecimal prixAnnonce = annonce.getPrix() != null ? annonce.getPrix() : BigDecimal.ZERO;
+        BigDecimal montantCaution = prixAnnonce;
+        BigDecimal montantPremierLoyer = (annonce.getModeTransaction() == ModeTransaction.LOCATION)
+                ? prixAnnonce
+                : BigDecimal.ZERO;
+        BigDecimal fraisDossier = BigDecimal.valueOf(5000);
+
         TransactionEntity tx = TransactionEntity.builder()
                 .annonce(annonce)
                 .locataire(locataire)
                 .proprietaire(annonce.getUtilisateur())
-                .montantCaution(request.getMontantCaution())
-                .fraisDossier(BigDecimal.valueOf(5000))
+                .montantCaution(montantCaution)
+                .montantPremierLoyer(montantPremierLoyer)
+                .fraisDossier(fraisDossier)
                 .statutSequestre(StatutSequestre.INITIALISE)
                 .statutBail(StatutBail.NON_SIGNE)
                 .build();
@@ -84,9 +96,11 @@ public class TransactionService {
         TransactionEntity tx = transactionRepository.findById(transactionId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Transaction introuvable"));
 
+        BigDecimal montantTotalSequestre = tx.getMontantTotalSequestre();
+
         WaveCheckoutResponse response = waveClient.initiateEscrowCheckout(
                 tx.getId(),
-                tx.getMontantCaution(),
+                montantTotalSequestre,
                 tx.getLocataire() != null ? tx.getLocataire().getTelephone() : null
         );
 
@@ -152,7 +166,14 @@ public class TransactionService {
 
     private void verifierEtDeclencherLiberation(TransactionEntity tx) {
         if (tx.getStatutBail() == StatutBail.SIGNE_COMPLET && tx.getStatutSequestre() == StatutSequestre.BLOQUE) {
-            log.info("[LIBÉRATION AUTOMATIQUE SÉQUESTRE] Bail signé complet ET séquestre bloqué pour la transaction {}. Libération des fonds...", tx.getId());
+            BigDecimal montantVerseProprietaire = tx.getMontantVerseProprietaire();
+            BigDecimal fraisConserves = tx.getFraisDossier() != null ? tx.getFraisDossier() : BigDecimal.valueOf(5000);
+
+            log.info("[LIBÉRATION AUTOMATIQUE SÉQUESTRE] Bail signé complet ET séquestre bloqué pour la transaction {}. " +
+                            "Total séquestre: {} FCFA. Reversé au propriétaire: {} FCFA (caution {} + premier loyer {}). " +
+                            "Frais plateforme conservés: {} FCFA. Statut -> LIBERE",
+                    tx.getId(), tx.getMontantTotalSequestre(), montantVerseProprietaire,
+                    tx.getMontantCaution(), tx.getMontantPremierLoyer(), fraisConserves);
 
             tx.setStatutSequestre(StatutSequestre.LIBERE);
             tx.setDateLiberation(LocalDateTime.now());

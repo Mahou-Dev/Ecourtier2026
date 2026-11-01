@@ -17,6 +17,7 @@ import com.ecourtier.domain.transaction.repository.TransactionRepository;
 import com.ecourtier.domain.utilisateur.entity.Role;
 import com.ecourtier.domain.utilisateur.entity.UtilisateurEntity;
 import com.ecourtier.domain.utilisateur.repository.UtilisateurRepository;
+import com.ecourtier.domain.transaction.service.PdfBailGeneratorService;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -32,10 +33,12 @@ import org.springframework.test.web.servlet.MvcResult;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
+import java.util.UUID;
 
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -63,6 +66,9 @@ class WorkflowTransactionIntegrationTest {
 
     @Autowired
     private TransactionRepository transactionRepository;
+
+    @Autowired
+    private PdfBailGeneratorService pdfBailGeneratorService;
 
     private UtilisateurEntity proprietaire;
     private UtilisateurEntity locataire;
@@ -166,6 +172,11 @@ class WorkflowTransactionIntegrationTest {
                 .andExpect(status().isCreated())
                 .andExpect(jsonPath("$.statutSequestre", is("INITIALISE")))
                 .andExpect(jsonPath("$.statutBail", is("NON_SIGNE")))
+                .andExpect(jsonPath("$.montantCaution").value(250000))
+                .andExpect(jsonPath("$.montantPremierLoyer").value(250000))
+                .andExpect(jsonPath("$.fraisDossier").value(5000))
+                .andExpect(jsonPath("$.montantTotalSequestre").value(505000))
+                .andExpect(jsonPath("$.montantVerseProprietaire").value(500000))
                 .andReturn();
 
         String txId = objectMapper.readTree(txResult.getResponse().getContentAsString()).get("id").asText();
@@ -188,6 +199,8 @@ class WorkflowTransactionIntegrationTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.statutBail", is("SIGNE_COMPLET")))
                 .andExpect(jsonPath("$.statutSequestre", is("LIBERE")))
+                .andExpect(jsonPath("$.montantTotalSequestre").value(505000))
+                .andExpect(jsonPath("$.montantVerseProprietaire").value(500000))
                 .andExpect(jsonPath("$.dateLiberation", notNullValue()))
                 .andExpect(jsonPath("$.pdfBailPath", notNullValue()));
 
@@ -272,5 +285,109 @@ class WorkflowTransactionIntegrationTest {
         // Vérifier en base que le statut est resté SIGNE_LOCATAIRE (pas SIGNE_COMPLET)
         TransactionEntity txUpdated = transactionRepository.findById(tx.getId()).orElseThrow();
         assertEquals(StatutBail.SIGNE_LOCATAIRE, txUpdated.getStatutBail());
+    }
+
+    @Test
+    @DisplayName("Test 6 : Calcul des montants LOCATION et montant client forgé expressément ignoré")
+    @WithMockUser(username = "loc.tx.test@ecourtier.sn", roles = {"LOCATAIRE"})
+    void testCalculMontantsLocationEtMontantForgeIgnore() throws Exception {
+        rendezVousRepository.save(RendezVousEntity.builder()
+                .annonce(annonce)
+                .demandeur(locataire)
+                .dateHeure(LocalDateTime.now().minusDays(1))
+                .statut(StatutRendezVous.EFFECTUE)
+                .build());
+
+        // Le client envoie un montant falsifié (ex: montantCaution = 1 FCFA)
+        String payloadFalsifie = "{\"montantCaution\": 1}";
+
+        mockMvc.perform(post("/api/v1/annonces/" + annonce.getId() + "/transactions")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(payloadFalsifie))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.statutSequestre", is("INITIALISE")))
+                .andExpect(jsonPath("$.montantCaution").value(250000))
+                .andExpect(jsonPath("$.montantPremierLoyer").value(250000))
+                .andExpect(jsonPath("$.fraisDossier").value(5000))
+                .andExpect(jsonPath("$.montantTotalSequestre").value(505000))
+                .andExpect(jsonPath("$.montantVerseProprietaire").value(500000));
+    }
+
+    @Test
+    @DisplayName("Test 7 : Calcul des montants VENTE (premier loyer à 0, caution = prix de vente)")
+    @WithMockUser(username = "loc.tx.test@ecourtier.sn", roles = {"LOCATAIRE"})
+    void testCalculMontantsVente() throws Exception {
+        AnnonceEntity annonceVente = annonceRepository.save(AnnonceEntity.builder()
+                .titre("Villa Fann Résidence")
+                .description("Grande villa standing")
+                .type(TypeBien.VILLA)
+                .modeTransaction(ModeTransaction.VENTE)
+                .prix(BigDecimal.valueOf(50000000))
+                .superficie(350.0)
+                .nombrePieces(7)
+                .quartier("Fann")
+                .ville("Dakar")
+                .latitude(14.69)
+                .longitude(-17.47)
+                .meuble(false)
+                .animauxAcceptes(true)
+                .statutVerification(StatutVerification.VERIFIEE)
+                .statutPublication(StatutPublication.DISPONIBLE)
+                .supprime(false)
+                .utilisateur(proprietaire)
+                .build());
+
+        rendezVousRepository.save(RendezVousEntity.builder()
+                .annonce(annonceVente)
+                .demandeur(locataire)
+                .dateHeure(LocalDateTime.now().minusDays(1))
+                .statut(StatutRendezVous.EFFECTUE)
+                .build());
+
+        mockMvc.perform(post("/api/v1/annonces/" + annonceVente.getId() + "/transactions")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{}"))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.statutSequestre", is("INITIALISE")))
+                .andExpect(jsonPath("$.montantCaution").value(50000000))
+                .andExpect(jsonPath("$.montantPremierLoyer").value(0))
+                .andExpect(jsonPath("$.fraisDossier").value(5000))
+                .andExpect(jsonPath("$.montantTotalSequestre").value(50005000))
+                .andExpect(jsonPath("$.montantVerseProprietaire").value(50000000));
+    }
+
+    @Test
+    @DisplayName("Test 8 : Vérification de la génération du PDF du bail avec le détail complet des conditions financières")
+    void testPdfContientDetailConditionsFinancieres() throws Exception {
+        TransactionEntity tx = TransactionEntity.builder()
+                .id(UUID.randomUUID())
+                .annonce(annonce)
+                .locataire(locataire)
+                .proprietaire(proprietaire)
+                .montantCaution(BigDecimal.valueOf(250000))
+                .montantPremierLoyer(BigDecimal.valueOf(250000))
+                .fraisDossier(BigDecimal.valueOf(5000))
+                .statutSequestre(StatutSequestre.LIBERE)
+                .statutBail(StatutBail.SIGNE_COMPLET)
+                .referenceWave("WAVE-TEST-999")
+                .build();
+
+        String pdfPath = pdfBailGeneratorService.generatePdfBail(tx);
+        java.io.File pdfFile = new java.io.File(pdfPath);
+        assertTrue(pdfFile.exists());
+        assertTrue(pdfFile.length() > 0);
+
+        com.lowagie.text.pdf.PdfReader reader = new com.lowagie.text.pdf.PdfReader(new java.io.FileInputStream(pdfFile));
+        byte[] pageContent = reader.getPageContent(1);
+        String text = new String(pageContent, java.nio.charset.StandardCharsets.ISO_8859_1);
+        reader.close();
+
+        assertTrue(text.contains("CONDITIONS FINANCI"));
+        assertTrue(text.contains("250000"));
+        assertTrue(text.contains("5000"));
+        assertTrue(text.contains("505000"));
+        assertTrue(text.contains("500000"));
+
+        pdfFile.delete();
     }
 }
