@@ -107,6 +107,9 @@ public class AnnonceEntity {
     @Builder.Default
     private boolean supprime = false;
 
+    @Column(name = "date_verification")
+    private LocalDateTime dateVerification;
+
     @Column(name = "date_creation", nullable = false, updatable = false)
     private LocalDateTime dateCreation;
 
