@@ -29,7 +29,7 @@ export const Footer: React.FC = () => {
           <ul className="space-y-2 text-sm text-sahel-200/90">
             <li>✔ Annonces vérifiées anti-arnaques</li>
             <li>✔ Caution bloquée sous séquestre bancaire</li>
-            <li>✔ Signature de bail conforme au code sénégalais</li>
+            <li>✔ Bail numérique avec double signature électronique</li>
             <li>✔ Assistant IA de recherche personnalisé</li>
           </ul>
         </div>

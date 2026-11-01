@@ -90,7 +90,7 @@ export const LoginPage: React.FC = () => {
 
         <div className="relative z-10 flex items-center gap-2 text-xs text-sahel-300">
           <ShieldCheck className="w-4 h-4 text-ocher-400" />
-          <span>Plateforme 100% conforme au Code des Obligations Civiles du Sénégal</span>
+          <span>Bail numérique avec double signature électronique</span>
         </div>
       </div>
 

@@ -228,14 +228,14 @@ export const ComingSoonPage: React.FC = () => {
               <div className="w-12 h-12 rounded-xl bg-sand-300 flex items-center justify-center text-charcoal-900">
                 <FileText className="w-6 h-6" />
               </div>
-              <Badge variant="sand">Bail Légal SN</Badge>
+              <Badge variant="sand">Bail Numérique</Badge>
             </CardHeader>
             <CardBody className="space-y-3">
               <h3 className="font-display font-bold text-lg text-charcoal-800">
-                Signature de Bail Électronique
+                Bail numérique avec double signature électronique
               </h3>
               <p className="text-sm text-charcoal-600 leading-relaxed">
-                Génération automatique du contrat de bail à usage d'habitation conforme au Code des Obligations Civiles et Commerciales (COCC) du Sénégal, avec signature électronique à valeur légale.
+                Génération automatique du contrat de bail PDF horodaté avec double signature électronique du locataire et du propriétaire.
               </p>
             </CardBody>
           </Card>

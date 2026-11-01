@@ -367,12 +367,12 @@ export const HomePage: React.FC = () => {
                   <FileText className="w-5 h-5" />
                 </div>
               </div>
-              <h3 className="font-display font-bold text-lg text-white">Bail Numérique COCC</h3>
+              <h3 className="font-display font-bold text-lg text-white">Bail numérique avec double signature électronique</h3>
               <p className="text-xs text-sahel-200 leading-relaxed">
-                Génération du contrat officiel conforme au Code des Obligations Civiles du Sénégal avec double signature électronique.
+                Génération automatique du contrat PDF horodaté avec double signature électronique du locataire et du propriétaire.
               </p>
               <div className="pt-2 text-[11px] text-ocher-300 font-semibold border-t border-sahel-700">
-                &check; Signature électronique légale
+                &check; Double signature électronique
               </div>
             </div>
 
