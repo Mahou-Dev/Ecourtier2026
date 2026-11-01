@@ -70,4 +70,35 @@ class JwtServiceTest {
         String expiredToken = jwtService.generateAccessToken(testUser);
         assertFalse(jwtService.isTokenValid(expiredToken));
     }
+
+    @Test
+    @DisplayName("Refus de démarrer si JWT_SECRET est absent, vide ou trop court")
+    void testRefusDemarrageSiJwtSecretAbsentOuFaible() {
+        JwtService missingSecretService = new JwtService();
+        ReflectionTestUtils.setField(missingSecretService, "secretKey", "");
+        IllegalStateException emptyEx = assertThrows(IllegalStateException.class, missingSecretService::validateSecretKey);
+        assertTrue(emptyEx.getMessage().contains("JWT_SECRET"));
+
+        ReflectionTestUtils.setField(missingSecretService, "secretKey", null);
+        assertThrows(IllegalStateException.class, missingSecretService::validateSecretKey);
+
+        ReflectionTestUtils.setField(missingSecretService, "secretKey", "short_secret");
+        assertThrows(IllegalStateException.class, missingSecretService::validateSecretKey);
+
+        // Vérifie l'échec d'initialisation du contexte Spring si ecourtier.jwt.secret est vide (profil prod)
+        org.springframework.boot.test.context.runner.ApplicationContextRunner contextRunner =
+                new org.springframework.boot.test.context.runner.ApplicationContextRunner()
+                        .withUserConfiguration(JwtService.class)
+                        .withPropertyValues("ecourtier.jwt.secret=");
+
+        contextRunner.run(context -> {
+            assertNotNull(context.getStartupFailure(), "Le contexte Spring doit refuser de démarrer sans JWT_SECRET");
+            Throwable root = context.getStartupFailure();
+            while (root.getCause() != null) {
+                root = root.getCause();
+            }
+            assertInstanceOf(IllegalStateException.class, root);
+            assertTrue(root.getMessage().contains("JWT_SECRET"));
+        });
+    }
 }
