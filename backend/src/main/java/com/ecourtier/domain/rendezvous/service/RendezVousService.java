@@ -43,6 +43,7 @@ public class RendezVousService {
     private final UtilisateurRepository utilisateurRepository;
     private final RendezVousMapper rendezVousMapper;
     private final SmsGateway smsGateway;
+    private final java.time.Clock clock;
 
     @Transactional
     public RendezVousResponseDTO demanderRendezVous(UUID annonceId, RendezVousRequestDTO request, String userEmail) {
@@ -241,7 +242,7 @@ public class RendezVousService {
     @Scheduled(cron = "${ecourtier.rdv.rappel-cron:0 0 9 * * *}", zone = "Africa/Dakar")
     @Transactional
     public int simulerRappelsDemain() {
-        LocalDate tomorrow = ZonedDateTime.now(DAKAR_ZONE).toLocalDate().plusDays(1);
+        LocalDate tomorrow = LocalDate.now(clock != null ? clock.withZone(DAKAR_ZONE) : java.time.Clock.system(DAKAR_ZONE)).plusDays(1);
         LocalDateTime startTomorrow = tomorrow.atStartOfDay();
         LocalDateTime endTomorrow = tomorrow.atTime(23, 59, 59);
 

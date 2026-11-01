@@ -243,14 +243,31 @@ public class RendezVousServiceTest {
     }
 
     @Test
-    @DisplayName("Simulation des rappels SMS automatique")
-    void testSimulerRappelsDemain() {
-        when(rendezVousRepository.findByStatutAndRappelEnvoyeFalseAndDateHeureBetween(eq(StatutRendezVous.CONFIRME), any(), any()))
-                .thenReturn(List.of(rdv));
+    @DisplayName("Simulation des rappels SMS automatique basée sur dateHeure de demain (horloge injectée)")
+    void testSimulerRappelsDemainAvecHorlogeInjectee() {
+        java.time.Clock fixedClock = java.time.Clock.fixed(
+                java.time.Instant.parse("2026-11-01T10:00:00Z"),
+                java.time.ZoneId.of("Africa/Dakar")
+        );
+        org.springframework.test.util.ReflectionTestUtils.setField(rendezVousService, "clock", fixedClock);
+
+        org.mockito.ArgumentCaptor<LocalDateTime> startCaptor = org.mockito.ArgumentCaptor.forClass(LocalDateTime.class);
+        org.mockito.ArgumentCaptor<LocalDateTime> endCaptor = org.mockito.ArgumentCaptor.forClass(LocalDateTime.class);
+
+        when(rendezVousRepository.findByStatutAndRappelEnvoyeFalseAndDateHeureBetween(
+                eq(StatutRendezVous.CONFIRME),
+                startCaptor.capture(),
+                endCaptor.capture()
+        )).thenReturn(List.of(rdv));
 
         int count = rendezVousService.simulerRappelsDemain();
         assertEquals(1, count);
         assertTrue(rdv.getRappelEnvoye());
+
+        // Prouve que la requête porte strictement sur dateHeure = demain (2026-11-02), indépendamment de dateCreation
+        assertEquals(LocalDateTime.of(2026, 11, 2, 0, 0, 0), startCaptor.getValue());
+        assertEquals(LocalDateTime.of(2026, 11, 2, 23, 59, 59), endCaptor.getValue());
+
         verify(rendezVousRepository).save(rdv);
         verify(smsGateway).envoyerSms(eq(locataire), eq(locataire.getTelephone()), eq(TypeNotificationSms.RDV_RAPPEL), any(), eq(rdv));
     }
