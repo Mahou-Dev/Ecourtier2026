@@ -58,6 +58,7 @@ public class AnnonceMapper {
                 .statutVerification(entity.getStatutVerification())
                 .statutPublication(entity.getStatutPublication())
                 .dateCreation(entity.getDateCreation())
+                .auteurRole(entity.getUtilisateur() != null ? entity.getUtilisateur().getRole() : null)
                 .auteur(utilisateurMapper.toResponseDTO(entity.getUtilisateur()))
                 .photos(photos)
                 .equipements(entity.getEquipements())
@@ -89,9 +90,15 @@ public class AnnonceMapper {
 
     public DocumentVerificationResponseDTO toDocumentDTO(DocumentVerificationEntity entity) {
         if (entity == null) return null;
+        String nomFichier = entity.getNomFichier();
+        if ((nomFichier == null || nomFichier.isBlank()) && entity.getUrl() != null) {
+            int lastSlash = entity.getUrl().lastIndexOf('/');
+            nomFichier = lastSlash >= 0 ? entity.getUrl().substring(lastSlash + 1) : entity.getUrl();
+        }
         return DocumentVerificationResponseDTO.builder()
                 .id(entity.getId())
                 .typeDocument(entity.getTypeDocument())
+                .nomFichier(nomFichier)
                 .url("/api/v1/annonces/" + entity.getAnnonce().getId() + "/documents/" + entity.getId() + "/fichier")
                 .statut(entity.getStatut())
                 .motifRejet(entity.getMotifRejet())
