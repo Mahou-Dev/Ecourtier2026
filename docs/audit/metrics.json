@@ -1,13 +1,15 @@
 {
   "backend": {
-    "java_main_files_total": 170,
-    "java_main_files_excluding_package_info": 142,
+    "java_main_files_total": 189,
+    "java_main_files_excluding_package_info": 161,
     "package_info_files": 28,
-    "java_main_total_lines": 8004,
-    "java_main_sloc": 6705,
-    "sql_migrations_count": 10,
+    "java_main_total_lines": 9645,
+    "java_main_sloc": 8143,
+    "sql_migrations_count": 12,
     "sql_migrations_files": [
       "V10__add_montant_premier_loyer_to_transactions.sql",
+      "V11__rdv_auto_confirm_and_notifications_sms.sql",
+      "V12__add_nom_fichier_documents_verification.sql",
       "V1__init_schema.sql",
       "V2__annonces_uploads_verification.sql",
       "V3__ia_conversations.sql",
@@ -18,14 +20,14 @@
       "V8__add_date_verification_to_annonces.sql",
       "V9__add_nombre_annonces_suggerees_to_messages_ia.sql"
     ],
-    "sql_migrations_lines": 245,
+    "sql_migrations_lines": 268,
     "yml_config_files": [
       "application-dev.yml",
       "application-prod.yml",
       "application.yml"
     ],
-    "yml_config_lines": 87,
-    "entities_count": 13,
+    "yml_config_lines": 111,
+    "entities_count": 14,
     "entities": [
       "backend/src/main/java/com/ecourtier/domain/annonce/entity/AnnonceEntity.java",
       "backend/src/main/java/com/ecourtier/domain/annonce/entity/DocumentVerificationEntity.java",
@@ -37,11 +39,12 @@
       "backend/src/main/java/com/ecourtier/domain/ia/entity/MessageIAEntity.java",
       "backend/src/main/java/com/ecourtier/domain/messagerie/entity/ConversationChatEntity.java",
       "backend/src/main/java/com/ecourtier/domain/messagerie/entity/MessageChatEntity.java",
+      "backend/src/main/java/com/ecourtier/domain/rendezvous/entity/NotificationSmsEntity.java",
       "backend/src/main/java/com/ecourtier/domain/rendezvous/entity/RendezVousEntity.java",
       "backend/src/main/java/com/ecourtier/domain/transaction/entity/TransactionEntity.java",
       "backend/src/main/java/com/ecourtier/domain/utilisateur/entity/UtilisateurEntity.java"
     ],
-    "controllers_count": 17,
+    "controllers_count": 20,
     "controllers": [
       "backend/src/main/java/com/ecourtier/common/controller/AdminSeedController.java",
       "backend/src/main/java/com/ecourtier/common/controller/UploadController.java",
@@ -56,13 +59,16 @@
       "backend/src/main/java/com/ecourtier/domain/ia/controller/IAController.java",
       "backend/src/main/java/com/ecourtier/domain/messagerie/controller/MessagerieRestController.java",
       "backend/src/main/java/com/ecourtier/domain/messagerie/controller/MessagerieStompController.java",
+      "backend/src/main/java/com/ecourtier/domain/reference/controller/ReferenceController.java",
+      "backend/src/main/java/com/ecourtier/domain/rendezvous/controller/NotificationSmsController.java",
       "backend/src/main/java/com/ecourtier/domain/rendezvous/controller/RendezVousController.java",
       "backend/src/main/java/com/ecourtier/domain/transaction/controller/TransactionController.java",
       "backend/src/main/java/com/ecourtier/domain/utilisateur/controller/AdminUtilisateurController.java",
-      "backend/src/main/java/com/ecourtier/domain/utilisateur/controller/AuthController.java"
+      "backend/src/main/java/com/ecourtier/domain/utilisateur/controller/AuthController.java",
+      "backend/src/main/java/com/ecourtier/domain/utilisateur/controller/UtilisateurCompteController.java"
     ],
-    "test_files_count": 30,
-    "test_total_lines": 4511,
+    "test_files_count": 43,
+    "test_total_lines": 7040,
     "at_value_usages": [
       {
         "file": "backend/src/main/java/com/ecourtier/common/config/AdminBootstrapRunner.java",
@@ -74,15 +80,15 @@
       },
       {
         "file": "backend/src/main/java/com/ecourtier/common/config/DatabaseConfig.java",
-        "expr": "${spring.datasource.url:jdbc:postgresql://localhost:5432/ecourtier_db}"
+        "expr": "${spring.datasource.url:}"
       },
       {
         "file": "backend/src/main/java/com/ecourtier/common/config/DatabaseConfig.java",
-        "expr": "${spring.datasource.username:ecourtier_user}"
+        "expr": "${spring.datasource.username:}"
       },
       {
         "file": "backend/src/main/java/com/ecourtier/common/config/DatabaseConfig.java",
-        "expr": "${spring.datasource.password:ecourtier_secure_pass_2026}"
+        "expr": "${spring.datasource.password:}"
       },
       {
         "file": "backend/src/main/java/com/ecourtier/common/config/DatabaseConfig.java",
@@ -102,7 +108,7 @@
       },
       {
         "file": "backend/src/main/java/com/ecourtier/common/security/JwtService.java",
-        "expr": "${ecourtier.jwt.secret}"
+        "expr": "${ecourtier.jwt.secret:}"
       },
       {
         "file": "backend/src/main/java/com/ecourtier/common/security/JwtService.java",
@@ -123,10 +129,62 @@
       {
         "file": "backend/src/main/java/com/ecourtier/domain/ia/service/LlmExtractionService.java",
         "expr": "${ecourtier.ia.base-url:}"
+      },
+      {
+        "file": "backend/src/main/java/com/ecourtier/domain/transaction/mapper/TransactionMapper.java",
+        "expr": "${ecourtier.vente.acompte-pourcentage:10}"
+      },
+      {
+        "file": "backend/src/main/java/com/ecourtier/domain/transaction/service/PdfBailGeneratorService.java",
+        "expr": "${ecourtier.vente.acompte-pourcentage:10}"
+      },
+      {
+        "file": "backend/src/main/java/com/ecourtier/domain/transaction/service/TransactionService.java",
+        "expr": "${ecourtier.vente.acompte-pourcentage:10}"
       }
     ],
     "system_getenv_usages": [],
     "yml_env_placeholders": [
+      {
+        "file": "backend/src/main/resources/application-dev.yml",
+        "var": "SPRING_DATASOURCE_URL",
+        "raw": "${SPRING_DATASOURCE_URL:jdbc:postgresql://localhost:5432/ecourtier_db}"
+      },
+      {
+        "file": "backend/src/main/resources/application-dev.yml",
+        "var": "SPRING_DATASOURCE_USERNAME",
+        "raw": "${SPRING_DATASOURCE_USERNAME:ecourtier_user}"
+      },
+      {
+        "file": "backend/src/main/resources/application-dev.yml",
+        "var": "SPRING_DATASOURCE_PASSWORD",
+        "raw": "${SPRING_DATASOURCE_PASSWORD:ecourtier_secure_pass_2026}"
+      },
+      {
+        "file": "backend/src/main/resources/application-dev.yml",
+        "var": "JWT_SECRET",
+        "raw": "${JWT_SECRET:404E635266556A586E3272357538782F413F4428472B4B6250645367566B5970}"
+      },
+      {
+        "file": "backend/src/main/resources/application-prod.yml",
+        "var": "SPRING_DATASOURCE_URL",
+        "raw": "${SPRING_DATASOURCE_URL:}"
+      },
+      {
+        "file": "backend/src/main/resources/application-prod.yml",
+        "var": "SPRING_DATASOURCE_USERNAME",
+        "raw": "${SPRING_DATASOURCE_USERNAME:}"
+      },
+      {
+        "file": "backend/src/main/resources/application-prod.yml",
+        "var": "SPRING_DATASOURCE_PASSWORD",
+        "raw": "${SPRING_DATASOURCE_PASSWORD:}"
+      },
+      {
+        "file": "backend/src/main/resources/application-prod.yml",
+        "var": "JWT_SECRET",
+        "raw": "${JWT_SECRET:}"
+      },
       {
         "file": "backend/src/main/resources/application.yml",
         "var": "SPRING_PROFILES_ACTIVE",
@@ -135,17 +193,17 @@
       {
         "file": "backend/src/main/resources/application.yml",
         "var": "SPRING_DATASOURCE_URL",
-        "raw": "${SPRING_DATASOURCE_URL:jdbc:postgresql://localhost:5432/ecourtier_db}"
+        "raw": "${SPRING_DATASOURCE_URL:}"
       },
       {
         "file": "backend/src/main/resources/application.yml",
         "var": "SPRING_DATASOURCE_USERNAME",
-        "raw": "${SPRING_DATASOURCE_USERNAME:ecourtier_user}"
+        "raw": "${SPRING_DATASOURCE_USERNAME:}"
       },
       {
         "file": "backend/src/main/resources/application.yml",
         "var": "SPRING_DATASOURCE_PASSWORD",
-        "raw": "${SPRING_DATASOURCE_PASSWORD:ecourtier_secure_pass_2026}"
+        "raw": "${SPRING_DATASOURCE_PASSWORD:}"
       },
       {
         "file": "backend/src/main/resources/application.yml",
@@ -155,7 +213,7 @@
       {
         "file": "backend/src/main/resources/application.yml",
         "var": "JWT_SECRET",
-        "raw": "${JWT_SECRET:404E635266556A586E3272357538782F413F4428472B4B6250645367566B5970}"
+        "raw": "${JWT_SECRET:}"
       },
       {
         "file": "backend/src/main/resources/application.yml",
@@ -186,34 +244,50 @@
         "file": "backend/src/main/resources/application.yml",
         "var": "ECOURTIER_CORS_ALLOWED_ORIGINS",
         "raw": "${ECOURTIER_CORS_ALLOWED_ORIGINS:http://localhost:3000,http://127.0.0.1:3000,http://localhost:5173}"
+      },
+      {
+        "file": "backend/src/main/resources/application.yml",
+        "var": "ECOURTIER_RDV_RAPPEL_CRON",
+        "raw": "${ECOURTIER_RDV_RAPPEL_CRON:0 0 9 * * *}"
+      },
+      {
+        "file": "backend/src/main/resources/application.yml",
+        "var": "ECOURTIER_VENTE_ACOMPTE_POURCENTAGE",
+        "raw": "${ECOURTIER_VENTE_ACOMPTE_POURCENTAGE:10}"
       }
     ]
   },
   "frontend": {
-    "src_code_files_count": 48,
-    "src_total_lines": 8142,
-    "src_sloc": 7373,
-    "pages_count": 11,
+    "src_code_files_count": 57,
+    "src_total_lines": 11407,
+    "src_sloc": 10408,
+    "pages_count": 13,
     "pages": [
       "AdminDashboardPage.tsx",
       "AdminSignalementsPage.tsx",
+      "AdminUtilisateursPage.tsx",
       "AdminVerificationPage.tsx",
       "ComingSoonPage.tsx",
       "DashboardPage.tsx",
       "FavorisPage.tsx",
       "HomePage.tsx",
       "LoginPage.tsx",
+      "MonComptePage.tsx",
       "PropertyDetailPage.tsx",
       "RegisterPage.tsx",
       "SearchResultsPage.tsx"
     ],
-    "components_count": 25,
+    "components_count": 31,
     "components": [
+      "admin/AdminNavTabs.tsx",
       "ai/AiAssistantWidget.tsx",
       "dashboard/CreateAnnonceModal.tsx",
+      "dashboard/EditAnnonceModal.tsx",
+      "dashboard/SmsSimulesTab.tsx",
       "layout/Footer.tsx",
       "layout/Header.tsx",
       "map/LeafletMap.tsx",
+      "map/LocationPickerMap.tsx",
       "messagerie/ChatDrawer.tsx",
       "messagerie/ConversationsTab.tsx",
       "transaction/TransactionDetailsModal.tsx",
@@ -227,6 +301,8 @@
       "ui/Modal.tsx",
       "ui/OfflineIndicator.tsx",
       "ui/PatternClaustra.tsx",
+      "ui/QuartierAutocomplete.tsx",
+      "ui/ReferenceIcons.tsx",
       "ui/Select.tsx",
       "ui/SignalementModal.tsx",
       "ui/Skeleton.tsx",
@@ -392,6 +468,7 @@
       "zustand": "^5.0.3"
     },
     "frontend_devDependencies": {
+      "@playwright/test": "^1.64.1",
       "@types/leaflet": "^1.9.16",
       "@types/node": "^22.13.4",
       "@types/react": "^18.3.18",

@@ -37,7 +37,26 @@ export interface InscriptionRequestDTO {
   email: string;
   motDePasse: string;
   telephone: string;
-  role: 'LOCATAIRE' | 'PROPRIETAIRE' | 'AGENT';
+  role: 'LOCATAIRE' | 'PROPRIETAIRE';
+}
+
+export interface AdminCreateUtilisateurInput {
+  nom: string;
+  prenom: string;
+  email: string;
+  telephone: string;
+  role: 'ADMIN' | 'AGENT' | 'PROPRIETAIRE' | 'LOCATAIRE';
+  motDePasseTemporaire?: string;
+}
+
+export interface AdminCreateUtilisateurResponse {
+  utilisateur: UtilisateurDTO;
+  motDePasseTemporaire: string;
+}
+
+export interface ChangerMotDePasseInput {
+  ancienMotDePasse: string;
+  nouveauMotDePasse: string;
 }
 
 export interface PhotoAnnonceDTO {
@@ -67,6 +86,7 @@ export interface AnnonceDTO {
   statutVerification: 'EN_ATTENTE' | 'VERIFIEE' | 'REJETEE';
   statutPublication: 'DISPONIBLE' | 'RESERVEE' | 'LOUEE' | 'VENDUE' | 'SUSPENDUE';
   dateCreation: string;
+  auteurRole?: 'ADMIN' | 'AGENT' | 'PROPRIETAIRE' | 'LOCATAIRE';
   auteur: UtilisateurDTO;
   photos: PhotoAnnonceDTO[];
   equipements: string[];
@@ -92,6 +112,7 @@ export interface ReferencesResponse {
 export interface DocumentVerificationDTO {
   id: string;
   typeDocument: 'TITRE_FONCIER' | 'BAIL_PRECEDENT' | 'PIECE_IDENTITE';
+  nomFichier?: string;
   url: string;
   statut: 'EN_ATTENTE' | 'VALIDE' | 'REJETE';
   motifRejet?: string;

@@ -175,7 +175,7 @@ public class AnnonceController {
     @PostMapping(value = "/{id}/documents", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     @PreAuthorize("@annonceSecurityService.isOwnerOrAdmin(#id, authentication)")
     @SecurityRequirement(name = "bearerAuth")
-    @Operation(summary = "Soumettre un document justificatif pour vérification", description = "Téléverser un document (titre foncier, bail précédent, pièce d'identité) pour l'attribution du badge vérifié.")
+    @Operation(summary = "Soumettre un document justificatif pour vérification", description = "Téléverser un document (titre foncier, bail précédent, photo du propriétaire avec sa pièce d'identité) au format image ou PDF (max 10 Mo) pour l'attribution du badge vérifié.")
     public ResponseEntity<DocumentVerificationResponseDTO> ajouterDocumentVerification(
             @PathVariable UUID id,
             @RequestParam("typeDocument") TypeDocumentVerification typeDocument,
@@ -188,14 +188,27 @@ public class AnnonceController {
     @GetMapping("/{id}/documents/{documentId}/fichier")
     @PreAuthorize("@annonceSecurityService.isOwnerOrAdmin(#id, authentication)")
     @SecurityRequirement(name = "bearerAuth")
-    @Operation(summary = "Télécharger / consulter un document de vérification", description = "Accès sécurisé réservé à l'auteur de l'annonce ou un ADMIN.")
+    @Operation(summary = "Télécharger / consulter un document de vérification", description = "Accès sécurisé réservé à l'auteur de l'annonce ou un ADMIN. Retourne le flux binaire avec son type MIME (image ou application/pdf).")
     public ResponseEntity<org.springframework.core.io.Resource> obtenirFichierDocumentVerification(
             @PathVariable UUID id,
             @PathVariable UUID documentId
     ) {
         org.springframework.core.io.Resource resource = annonceService.obtenirFichierDocumentVerification(id, documentId);
+        String filename = resource.getFilename() != null ? resource.getFilename() : "document";
+        String lower = filename.toLowerCase();
+        MediaType mediaType = MediaType.APPLICATION_OCTET_STREAM;
+        if (lower.endsWith(".pdf")) {
+            mediaType = MediaType.APPLICATION_PDF;
+        } else if (lower.endsWith(".png")) {
+            mediaType = MediaType.IMAGE_PNG;
+        } else if (lower.endsWith(".jpg") || lower.endsWith(".jpeg")) {
+            mediaType = MediaType.IMAGE_JPEG;
+        } else if (lower.endsWith(".webp")) {
+            mediaType = MediaType.parseMediaType("image/webp");
+        }
         return ResponseEntity.ok()
-                .header(org.springframework.http.HttpHeaders.CONTENT_DISPOSITION, "inline; filename=\"" + resource.getFilename() + "\"")
+                .contentType(mediaType)
+                .header(org.springframework.http.HttpHeaders.CONTENT_DISPOSITION, "inline; filename=\"" + filename + "\"")
                 .body(resource);
     }
 }

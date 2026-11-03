@@ -45,6 +45,9 @@ public class DocumentVerificationEntity {
     @Column(nullable = false, length = 512)
     private String url;
 
+    @Column(name = "nom_fichier", length = 255)
+    private String nomFichier;
+
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 30)
     @Builder.Default

@@ -392,10 +392,24 @@ public class AnnonceService {
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Annonce introuvable"));
 
         String url = fileStorageService.storeDocumentVerification(id, file);
+        String originalName = file.getOriginalFilename();
+        String safeOriginalName = null;
+        if (originalName != null && !originalName.isBlank()) {
+            safeOriginalName = originalName.replace("\\", "/");
+            int slashIdx = safeOriginalName.lastIndexOf('/');
+            if (slashIdx >= 0) {
+                safeOriginalName = safeOriginalName.substring(slashIdx + 1);
+            }
+            safeOriginalName = safeOriginalName.replace("..", "").trim();
+            if (safeOriginalName.length() > 250) {
+                safeOriginalName = safeOriginalName.substring(safeOriginalName.length() - 250);
+            }
+        }
 
         DocumentVerificationEntity doc = DocumentVerificationEntity.builder()
                 .annonce(annonce)
                 .typeDocument(typeDocument)
+                .nomFichier(safeOriginalName)
                 .url(url)
                 .statut(StatutDocument.EN_ATTENTE)
                 .build();
@@ -427,15 +441,49 @@ public class AnnonceService {
         AnnonceEntity annonce = annonceRepository.findByIdAndSupprimeFalse(id)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Annonce introuvable"));
 
-        if (decision.getStatutVerification() == StatutVerification.EN_ATTENTE) {
+        if (decision.getStatutVerification() == null || decision.getStatutVerification() == StatutVerification.EN_ATTENTE) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "La décision doit être VERIFIEE ou REJETEE");
+        }
+
+        List<DocumentVerificationEntity> docs = documentVerificationRepository.findByAnnonceId(id);
+
+        if (decision.getStatutVerification() == StatutVerification.VERIFIEE) {
+            Set<TypeDocumentVerification> typesSoumis = new HashSet<>();
+            for (DocumentVerificationEntity d : docs) {
+                if (d.getTypeDocument() != null) {
+                    typesSoumis.add(d.getTypeDocument());
+                }
+            }
+
+            List<String> manquants = new ArrayList<>();
+            if (!typesSoumis.contains(TypeDocumentVerification.PIECE_IDENTITE)) {
+                manquants.add(TypeDocumentVerification.PIECE_IDENTITE.name());
+            }
+            if (!typesSoumis.contains(TypeDocumentVerification.TITRE_FONCIER)
+                    && !typesSoumis.contains(TypeDocumentVerification.BAIL_PRECEDENT)) {
+                manquants.add(TypeDocumentVerification.TITRE_FONCIER.name() + " ou " + TypeDocumentVerification.BAIL_PRECEDENT.name());
+            }
+
+            if (!manquants.isEmpty()) {
+                throw new ResponseStatusException(
+                        HttpStatus.BAD_REQUEST,
+                        "Validation refusée : pièces justificatives manquantes (" + String.join(", ", manquants) + ")"
+                );
+            }
+        } else if (decision.getStatutVerification() == StatutVerification.REJETEE) {
+            String motif = decision.getMotifRejet() != null ? decision.getMotifRejet().trim() : "";
+            if (motif.length() < 10) {
+                throw new ResponseStatusException(
+                        HttpStatus.BAD_REQUEST,
+                        "Le motif de rejet est obligatoire et doit contenir au moins 10 caractères"
+                );
+            }
+            decision.setMotifRejet(motif);
         }
 
         annonce.setStatutVerification(decision.getStatutVerification());
         annonce.setDateVerification(LocalDateTime.now());
 
-        // Update status of associated documents
-        List<DocumentVerificationEntity> docs = documentVerificationRepository.findByAnnonceId(id);
         StatutDocument documentStatus = decision.getStatutVerification() == StatutVerification.VERIFIEE ?
                 StatutDocument.VALIDE : StatutDocument.REJETE;
 

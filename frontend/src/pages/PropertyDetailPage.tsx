@@ -14,7 +14,8 @@ import {
   UserCheck,
   MessageSquare,
   FileText,
-  Upload
+  Upload,
+  Building2
 } from 'lucide-react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { apiFetch, getPhotoUrl } from '../services/api';
@@ -338,6 +339,12 @@ export const PropertyDetailPage: React.FC = () => {
               <span>Contrôle Cadastral Effectué</span>
             </Badge>
           )}
+          {(property.auteurRole === 'AGENT' || property.auteur?.role === 'AGENT') && (
+            <Badge variant="sahel" className="flex items-center gap-1 bg-amber-100 text-amber-900 border border-amber-300">
+              <Building2 className="w-3.5 h-3.5 text-amber-700" />
+              <span>Publié par un agent immobilier</span>
+            </Badge>
+          )}
 
           {/* Average Rating Star Badge */}
           {avisSummary?.noteMoyenne ? (
@@ -473,14 +480,20 @@ export const PropertyDetailPage: React.FC = () => {
           {/* Landlord Info & Calculated Owner Reputation */}
           {property.auteur && (
             <div className="p-6 rounded-2xl bg-white border border-argile-200 shadow-warm-card space-y-4">
-              <h3 className="font-display font-bold text-base text-charcoal-900">Proposé par un propriétaire identifié</h3>
+              <h3 className="font-display font-bold text-base text-charcoal-900">
+                {(property.auteurRole === 'AGENT' || property.auteur?.role === 'AGENT')
+                  ? 'Publié par un agent immobilier'
+                  : 'Proposé par un propriétaire identifié'}
+              </h3>
               <div className="flex items-center justify-between gap-4">
                 <div className="flex items-center gap-4">
                   <Avatar src={property.auteur.photoProfilUrl} name={`${property.auteur.prenom} ${property.auteur.nom}`} size="lg" isVerified />
                   <div className="space-y-1">
                     <div className="flex items-center gap-2">
                       <h4 className="font-display font-bold text-base text-charcoal-900">{property.auteur.prenom} {property.auteur.nom}</h4>
-                      <Badge variant="sahel">{property.auteur.role}</Badge>
+                      <Badge variant="sahel">
+                        {(property.auteurRole === 'AGENT' || property.auteur?.role === 'AGENT') ? 'Agent immobilier' : property.auteur.role}
+                      </Badge>
                     </div>
                     <p className="text-xs text-charcoal-600">Tel: {property.auteur.telephone}</p>
                   </div>
@@ -578,8 +591,8 @@ export const PropertyDetailPage: React.FC = () => {
                 <h4 className="text-xs font-bold text-charcoal-700 uppercase tracking-wider">
                   Ajouter des pièces justificatives supplémentaires
                 </h4>
-                <div className="p-2.5 bg-amber-50 rounded-lg border border-amber-200 text-[11px] text-amber-800">
-                  <strong>Formats acceptés par le serveur :</strong> Images uniquement (JPG, JPEG, PNG, WEBP — Max 5 Mo par fichier).
+                <div className="p-2.5 bg-clay-50 rounded-lg border border-sahel-200 text-[11px] text-sahel-800">
+                  <strong>Formats acceptés :</strong> Documents PDF ou images (JPG, JPEG, PNG, WEBP, PDF — Max 10 Mo par document).
                 </div>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 items-end">
                   <div>
@@ -593,7 +606,7 @@ export const PropertyDetailPage: React.FC = () => {
                     >
                       <option value="TITRE_FONCIER">Titre Foncier / Attestation de propriété</option>
                       <option value="BAIL_PRECEDENT">Bail précédent / Facture Senelec</option>
-                      <option value="PIECE_IDENTITE">Photo propriétaire avec pièce d'identité</option>
+                      <option value="PIECE_IDENTITE">Photo du propriétaire avec sa pièce d'identité</option>
                     </select>
                   </div>
                   <div>
@@ -601,12 +614,12 @@ export const PropertyDetailPage: React.FC = () => {
                       <span className="truncate">
                         {docFilesToUpload.length > 0
                           ? `${docFilesToUpload.length} fichier(s) sélectionné(s)`
-                          : 'Sélectionner des images'}
+                          : 'Sélectionner des fichiers (PDF ou images)'}
                       </span>
                       <Upload className="w-4 h-4 text-terracotta-500 shrink-0 ml-2" />
                       <input
                         type="file"
-                        accept=".jpg,.jpeg,.png,.webp,image/jpeg,image/png,image/webp"
+                        accept=".jpg,.jpeg,.png,.webp,.pdf,image/jpeg,image/png,image/webp,application/pdf"
                         multiple
                         onChange={(e) => {
                           if (e.target.files) {

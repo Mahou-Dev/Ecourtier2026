@@ -85,7 +85,10 @@ public class RendezVousController {
 
     @GetMapping("/rendez-vous/mes-rendez-vous")
     @PreAuthorize("isAuthenticated()")
-    @Operation(summary = "Lister mes rendez-vous (demandeur ou propriétaire)")
+    @Operation(
+            summary = "Lister mes rendez-vous (demandeur ou propriétaire)",
+            description = "Retourne tous les rendez-vous de visite impliquant l'utilisateur connecté en tant que demandeur ou auteur de l'annonce."
+    )
     public ResponseEntity<List<RendezVousResponseDTO>> obtenirMesRendezVous(Authentication authentication) {
         List<RendezVousResponseDTO> response = rendezVousService.obtenirMesRendezVous(authentication.getName());
         return ResponseEntity.ok(response);
@@ -93,7 +96,10 @@ public class RendezVousController {
 
     @GetMapping("/annonces/{id}/rendez-vous")
     @PreAuthorize("@rendezVousSecurityService.isAnnonceOwnerOrAdmin(#id, authentication)")
-    @Operation(summary = "Lister l'agenda des rendez-vous d'une annonce")
+    @Operation(
+            summary = "Lister l'agenda des rendez-vous d'une annonce",
+            description = "Retourne les créneaux de visite demandés ou confirmés pour une annonce donnée (réservé à l'auteur de l'annonce ou à un ADMIN)."
+    )
     public ResponseEntity<List<RendezVousResponseDTO>> obtenirRendezVousAnnonce(
             @PathVariable("id") UUID id,
             Authentication authentication
@@ -104,7 +110,10 @@ public class RendezVousController {
 
     @PostMapping("/rendez-vous/simuler-rappels")
     @PreAuthorize("hasRole('ADMIN')")
-    @Operation(summary = "Déclencher manuellement les rappels SMS de demain (démonstration ADMIN)")
+    @Operation(
+            summary = "Déclencher manuellement les rappels SMS de demain (démonstration ADMIN)",
+            description = "Exécute à la demande le traitement idempotent de rappel SMS J-1 sur les rendez-vous CONFIRME prévus le lendemain (fuseau Africa/Dakar)."
+    )
     public ResponseEntity<Map<String, Object>> simulerRappels() {
         int nbRappels = rendezVousService.simulerRappelsDemain();
         return ResponseEntity.ok(Map.of(

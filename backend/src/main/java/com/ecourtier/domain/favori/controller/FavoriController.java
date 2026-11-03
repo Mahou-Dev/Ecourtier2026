@@ -27,7 +27,10 @@ public class FavoriController {
     private final FavoriService favoriService;
 
     @PostMapping("/api/v1/annonces/{id}/favoris")
-    @Operation(summary = "Ajouter une annonce aux favoris")
+    @Operation(
+            summary = "Ajouter une annonce aux favoris",
+            description = "Sauvegarde une annonce disponible dans la liste de favoris de l'utilisateur connecté (retourne 409 si déjà présente)."
+    )
     public ResponseEntity<Void> ajouterFavori(
             @PathVariable UUID id,
             Authentication authentication
@@ -37,7 +40,10 @@ public class FavoriController {
     }
 
     @DeleteMapping("/api/v1/annonces/{id}/favoris")
-    @Operation(summary = "Retirer une annonce des favoris")
+    @Operation(
+            summary = "Retirer une annonce des favoris",
+            description = "Supprime l'annonce indiquée de la liste des favoris de l'utilisateur connecté."
+    )
     public ResponseEntity<Void> supprimerFavori(
             @PathVariable UUID id,
             Authentication authentication
@@ -47,7 +53,10 @@ public class FavoriController {
     }
 
     @GetMapping("/api/v1/utilisateurs/moi/favoris")
-    @Operation(summary = "Liste paginée des annonces favorites de l'utilisateur connecté")
+    @Operation(
+            summary = "Liste paginée des annonces favorites de l'utilisateur connecté",
+            description = "Retourne les annonces favorites de l'utilisateur connecté, triées par date d'ajout décroissante."
+    )
     public ResponseEntity<Page<AnnonceResponseDTO>> listerFavoris(
             @PageableDefault(size = 12, sort = "dateAjout", direction = Sort.Direction.DESC) Pageable pageable,
             Authentication authentication
@@ -57,7 +66,10 @@ public class FavoriController {
     }
 
     @GetMapping("/api/v1/utilisateurs/moi/favoris/count")
-    @Operation(summary = "Nombre total de favoris de l'utilisateur connecté")
+    @Operation(
+            summary = "Nombre total de favoris de l'utilisateur connecté",
+            description = "Retourne le compteur total d'annonces enregistrées en favoris par l'utilisateur connecté."
+    )
     public ResponseEntity<Map<String, Long>> compterFavoris(Authentication authentication) {
         long count = favoriService.compterFavoris(authentication.getName());
         return ResponseEntity.ok(Map.of("count", count));

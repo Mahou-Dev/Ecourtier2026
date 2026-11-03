@@ -32,12 +32,12 @@ public class FlywayFreshMigrationIntegrationTest {
     private Flyway flyway;
 
     @Test
-    @DisplayName("Vérifie l'exécution sans erreur de toutes les migrations Flyway (V1 à V11) sur une base PostgreSQL vierge")
+    @DisplayName("Vérifie l'exécution sans erreur de toutes les migrations Flyway (V1 à V12) sur une base PostgreSQL vierge")
     void testFlywayMigrationsOnFreshDatabase() {
         assertNotNull(flyway, "Flyway bean doit être disponible");
         MigrationInfo current = flyway.info().current();
         assertNotNull(current, "Une version courante de migration doit être enregistrée");
-        assertEquals("11", current.getVersion().getVersion(), "La dernière migration appliquée doit être la V11");
-        assertTrue(current.getState().isApplied(), "La migration V11 doit être appliquée avec succès");
+        assertEquals("12", current.getVersion().getVersion(), "La dernière migration appliquée doit être la V12");
+        assertTrue(current.getState().isApplied(), "La migration V12 doit être appliquée avec succès");
     }
 }

@@ -134,4 +134,16 @@ public class GlobalExceptionHandler {
                 .contentType(APPLICATION_JSON_UTF8)
                 .body(response);
     }
+
+    @ExceptionHandler(org.springframework.web.multipart.MaxUploadSizeExceededException.class)
+    public ResponseEntity<Map<String, Object>> handleMaxUploadSizeExceeded(org.springframework.web.multipart.MaxUploadSizeExceededException ex) {
+        Map<String, Object> response = new HashMap<>();
+        response.put("timestamp", LocalDateTime.now());
+        response.put("status", HttpStatus.BAD_REQUEST.value());
+        response.put("error", "La taille du fichier dépasse la limite maximale autorisée");
+
+        return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                .contentType(APPLICATION_JSON_UTF8)
+                .body(response);
+    }
 }

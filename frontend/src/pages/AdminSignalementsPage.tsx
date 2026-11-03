@@ -8,6 +8,7 @@ import { Button } from '../components/ui/Button';
 import { Badge } from '../components/ui/Badge';
 import { Skeleton } from '../components/ui/Skeleton';
 import { PatternClaustra } from '../components/ui/PatternClaustra';
+import { AdminNavTabs } from '../components/admin/AdminNavTabs';
 import { toast } from 'sonner';
 
 export const AdminSignalementsPage: React.FC = () => {
@@ -53,6 +54,9 @@ export const AdminSignalementsPage: React.FC = () => {
   return (
     <div className="min-h-screen bg-sand-100 py-8 px-4 sm:px-6 lg:px-8">
       <div className="max-w-6xl mx-auto space-y-6">
+        <div className="flex justify-end">
+          <AdminNavTabs />
+        </div>
         
         {/* Header */}
         <div className="bg-white p-6 rounded-2xl border border-argile-300 shadow-warm-card flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 relative overflow-hidden">

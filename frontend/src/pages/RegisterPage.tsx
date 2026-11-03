@@ -14,7 +14,7 @@ export const RegisterPage: React.FC = () => {
   const navigate = useNavigate();
   const { setAuth } = useAuthStore();
 
-  const [role, setRole] = useState<'LOCATAIRE' | 'PROPRIETAIRE' | 'AGENT'>('LOCATAIRE');
+  const [role, setRole] = useState<'LOCATAIRE' | 'PROPRIETAIRE'>('LOCATAIRE');
   const [prenom, setPrenom] = useState('');
   const [nom, setNom] = useState('');
   const [email, setEmail] = useState('');
@@ -113,9 +113,9 @@ export const RegisterPage: React.FC = () => {
           <form onSubmit={handleSubmit} className="space-y-6">
             
             {/* RICH VISUAL ROLE SELECTION CARDS */}
-            <div className="space-y-2">
+            <div className="space-y-2.5">
               <label className="block text-xs font-semibold text-charcoal-800">Je suis un :</label>
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 
                 {/* Role 1: Locataire */}
                 <div
@@ -152,28 +152,14 @@ export const RegisterPage: React.FC = () => {
                     {role === 'PROPRIETAIRE' && <Check className="w-4 h-4 text-sahel-800 font-bold" />}
                   </div>
                   <h4 className="font-display font-bold text-sm text-charcoal-900">Propriétaire</h4>
-                  <p className="text-[11px] text-charcoal-500 mt-1">Je souhaite louer mon bien avec la garantie séquestre.</p>
+                  <p className="text-[11px] text-charcoal-500 mt-1">Je souhaite louer ou vendre mon bien avec la garantie séquestre.</p>
                 </div>
 
-                {/* Role 3: Courtier / Agent */}
-                <div
-                  onClick={() => setRole('AGENT')}
-                  className={`p-4 rounded-2xl border-2 cursor-pointer transition-all ${
-                    role === 'AGENT'
-                      ? 'bg-ocher-50 border-ocher-500 ring-2 ring-ocher-500/20'
-                      : 'bg-white border-argile-300 hover:border-argile-400'
-                  }`}
-                >
-                  <div className="flex items-center justify-between mb-2">
-                    <div className="w-8 h-8 rounded-lg bg-ocher-100 text-ocher-900 flex items-center justify-center">
-                      <Building2 className="w-4 h-4" />
-                    </div>
-                    {role === 'AGENT' && <Check className="w-4 h-4 text-ocher-900 font-bold" />}
-                  </div>
-                  <h4 className="font-display font-bold text-sm text-charcoal-900">Courtier / Agent</h4>
-                  <p className="text-[11px] text-charcoal-500 mt-1">Je suis un professionnel de l'immobilier.</p>
-                </div>
+              </div>
 
+              <div className="flex items-center gap-2 px-3.5 py-2.5 rounded-xl bg-ocher-50/80 border border-ocher-300/60 text-xs text-charcoal-700">
+                <Building2 className="w-4 h-4 text-ocher-700 shrink-0" />
+                <span>Les comptes agents sont créés par l'administrateur</span>
               </div>
             </div>
 

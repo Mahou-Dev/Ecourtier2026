@@ -336,7 +336,39 @@ public class AnnonceIntegrationTest {
                         .content(objectMapper.writeValueAsString(decision)))
                 .andExpect(status().isForbidden());
 
-        // B. Validation par l'ADMIN -> 200 OK et statutVerification devient VERIFIEE
+        // B. Validation par l'ADMIN sans pièces justificatives -> 400 Bad Request indiquant les types manquants
+        mockMvc.perform(put("/api/v1/admin/annonces/" + annonceId + "/verifier")
+                        .header("Authorization", "Bearer " + tokenAdmin)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(decision)))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.error", org.hamcrest.Matchers.containsString("PIECE_IDENTITE")))
+                .andExpect(jsonPath("$.error", org.hamcrest.Matchers.containsString("TITRE_FONCIER")));
+
+        // C. Téléversement des pièces obligatoires (PIECE_IDENTITE en image + TITRE_FONCIER en PDF)
+        byte[] validPng = new byte[]{(byte) 0x89, 'P', 'N', 'G', 0x0D, 0x0A, 0x1A, 0x0A, 0x00, 0x00, 0x00, 0x0D};
+        byte[] validPdf = "%PDF-1.4\n1 0 obj\n<< /Type /Catalog >>\nendobj\n%%EOF".getBytes(java.nio.charset.StandardCharsets.UTF_8);
+
+        org.springframework.mock.web.MockMultipartFile pngIdentite = new org.springframework.mock.web.MockMultipartFile(
+                "file", "selfie_cni.png", "image/png", validPng
+        );
+        org.springframework.mock.web.MockMultipartFile pdfTitre = new org.springframework.mock.web.MockMultipartFile(
+                "file", "titre_foncier_1452.pdf", "application/pdf", validPdf
+        );
+
+        mockMvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.multipart("/api/v1/annonces/" + annonceId + "/documents")
+                        .file(pngIdentite)
+                        .param("typeDocument", "PIECE_IDENTITE")
+                        .header("Authorization", "Bearer " + tokenProprietaire1))
+                .andExpect(status().isCreated());
+
+        mockMvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.multipart("/api/v1/annonces/" + annonceId + "/documents")
+                        .file(pdfTitre)
+                        .param("typeDocument", "TITRE_FONCIER")
+                        .header("Authorization", "Bearer " + tokenProprietaire1))
+                .andExpect(status().isCreated());
+
+        // D. Validation par l'ADMIN -> 200 OK et statutVerification devient VERIFIEE
         mockMvc.perform(put("/api/v1/admin/annonces/" + annonceId + "/verifier")
                         .header("Authorization", "Bearer " + tokenAdmin)
                         .contentType(MediaType.APPLICATION_JSON)
