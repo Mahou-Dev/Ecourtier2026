@@ -12,11 +12,15 @@ import {
   AlertTriangle,
   Compass,
   UserCheck,
-  MessageSquare
+  MessageSquare,
+  FileText,
+  Upload,
+  Building2
 } from 'lucide-react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { apiFetch, getPhotoUrl } from '../services/api';
 import { messagerieService } from '../services/messagerie.service';
+import { EquipementBadge, ProximiteBadge } from '../components/ui/ReferenceIcons';
 import { 
   AnnonceDTO, 
   RendezVousResponseDTO, 
@@ -90,6 +94,37 @@ export const PropertyDetailPage: React.FC = () => {
   const [newRating, setNewRating] = useState<number>(5);
   const [newComment, setNewComment] = useState('');
   const [isSubmittingAvis, setIsSubmittingAvis] = useState(false);
+
+  // Verification Document upload state
+  const [docTypeToUpload, setDocTypeToUpload] = useState<'TITRE_FONCIER' | 'BAIL_PRECEDENT' | 'PIECE_IDENTITE'>('TITRE_FONCIER');
+  const [docFilesToUpload, setDocFilesToUpload] = useState<File[]>([]);
+  const [isUploadingDoc, setIsUploadingDoc] = useState(false);
+
+  const handleUploadDocument = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!id || docFilesToUpload.length === 0) {
+      toast.error('Veuillez sélectionner au moins un fichier');
+      return;
+    }
+    setIsUploadingDoc(true);
+    try {
+      for (const file of docFilesToUpload) {
+        const formData = new FormData();
+        formData.append('file', file);
+        await apiFetch(`/api/v1/annonces/${id}/documents?typeDocument=${docTypeToUpload}`, {
+          method: 'POST',
+          body: formData,
+        });
+      }
+      toast.success('Document(s) envoyé(s) pour vérification');
+      setDocFilesToUpload([]);
+      queryClient.invalidateQueries({ queryKey: ['annonce', id] });
+    } catch (err: any) {
+      toast.error(err.message || 'Erreur lors de l\'envoi du document');
+    } finally {
+      setIsUploadingDoc(false);
+    }
+  };
 
   // Fetch listing details
   const { data: property, isLoading, isError } = useQuery<AnnonceDTO>({
@@ -304,6 +339,12 @@ export const PropertyDetailPage: React.FC = () => {
               <span>Contrôle Cadastral Effectué</span>
             </Badge>
           )}
+          {(property.auteurRole === 'AGENT' || property.auteur?.role === 'AGENT') && (
+            <Badge variant="sahel" className="flex items-center gap-1 bg-amber-100 text-amber-900 border border-amber-300">
+              <Building2 className="w-3.5 h-3.5 text-amber-700" />
+              <span>Publié par un agent immobilier</span>
+            </Badge>
+          )}
 
           {/* Average Rating Star Badge */}
           {avisSummary?.noteMoyenne ? (
@@ -397,6 +438,30 @@ export const PropertyDetailPage: React.FC = () => {
             <p className="text-sm text-charcoal-700 leading-relaxed whitespace-pre-line">{property.description}</p>
           </div>
 
+          {/* Équipements (F5) */}
+          {property.equipements && property.equipements.length > 0 && (
+            <div className="space-y-3 p-6 rounded-2xl bg-white border border-argile-200 shadow-warm-card">
+              <h3 className="font-display font-bold text-base text-charcoal-900">Équipements & Confort</h3>
+              <div className="flex flex-wrap gap-2">
+                {property.equipements.map((eq) => (
+                  <EquipementBadge key={eq} code={eq} />
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Proximités (F5) */}
+          {property.proximites && property.proximites.length > 0 && (
+            <div className="space-y-3 p-6 rounded-2xl bg-white border border-argile-200 shadow-warm-card">
+              <h3 className="font-display font-bold text-base text-charcoal-900">Proximités & Commodités</h3>
+              <div className="flex flex-wrap gap-2">
+                {property.proximites.map((px) => (
+                  <ProximiteBadge key={px} code={px} />
+                ))}
+              </div>
+            </div>
+          )}
+
           {/* Location Map */}
           {property.latitude && property.longitude && (
             <div className="space-y-3 border-t border-argile-200 pt-6">
@@ -415,14 +480,20 @@ export const PropertyDetailPage: React.FC = () => {
           {/* Landlord Info & Calculated Owner Reputation */}
           {property.auteur && (
             <div className="p-6 rounded-2xl bg-white border border-argile-200 shadow-warm-card space-y-4">
-              <h3 className="font-display font-bold text-base text-charcoal-900">Proposé par un propriétaire identifié</h3>
+              <h3 className="font-display font-bold text-base text-charcoal-900">
+                {(property.auteurRole === 'AGENT' || property.auteur?.role === 'AGENT')
+                  ? 'Publié par un agent immobilier'
+                  : 'Proposé par un propriétaire identifié'}
+              </h3>
               <div className="flex items-center justify-between gap-4">
                 <div className="flex items-center gap-4">
                   <Avatar src={property.auteur.photoProfilUrl} name={`${property.auteur.prenom} ${property.auteur.nom}`} size="lg" isVerified />
                   <div className="space-y-1">
                     <div className="flex items-center gap-2">
                       <h4 className="font-display font-bold text-base text-charcoal-900">{property.auteur.prenom} {property.auteur.nom}</h4>
-                      <Badge variant="sahel">{property.auteur.role}</Badge>
+                      <Badge variant="sahel">
+                        {(property.auteurRole === 'AGENT' || property.auteur?.role === 'AGENT') ? 'Agent immobilier' : property.auteur.role}
+                      </Badge>
                     </div>
                     <p className="text-xs text-charcoal-600">Tel: {property.auteur.telephone}</p>
                   </div>
@@ -446,6 +517,132 @@ export const PropertyDetailPage: React.FC = () => {
                   )}
                 </div>
               </div>
+            </div>
+          )}
+
+          {/* Verification Documents Management (F14) - Restricted to Owner or Admin */}
+          {utilisateur && (utilisateur.role === 'ADMIN' || utilisateur.id === property.auteur?.id) && (
+            <div className="p-6 rounded-2xl bg-white border border-argile-200 shadow-warm-card space-y-6">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-argile-200 pb-3">
+                <div>
+                  <h3 className="font-display font-bold text-base text-charcoal-900 flex items-center gap-2">
+                    <FileCheck className="w-5 h-5 text-terracotta-600" />
+                    <span>Pièces justificatives & Statuts de vérification (F14)</span>
+                  </h3>
+                  <p className="text-xs text-charcoal-500">
+                    Espace réservé au propriétaire et aux administrateurs pour la certification du titre de propriété.
+                  </p>
+                </div>
+                {property.statutVerification === 'VERIFIEE' ? (
+                  <Badge variant="success" className="flex items-center gap-1 shrink-0">
+                    <ShieldCheck className="w-3.5 h-3.5" />
+                    <span>Annonce Vérifiée</span>
+                  </Badge>
+                ) : (
+                  <Badge variant="warning" className="shrink-0">Vérification en cours</Badge>
+                )}
+              </div>
+
+              {/* Existing documents list with status and rejection reason */}
+              <div className="space-y-3">
+                <h4 className="text-xs font-bold text-charcoal-700 uppercase tracking-wider">
+                  Documents soumis ({property.documentsVerification?.length ?? 0})
+                </h4>
+                {(!property.documentsVerification || property.documentsVerification.length === 0) ? (
+                  <p className="text-xs text-charcoal-500 italic bg-sand-50 p-3 rounded-xl border border-sand-200">
+                    Aucun document justificatif n'a encore été soumis pour cette annonce.
+                  </p>
+                ) : (
+                  <div className="space-y-2">
+                    {property.documentsVerification.map((doc) => (
+                      <div
+                        key={doc.id}
+                        className="p-3 rounded-xl border border-sand-300 bg-sand-50 flex flex-col sm:flex-row sm:items-center justify-between gap-2"
+                      >
+                        <div className="space-y-1">
+                          <div className="flex items-center gap-2">
+                            <FileText className="w-4 h-4 text-terracotta-600 shrink-0" />
+                            <span className="font-semibold text-xs text-charcoal-900">
+                              {doc.typeDocument === 'TITRE_FONCIER' && 'Titre Foncier / Attestation de propriété'}
+                              {doc.typeDocument === 'BAIL_PRECEDENT' && 'Bail précédent / Facture Senelec'}
+                              {doc.typeDocument === 'PIECE_IDENTITE' && "Photo propriétaire avec pièce d'identité"}
+                            </span>
+                            {doc.statut === 'VALIDE' && <Badge variant="success">Validé</Badge>}
+                            {doc.statut === 'EN_ATTENTE' && <Badge variant="warning">En attente</Badge>}
+                            {doc.statut === 'REJETE' && <Badge variant="rose">Rejeté</Badge>}
+                          </div>
+                          {doc.statut === 'REJETE' && doc.motifRejet && (
+                            <p className="text-xs text-rose-700 bg-rose-50 p-2 rounded-lg border border-rose-200 mt-1">
+                              <strong>Motif du rejet :</strong> {doc.motifRejet}
+                            </p>
+                          )}
+                          <p className="text-[10px] text-charcoal-500">
+                            Soumis le {new Date(doc.dateCreation).toLocaleDateString('fr-FR')}
+                          </p>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              {/* Add document upload form */}
+              <form onSubmit={handleUploadDocument} className="space-y-3 pt-3 border-t border-argile-200">
+                <h4 className="text-xs font-bold text-charcoal-700 uppercase tracking-wider">
+                  Ajouter des pièces justificatives supplémentaires
+                </h4>
+                <div className="p-2.5 bg-clay-50 rounded-lg border border-sahel-200 text-[11px] text-sahel-800">
+                  <strong>Formats acceptés :</strong> Documents PDF ou images (JPG, JPEG, PNG, WEBP, PDF — Max 10 Mo par document).
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 items-end">
+                  <div>
+                    <label className="block text-xs font-semibold text-charcoal-700 mb-1">
+                      Type de pièce
+                    </label>
+                    <select
+                      value={docTypeToUpload}
+                      onChange={(e) => setDocTypeToUpload(e.target.value as any)}
+                      className="w-full px-3 py-2 rounded-xl border border-sand-300 text-xs focus:ring-2 focus:ring-terracotta-500 outline-none"
+                    >
+                      <option value="TITRE_FONCIER">Titre Foncier / Attestation de propriété</option>
+                      <option value="BAIL_PRECEDENT">Bail précédent / Facture Senelec</option>
+                      <option value="PIECE_IDENTITE">Photo du propriétaire avec sa pièce d'identité</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="border border-sand-300 hover:border-terracotta-500 rounded-xl px-3 py-2 flex items-center justify-between cursor-pointer text-xs font-semibold text-sahel-800 bg-sand-50 transition-colors">
+                      <span className="truncate">
+                        {docFilesToUpload.length > 0
+                          ? `${docFilesToUpload.length} fichier(s) sélectionné(s)`
+                          : 'Sélectionner des fichiers (PDF ou images)'}
+                      </span>
+                      <Upload className="w-4 h-4 text-terracotta-500 shrink-0 ml-2" />
+                      <input
+                        type="file"
+                        accept=".jpg,.jpeg,.png,.webp,.pdf,image/jpeg,image/png,image/webp,application/pdf"
+                        multiple
+                        onChange={(e) => {
+                          if (e.target.files) {
+                            setDocFilesToUpload(Array.from(e.target.files));
+                          }
+                        }}
+                        className="hidden"
+                      />
+                    </label>
+                  </div>
+                </div>
+                <div className="flex justify-end pt-2">
+                  <Button
+                    type="submit"
+                    variant="primary"
+                    size="sm"
+                    isLoading={isUploadingDoc}
+                    disabled={docFilesToUpload.length === 0}
+                  >
+                    Envoyer pour vérification
+                  </Button>
+                </div>
+              </form>
             </div>
           )}
 
@@ -589,7 +786,7 @@ export const PropertyDetailPage: React.FC = () => {
                           setIsTxModalOpen(true);
                         }}
                       >
-                        Gérer la caution & Signer le bail
+                        {property.modeTransaction === 'VENTE' ? "Gérer l'acompte & Signer la réservation" : "Gérer la caution & Signer le bail"}
                       </Button>
                     </div>
                   ) : hasEffectueVisit ? (
@@ -600,7 +797,9 @@ export const PropertyDetailPage: React.FC = () => {
                         Visite effectuée avec succès !
                       </p>
                       <p className="text-[11px] text-sahel-600">
-                        Vous pouvez dès maintenant réserver ce bien et consigner les fonds (caution + 1er loyer + frais) sous séquestre sécurisé.
+                        {property.modeTransaction === 'VENTE'
+                          ? "Vous pouvez dès maintenant réserver ce bien et consigner l'acompte de réservation (10 % du prix) sous séquestre sécurisé."
+                          : "Vous pouvez dès maintenant réserver ce bien et consigner les fonds (caution + 1er loyer + frais) sous séquestre sécurisé."}
                       </p>
                       <Button
                         variant="primary"
@@ -609,7 +808,7 @@ export const PropertyDetailPage: React.FC = () => {
                         isLoading={isInitiatingTx}
                         onClick={handleInitierTransaction}
                       >
-                        Initier la location / l'achat
+                        {property.modeTransaction === 'VENTE' ? "Initier la réservation d'achat" : "Initier la location"}
                       </Button>
                     </div>
                   ) : (

@@ -47,7 +47,7 @@ export async function apiFetch<T>(
     headers,
   });
 
-  // Never attempt token refresh or logout on 403 Forbidden (insufficient role/permissions)
+  // Never attempt token refresh on 403 Forbidden; logout immediately if account was deactivated
   if (response.status === 403) {
     let errorMessage = 'Accès refusé — Droits insuffisants';
     try {
@@ -55,6 +55,9 @@ export async function apiFetch<T>(
       if (errorJson.error) errorMessage = errorJson.error;
       else if (errorJson.message) errorMessage = errorJson.message;
     } catch (_) {}
+    if (errorMessage.toLowerCase().includes('désactivé')) {
+      logout();
+    }
     const err: any = new Error(errorMessage);
     err.status = 403;
     throw err;
@@ -156,6 +159,30 @@ export function getPhotoUrl(url?: string): string {
   if (url.startsWith('http://') || url.startsWith('https://')) return url;
   if (url.startsWith('/')) return `${API_BASE_URL}${url}`;
   return `${API_BASE_URL}/api/v1/uploads/annonces/${url}`;
+}
+
+export async function fetchProtectedBlob(endpoint: string): Promise<{ blobUrl: string; contentType: string }> {
+  const { accessToken } = useAuthStore.getState();
+  const url = endpoint.startsWith('http') ? endpoint : `${API_BASE_URL}${endpoint}`;
+  const response = await fetch(url, {
+    headers: accessToken ? { Authorization: `Bearer ${accessToken}` } : {},
+  });
+
+  if (!response.ok) {
+    let msg = `Impossible de charger le fichier protégé (${response.status})`;
+    try {
+      const err = await response.json();
+      if (err.error) msg = err.error;
+      else if (err.message) msg = err.message;
+    } catch (_) {}
+    throw new Error(msg);
+  }
+
+  const rawBlob = await response.blob();
+  const headerContentType = response.headers.get('content-type') || rawBlob.type || 'application/octet-stream';
+  const typedBlob = rawBlob.type ? rawBlob : new Blob([rawBlob], { type: headerContentType });
+  const blobUrl = window.URL.createObjectURL(typedBlob);
+  return { blobUrl, contentType: headerContentType };
 }
 
 export async function downloadPdfBail(transactionId: string, customFilename?: string): Promise<void> {

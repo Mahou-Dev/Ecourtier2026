@@ -39,13 +39,23 @@ class AdminStatistiquesControllerTest {
     private UtilisateurRepository utilisateurRepository;
 
     @Autowired
+    private com.ecourtier.domain.annonce.repository.AnnonceRepository annonceRepository;
+
+    @Autowired
     private PasswordEncoder passwordEncoder;
 
     private String adminToken;
     private String locataireToken;
 
+    @org.junit.jupiter.api.AfterEach
+    void tearDown() {
+        annonceRepository.deleteAll();
+        utilisateurRepository.deleteAll();
+    }
+
     @BeforeEach
     void setUp() throws Exception {
+        annonceRepository.deleteAll();
         utilisateurRepository.deleteAll();
 
         // Admin User

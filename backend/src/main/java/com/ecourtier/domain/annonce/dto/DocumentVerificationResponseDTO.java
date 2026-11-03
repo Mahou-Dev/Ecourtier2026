@@ -17,6 +17,7 @@ import java.util.UUID;
 public class DocumentVerificationResponseDTO {
     private UUID id;
     private TypeDocumentVerification typeDocument;
+    private String nomFichier;
     private String url;
     private StatutDocument statut;
     private String motifRejet;

@@ -37,7 +37,26 @@ export interface InscriptionRequestDTO {
   email: string;
   motDePasse: string;
   telephone: string;
-  role: 'LOCATAIRE' | 'PROPRIETAIRE' | 'AGENT';
+  role: 'LOCATAIRE' | 'PROPRIETAIRE';
+}
+
+export interface AdminCreateUtilisateurInput {
+  nom: string;
+  prenom: string;
+  email: string;
+  telephone: string;
+  role: 'ADMIN' | 'AGENT' | 'PROPRIETAIRE' | 'LOCATAIRE';
+  motDePasseTemporaire?: string;
+}
+
+export interface AdminCreateUtilisateurResponse {
+  utilisateur: UtilisateurDTO;
+  motDePasseTemporaire: string;
+}
+
+export interface ChangerMotDePasseInput {
+  ancienMotDePasse: string;
+  nouveauMotDePasse: string;
 }
 
 export interface PhotoAnnonceDTO {
@@ -62,16 +81,42 @@ export interface AnnonceDTO {
   longitude: number;
   meuble: boolean;
   animauxAcceptes: boolean;
+  confirmationAutomatique?: boolean;
   lienVisite360?: string;
   statutVerification: 'EN_ATTENTE' | 'VERIFIEE' | 'REJETEE';
   statutPublication: 'DISPONIBLE' | 'RESERVEE' | 'LOUEE' | 'VENDUE' | 'SUSPENDUE';
   dateCreation: string;
+  auteurRole?: 'ADMIN' | 'AGENT' | 'PROPRIETAIRE' | 'LOCATAIRE';
   auteur: UtilisateurDTO;
   photos: PhotoAnnonceDTO[];
   equipements: string[];
   proximites: string[];
-  documentsVerification?: any[];
+  documentsVerification?: DocumentVerificationDTO[];
   estFavori?: boolean;
+}
+
+export interface ReferenceItem {
+  valeur: string;
+  libelle: string;
+  description?: string;
+}
+
+export interface ReferencesResponse {
+  typesBien: ReferenceItem[];
+  equipements: ReferenceItem[];
+  proximites: ReferenceItem[];
+  modesTransaction: ReferenceItem[];
+  typesDocument: ReferenceItem[];
+}
+
+export interface DocumentVerificationDTO {
+  id: string;
+  typeDocument: 'TITRE_FONCIER' | 'BAIL_PRECEDENT' | 'PIECE_IDENTITE';
+  nomFichier?: string;
+  url: string;
+  statut: 'EN_ATTENTE' | 'VALIDE' | 'REJETE';
+  motifRejet?: string;
+  dateCreation: string;
 }
 
 export interface PageResponse<T> {
@@ -126,6 +171,9 @@ export interface TransactionResponseDTO {
   id: string;
   annonceId: string;
   annonceTitre: string;
+  modeTransaction?: 'LOCATION' | 'VENTE';
+  annoncePrix?: number;
+  acomptePourcentage?: number;
   locataireId: string;
   locataireNomComplet: string;
   proprietaireId?: string;
@@ -142,6 +190,20 @@ export interface TransactionResponseDTO {
   dateSignatureProprietaire?: string;
   dateLiberation?: string;
   pdfBailPath?: string;
+  dateCreation: string;
+}
+
+export type TypeNotificationSms = 'RDV_DEMANDE' | 'RDV_CONFIRME' | 'RDV_ANNULE' | 'RDV_RAPPEL';
+
+export interface NotificationSmsDTO {
+  id: string;
+  utilisateurId?: string;
+  telephone?: string;
+  type: TypeNotificationSms;
+  message: string;
+  statut: string;
+  rdvId?: string;
+  annonceTitre?: string;
   dateCreation: string;
 }
 
@@ -164,6 +226,7 @@ export interface AnnonceCreateInput {
   longitude: number;
   meuble?: boolean;
   animauxAcceptes?: boolean;
+  confirmationAutomatique?: boolean;
   lienVisite360?: string;
   equipements?: string[];
   proximites?: string[];

@@ -5,6 +5,7 @@ import com.ecourtier.domain.annonce.entity.ModeTransaction;
 import com.ecourtier.domain.annonce.entity.ProximiteTag;
 import com.ecourtier.domain.annonce.entity.StatutPublication;
 import com.ecourtier.domain.annonce.entity.TypeBien;
+import io.swagger.v3.oas.annotations.media.Schema;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
@@ -32,6 +33,10 @@ public class AnnonceUpdateDTO {
     private Double longitude;
     private Boolean meuble;
     private Boolean animauxAcceptes;
+
+    @Schema(description = "Confirmation automatique des demandes de visite sans conflit à ±60 min", example = "true")
+    private Boolean confirmationAutomatique;
+
     private String lienVisite360;
     private StatutPublication statutPublication;
     private Set<Equipement> equipements;

@@ -30,6 +30,18 @@ public interface RendezVousRepository extends JpaRepository<RendezVousEntity, UU
     @Query("""
         SELECT r FROM RendezVousEntity r 
         WHERE r.annonce.id = :annonceId 
+        AND r.statut = com.ecourtier.domain.rendezvous.entity.StatutRendezVous.CONFIRME 
+        AND r.dateHeure BETWEEN :startSlot AND :endSlot
+    """)
+    List<RendezVousEntity> findConfirmedInWindow(
+            @Param("annonceId") UUID annonceId,
+            @Param("startSlot") LocalDateTime startSlot,
+            @Param("endSlot") LocalDateTime endSlot
+    );
+
+    @Query("""
+        SELECT r FROM RendezVousEntity r 
+        WHERE r.annonce.id = :annonceId 
         AND r.statut = 'CONFIRME' 
         AND r.id <> :excludeRdvId 
         AND r.dateHeure BETWEEN :startSlot AND :endSlot

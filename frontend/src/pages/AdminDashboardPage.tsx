@@ -1,13 +1,13 @@
 import React, { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { useNavigate, Link } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import {
   AreaChart, Area, BarChart, Bar, PieChart, Pie, Cell,
   XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer
 } from 'recharts';
 import {
-  ShieldCheck, LayoutDashboard, Flag, Users, Building, Calendar,
+  ShieldCheck, Flag, Users, Building, Calendar,
   TrendingUp, Lock, RefreshCw, Star, Bot
 } from 'lucide-react';
 import { useAuthStore } from '../store/useAuthStore';
@@ -15,6 +15,7 @@ import { adminService } from '../services/admin.service';
 import { AdminStatistiquesDTO } from '../types';
 import { Card } from '../components/ui/Card';
 import { Skeleton } from '../components/ui/Skeleton';
+import { AdminNavTabs } from '../components/admin/AdminNavTabs';
 import { toast } from 'sonner';
 
 // Brand Palette Tokens for Charts
@@ -119,30 +120,7 @@ export const AdminDashboardPage: React.FC = () => {
           </p>
         </div>
 
-        {/* Tab switcher */}
-        <div className="flex items-center gap-2 bg-white/80 p-1.5 rounded-2xl border border-argile-200/80 shadow-xs self-start md:self-auto">
-          <Link
-            to="/admin/dashboard"
-            className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-bold bg-terracotta-500 text-white shadow-xs"
-          >
-            <LayoutDashboard className="w-4 h-4" />
-            <span>Vue d'ensemble</span>
-          </Link>
-          <Link
-            to="/admin/verification"
-            className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-bold text-charcoal-700 hover:bg-sand-100 transition-colors"
-          >
-            <ShieldCheck className="w-4 h-4 text-sahel-600" />
-            <span>Vérifications</span>
-          </Link>
-          <Link
-            to="/admin/signalements"
-            className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-bold text-charcoal-700 hover:bg-sand-100 transition-colors"
-          >
-            <Flag className="w-4 h-4 text-ocher-600" />
-            <span>Signalements</span>
-          </Link>
-        </div>
+        <AdminNavTabs />
       </div>
 
       {/* Period Filter Selector Toolbar */}

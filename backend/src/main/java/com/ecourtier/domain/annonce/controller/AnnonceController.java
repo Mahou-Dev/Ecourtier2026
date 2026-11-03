@@ -94,13 +94,19 @@ public class AnnonceController {
         return ResponseEntity.noContent().build();
     }
 
+    @GetMapping("/quartiers")
+    @Operation(summary = "Liste des quartiers distincts des annonces disponibles", description = "Accès public pour l'autocomplétion.")
+    public ResponseEntity<List<String>> obtenirQuartiersDisponibles() {
+        return ResponseEntity.ok(annonceService.obtenirQuartiersDisponibles());
+    }
+
     @GetMapping
     @Operation(summary = "Recherche paginée d'annonces avec filtres avancés", description = "Accès public avec critères multiples (budget, superficie, ville, meublé, proximité, etc.).")
     public ResponseEntity<Page<AnnonceResponseDTO>> rechercherAnnonces(
             @PageableDefault(size = 12, sort = "dateCreation", direction = Sort.Direction.DESC) Pageable pageable,
             @RequestParam(required = false) BigDecimal budgetMin,
             @RequestParam(required = false) BigDecimal budgetMax,
-            @RequestParam(required = false) TypeBien type,
+            @RequestParam(name = "type", required = false) List<TypeBien> types,
             @RequestParam(required = false) ModeTransaction modeTransaction,
             @RequestParam(required = false) Double superficieMin,
             @RequestParam(required = false) Integer nombrePieces,
@@ -109,7 +115,7 @@ public class AnnonceController {
             @RequestParam(required = false) Boolean meuble,
             @RequestParam(required = false) Boolean animauxAcceptes,
             @RequestParam(required = false) StatutVerification statutVerification,
-            @RequestParam(required = false) ProximiteTag proximite,
+            @RequestParam(name = "proximite", required = false) List<ProximiteTag> proximites,
             @RequestParam(name = "include_indisponibles", required = false, defaultValue = "false") Boolean includeIndisponibles,
             @RequestParam(name = "mes_annonces", required = false, defaultValue = "false") Boolean mesAnnonces,
             @RequestParam(name = "mes-annonces", required = false, defaultValue = "false") Boolean mesAnnoncesDash,
@@ -123,9 +129,9 @@ public class AnnonceController {
         String userEmail = authentication != null ? authentication.getName() : null;
 
         Page<AnnonceResponseDTO> result = annonceService.rechercherAnnonces(
-                pageable, budgetMin, budgetMax, type, modeTransaction,
+                pageable, budgetMin, budgetMax, types, modeTransaction,
                 superficieMin, nombrePieces, quartier, ville, meuble,
-                animauxAcceptes, statutVerification, proximite, includeIndisponibles, auteurEmail, userEmail
+                animauxAcceptes, statutVerification, proximites, includeIndisponibles, auteurEmail, userEmail
         );
         return ResponseEntity.ok(result);
     }
@@ -169,7 +175,7 @@ public class AnnonceController {
     @PostMapping(value = "/{id}/documents", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     @PreAuthorize("@annonceSecurityService.isOwnerOrAdmin(#id, authentication)")
     @SecurityRequirement(name = "bearerAuth")
-    @Operation(summary = "Soumettre un document justificatif pour vérification", description = "Téléverser un document (titre foncier, bail précédent, pièce d'identité) pour l'attribution du badge certifié.")
+    @Operation(summary = "Soumettre un document justificatif pour vérification", description = "Téléverser un document (titre foncier, bail précédent, photo du propriétaire avec sa pièce d'identité) au format image ou PDF (max 10 Mo) pour l'attribution du badge vérifié.")
     public ResponseEntity<DocumentVerificationResponseDTO> ajouterDocumentVerification(
             @PathVariable UUID id,
             @RequestParam("typeDocument") TypeDocumentVerification typeDocument,
@@ -182,14 +188,27 @@ public class AnnonceController {
     @GetMapping("/{id}/documents/{documentId}/fichier")
     @PreAuthorize("@annonceSecurityService.isOwnerOrAdmin(#id, authentication)")
     @SecurityRequirement(name = "bearerAuth")
-    @Operation(summary = "Télécharger / consulter un document de vérification", description = "Accès sécurisé réservé à l'auteur de l'annonce ou un ADMIN.")
+    @Operation(summary = "Télécharger / consulter un document de vérification", description = "Accès sécurisé réservé à l'auteur de l'annonce ou un ADMIN. Retourne le flux binaire avec son type MIME (image ou application/pdf).")
     public ResponseEntity<org.springframework.core.io.Resource> obtenirFichierDocumentVerification(
             @PathVariable UUID id,
             @PathVariable UUID documentId
     ) {
         org.springframework.core.io.Resource resource = annonceService.obtenirFichierDocumentVerification(id, documentId);
+        String filename = resource.getFilename() != null ? resource.getFilename() : "document";
+        String lower = filename.toLowerCase();
+        MediaType mediaType = MediaType.APPLICATION_OCTET_STREAM;
+        if (lower.endsWith(".pdf")) {
+            mediaType = MediaType.APPLICATION_PDF;
+        } else if (lower.endsWith(".png")) {
+            mediaType = MediaType.IMAGE_PNG;
+        } else if (lower.endsWith(".jpg") || lower.endsWith(".jpeg")) {
+            mediaType = MediaType.IMAGE_JPEG;
+        } else if (lower.endsWith(".webp")) {
+            mediaType = MediaType.parseMediaType("image/webp");
+        }
         return ResponseEntity.ok()
-                .header(org.springframework.http.HttpHeaders.CONTENT_DISPOSITION, "inline; filename=\"" + resource.getFilename() + "\"")
+                .contentType(mediaType)
+                .header(org.springframework.http.HttpHeaders.CONTENT_DISPOSITION, "inline; filename=\"" + filename + "\"")
                 .body(resource);
     }
 }

@@ -1,5 +1,7 @@
 package com.ecourtier.common.security;
 
+import com.ecourtier.domain.utilisateur.entity.UtilisateurEntity;
+import com.ecourtier.domain.utilisateur.repository.UtilisateurRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.messaging.Message;
 import org.springframework.messaging.MessageChannel;
@@ -22,6 +24,7 @@ public class WebSocketAuthInterceptor implements ChannelInterceptor {
 
     private final JwtService jwtService;
     private final UserDetailsService userDetailsService;
+    private final UtilisateurRepository utilisateurRepository;
     private final ConversationSecurityService conversationSecurityService;
 
     @Override
@@ -38,6 +41,10 @@ public class WebSocketAuthInterceptor implements ChannelInterceptor {
                     String token = authHeader.startsWith("Bearer ") ? authHeader.substring(7) : authHeader;
                     if (jwtService.isTokenValid(token)) {
                         String email = jwtService.extractEmail(token);
+                        UtilisateurEntity utilisateur = utilisateurRepository.findByEmail(email).orElse(null);
+                        if (utilisateur == null || !utilisateur.isActif()) {
+                            throw new IllegalArgumentException("Le compte utilisateur est désactivé");
+                        }
                         UserDetails userDetails = userDetailsService.loadUserByUsername(email);
                         UsernamePasswordAuthenticationToken auth = new UsernamePasswordAuthenticationToken(
                                 userDetails,

@@ -1,5 +1,7 @@
 package com.ecourtier.common.security;
 
+import com.ecourtier.domain.utilisateur.entity.UtilisateurEntity;
+import com.ecourtier.domain.utilisateur.repository.UtilisateurRepository;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
@@ -15,6 +17,8 @@ import org.springframework.stereotype.Component;
 import org.springframework.web.filter.OncePerRequestFilter;
 
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
+import java.time.LocalDateTime;
 
 @Component
 @RequiredArgsConstructor
@@ -22,6 +26,7 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
     private final JwtService jwtService;
     private final UserDetailsService userDetailsService;
+    private final UtilisateurRepository utilisateurRepository;
 
     @Override
     protected void doFilterInternal(
@@ -40,6 +45,7 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
         }
 
         jwt = authHeader.substring(7);
+        boolean accountDeactivated = false;
         try {
             userEmail = jwtService.extractEmail(jwt);
 
@@ -47,18 +53,38 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                 UserDetails userDetails = this.userDetailsService.loadUserByUsername(userEmail);
 
                 if (jwtService.isTokenValid(jwt, userDetails.getUsername())) {
-                    UsernamePasswordAuthenticationToken authToken = new UsernamePasswordAuthenticationToken(
-                            userDetails,
-                            null,
-                            userDetails.getAuthorities()
-                    );
-                    authToken.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
-                    SecurityContextHolder.getContext().setAuthentication(authToken);
+                    UtilisateurEntity entity = utilisateurRepository.findByEmail(userEmail).orElse(null);
+                    if (entity == null || !entity.isActif()) {
+                        accountDeactivated = true;
+                        SecurityContextHolder.clearContext();
+                    } else {
+                        UsernamePasswordAuthenticationToken authToken = new UsernamePasswordAuthenticationToken(
+                                userDetails,
+                                null,
+                                userDetails.getAuthorities()
+                        );
+                        authToken.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
+                        SecurityContextHolder.getContext().setAuthentication(authToken);
+                    }
                 }
             }
         } catch (Exception e) {
             // Token validation or parsing failed, clear context
             SecurityContextHolder.clearContext();
+        }
+
+        if (accountDeactivated) {
+            response.setStatus(HttpServletResponse.SC_FORBIDDEN);
+            response.setCharacterEncoding(StandardCharsets.UTF_8.name());
+            response.setContentType("application/json;charset=UTF-8");
+            String safePath = request.getRequestURI() != null ? request.getRequestURI().replace("\"", "") : "";
+            String body = String.format(
+                    "{\"timestamp\":\"%s\",\"status\":403,\"error\":\"Le compte utilisateur est désactivé\",\"path\":\"%s\"}",
+                    LocalDateTime.now(),
+                    safePath
+            );
+            response.getOutputStream().write(body.getBytes(StandardCharsets.UTF_8));
+            return;
         }
 
         filterChain.doFilter(request, response);

@@ -8,7 +8,10 @@ import { Input } from '../ui/Input';
 import { apiFetch } from '../../services/api';
 import { AnnonceDTO } from '../../types';
 import { toast } from 'sonner';
-import { Upload, X, FileText, Image as ImageIcon, Plus } from 'lucide-react';
+import { Upload, X, FileText, Image as ImageIcon, Plus, Check } from 'lucide-react';
+import { useReferences } from '../../hooks/useReferences';
+import { LocationPickerMap, isInsideSenegal } from '../map/LocationPickerMap';
+import { getEquipementMeta, getProximiteMeta } from '../ui/ReferenceIcons';
 
 const annonceSchema = z.object({
   titre: z.string().min(5, 'Le titre doit faire au moins 5 caractères'),
@@ -21,10 +24,11 @@ const annonceSchema = z.object({
   etage: z.coerce.number().int().optional(),
   quartier: z.string().min(2, 'Le quartier est obligatoire'),
   ville: z.string().min(2, 'La ville est obligatoire'),
-  latitude: z.coerce.number().default(14.7167),
-  longitude: z.coerce.number().default(-17.4677),
+  latitude: z.coerce.number(),
+  longitude: z.coerce.number(),
   meuble: z.boolean().default(false),
   animauxAcceptes: z.boolean().default(false),
+  confirmationAutomatique: z.boolean().default(true),
   lienVisite360: z.string().optional(),
 });
 
@@ -36,19 +40,29 @@ interface CreateAnnonceModalProps {
   onSuccess: () => void;
 }
 
+interface QueuedDocFile {
+  type: 'TITRE_FONCIER' | 'BAIL_PRECEDENT' | 'PIECE_IDENTITE';
+  file: File;
+}
+
 export const CreateAnnonceModal: React.FC<CreateAnnonceModalProps> = ({
   isOpen,
   onClose,
   onSuccess,
 }) => {
+  const { data: references } = useReferences();
   const [selectedPhotos, setSelectedPhotos] = useState<File[]>([]);
-  const [docVerificationFile, setDocVerificationFile] = useState<File | null>(null);
-  const [docType, setDocType] = useState<'TITRE_FONCIER' | 'BAIL_PRECEDENT' | 'PIECE_IDENTITE'>('TITRE_FONCIER');
+  const [queuedDocs, setQueuedDocs] = useState<QueuedDocFile[]>([]);
+  const [selectedDocType, setSelectedDocType] = useState<'TITRE_FONCIER' | 'BAIL_PRECEDENT' | 'PIECE_IDENTITE'>('TITRE_FONCIER');
+  const [selectedEquipements, setSelectedEquipements] = useState<string[]>([]);
+  const [selectedProximites, setSelectedProximites] = useState<string[]>([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const {
     register,
     handleSubmit,
+    setValue,
+    watch,
     reset,
     formState: { errors },
   } = useForm<AnnonceFormData>({
@@ -65,8 +79,12 @@ export const CreateAnnonceModal: React.FC<CreateAnnonceModalProps> = ({
       nombrePieces: 3,
       meuble: true,
       animauxAcceptes: false,
+      confirmationAutomatique: true,
     },
   });
+
+  const currentLat = watch('latitude') ?? 14.745;
+  const currentLng = watch('longitude') ?? -17.518;
 
   const handlePhotoSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files) {
@@ -83,19 +101,53 @@ export const CreateAnnonceModal: React.FC<CreateAnnonceModalProps> = ({
     setSelectedPhotos((prev) => prev.filter((_, i) => i !== index));
   };
 
-  const handleDocSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (e.target.files && e.target.files[0]) {
-      setDocVerificationFile(e.target.files[0]);
+  const handleDocAdd = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files && e.target.files.length > 0) {
+      const filesArr = Array.from(e.target.files);
+      const newDocs: QueuedDocFile[] = filesArr.map((f) => ({
+        type: selectedDocType,
+        file: f,
+      }));
+      setQueuedDocs((prev) => [...prev, ...newDocs]);
+      toast.success(`${filesArr.length} document(s) ajouté(s) à la liste`);
+      e.target.value = '';
     }
   };
 
+  const removeQueuedDoc = (index: number) => {
+    setQueuedDocs((prev) => prev.filter((_, i) => i !== index));
+  };
+
+  const toggleEquipement = (code: string) => {
+    setSelectedEquipements((prev) =>
+      prev.includes(code) ? prev.filter((c) => c !== code) : [...prev, code]
+    );
+  };
+
+  const toggleProximite = (code: string) => {
+    setSelectedProximites((prev) =>
+      prev.includes(code) ? prev.filter((c) => c !== code) : [...prev, code]
+    );
+  };
+
   const onSubmit = async (data: AnnonceFormData) => {
+    if (!isInsideSenegal(data.latitude, data.longitude)) {
+      toast.error('Les coordonnées géographiques doivent se situer au Sénégal');
+      return;
+    }
+
     setIsSubmitting(true);
     try {
-      // Step 1: Create listing
+      // Step 1: Create listing with equipements and proximites
+      const payload = {
+        ...data,
+        equipements: selectedEquipements,
+        proximites: selectedProximites,
+      };
+
       const createdAnnonce = await apiFetch<AnnonceDTO>('/api/v1/annonces', {
         method: 'POST',
-        body: JSON.stringify(data),
+        body: JSON.stringify(payload),
       });
 
       // Step 2: Upload photos if any
@@ -108,20 +160,24 @@ export const CreateAnnonceModal: React.FC<CreateAnnonceModalProps> = ({
         });
       }
 
-      // Step 3: Upload verification document if provided
-      if (docVerificationFile) {
-        const docFormData = new FormData();
-        docFormData.append('file', docVerificationFile);
-        await apiFetch(`/api/v1/annonces/${createdAnnonce.id}/documents?typeDocument=${docType}`, {
-          method: 'POST',
-          body: docFormData,
-        });
+      // Step 3: Upload all queued verification documents
+      if (queuedDocs.length > 0) {
+        for (const doc of queuedDocs) {
+          const docFormData = new FormData();
+          docFormData.append('file', doc.file);
+          await apiFetch(`/api/v1/annonces/${createdAnnonce.id}/documents?typeDocument=${doc.type}`, {
+            method: 'POST',
+            body: docFormData,
+          });
+        }
       }
 
       toast.success('Annonce créée avec succès !');
       reset();
       setSelectedPhotos([]);
-      setDocVerificationFile(null);
+      setQueuedDocs([]);
+      setSelectedEquipements([]);
+      setSelectedProximites([]);
       onSuccess();
       onClose();
     } catch (err: any) {
@@ -130,6 +186,12 @@ export const CreateAnnonceModal: React.FC<CreateAnnonceModalProps> = ({
       setIsSubmitting(false);
     }
   };
+
+  const docTypesList = references?.typesDocument || [
+    { valeur: 'TITRE_FONCIER', libelle: 'Titre Foncier / Attestation de propriété' },
+    { valeur: 'BAIL_PRECEDENT', libelle: 'Bail précédent / Facture d\'électricité' },
+    { valeur: 'PIECE_IDENTITE', libelle: 'Photo du propriétaire avec sa pièce d\'identité' },
+  ];
 
   return (
     <Modal isOpen={isOpen} onClose={onClose} title="Publier une nouvelle annonce" size="lg">
@@ -166,9 +228,13 @@ export const CreateAnnonceModal: React.FC<CreateAnnonceModalProps> = ({
                 className="w-full px-3 py-2 rounded-xl border border-sand-300 text-sm focus:ring-2 focus:ring-terracotta-500 outline-none"
                 {...register('type')}
               >
-                <option value="STUDIO">Studio</option>
-                <option value="APPARTEMENT">Appartement</option>
-                <option value="VILLA">Villa</option>
+                {(references?.typesBien || [
+                  { valeur: 'APPARTEMENT', libelle: 'Appartement' },
+                  { valeur: 'VILLA', libelle: 'Villa' },
+                  { valeur: 'STUDIO', libelle: 'Studio' },
+                ]).map((t) => (
+                  <option key={t.valeur} value={t.valeur}>{t.libelle}</option>
+                ))}
               </select>
             </div>
 
@@ -178,8 +244,12 @@ export const CreateAnnonceModal: React.FC<CreateAnnonceModalProps> = ({
                 className="w-full px-3 py-2 rounded-xl border border-sand-300 text-sm focus:ring-2 focus:ring-terracotta-500 outline-none"
                 {...register('modeTransaction')}
               >
-                <option value="LOCATION">Location</option>
-                <option value="VENTE">Vente</option>
+                {(references?.modesTransaction || [
+                  { valeur: 'LOCATION', libelle: 'Location' },
+                  { valeur: 'VENTE', libelle: 'Vente' },
+                ]).map((m) => (
+                  <option key={m.valeur} value={m.valeur}>{m.libelle}</option>
+                ))}
               </select>
             </div>
 
@@ -231,7 +301,7 @@ export const CreateAnnonceModal: React.FC<CreateAnnonceModalProps> = ({
             {...register('lienVisite360')}
           />
 
-          <div className="flex items-center gap-6 pt-2">
+          <div className="flex flex-wrap items-center gap-6 pt-2">
             <label className="flex items-center gap-2 text-xs font-semibold text-sahel-800 cursor-pointer">
               <input type="checkbox" className="rounded text-terracotta-500 focus:ring-terracotta-500" {...register('meuble')} />
               <span>Meublé</span>
@@ -240,6 +310,109 @@ export const CreateAnnonceModal: React.FC<CreateAnnonceModalProps> = ({
               <input type="checkbox" className="rounded text-terracotta-500 focus:ring-terracotta-500" {...register('animauxAcceptes')} />
               <span>Animaux acceptés</span>
             </label>
+            <label className="flex items-center gap-2 text-xs font-semibold text-sahel-800 cursor-pointer">
+              <input
+                type="checkbox"
+                data-testid="confirmation-automatique-create"
+                className="rounded text-terracotta-500 focus:ring-terracotta-500"
+                {...register('confirmationAutomatique')}
+              />
+              <span>Confirmation automatique des visites</span>
+            </label>
+          </div>
+          <p className="text-[11px] text-sahel-600">
+            Si cochée, une demande de visite est confirmée immédiatement lorsqu'aucune autre visite confirmée n'existe à ±60 min.
+          </p>
+        </div>
+
+        {/* Localisation Interactive Leaflet (F4) */}
+        <div className="space-y-3 pt-4 border-t border-sand-300">
+          <h4 className="font-display text-sm font-bold text-sahel-900">
+            2. Localisation géographique (Sénégal)
+          </h4>
+          <LocationPickerMap
+            latitude={currentLat}
+            longitude={currentLng}
+            onChange={(lat, lng) => {
+              setValue('latitude', lat, { shouldValidate: true });
+              setValue('longitude', lng, { shouldValidate: true });
+            }}
+          />
+        </div>
+
+        {/* Équipements (F5) */}
+        <div className="space-y-3 pt-4 border-t border-sand-300">
+          <h4 className="font-display text-sm font-bold text-sahel-900">
+            3. Équipements disponibles
+          </h4>
+          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2.5">
+            {(references?.equipements || [
+              { valeur: 'WIFI', libelle: 'Wi-Fi' },
+              { valeur: 'PARKING', libelle: 'Parking' },
+              { valeur: 'CLIMATISATION', libelle: 'Climatisation' },
+              { valeur: 'PISCINE', libelle: 'Piscine' },
+              { valeur: 'GARDIEN', libelle: 'Gardien / Sécurité' },
+              { valeur: 'GROUPE_ELECTROGENE', libelle: 'Groupe électrogène' },
+              { valeur: 'RESERVE_EAU', libelle: "Réserve d'eau" },
+            ]).map((eq) => {
+              const meta = getEquipementMeta(eq.valeur);
+              const Icon = meta.icon;
+              const isChecked = selectedEquipements.includes(eq.valeur);
+              return (
+                <button
+                  key={eq.valeur}
+                  type="button"
+                  onClick={() => toggleEquipement(eq.valeur)}
+                  className={`flex items-center gap-2 px-3 py-2 rounded-xl border text-xs font-medium text-left transition-all ${
+                    isChecked
+                      ? 'bg-terracotta-50 border-terracotta-500 text-terracotta-800 ring-1 ring-terracotta-400'
+                      : 'bg-white border-sand-300 text-charcoal-700 hover:bg-sand-50'
+                  }`}
+                >
+                  <Icon className={`w-4 h-4 shrink-0 ${isChecked ? 'text-terracotta-600' : 'text-charcoal-500'}`} />
+                  <span className="truncate">{eq.libelle}</span>
+                  {isChecked && <Check className="w-3.5 h-3.5 text-terracotta-600 ml-auto" />}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* Proximités (F5) */}
+        <div className="space-y-3 pt-4 border-t border-sand-300">
+          <h4 className="font-display text-sm font-bold text-sahel-900">
+            4. Proximités & Commodités
+          </h4>
+          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2.5">
+            {(references?.proximites || [
+              { valeur: 'ECOLE', libelle: 'École' },
+              { valeur: 'MARCHE', libelle: 'Marché' },
+              { valeur: 'HOPITAL', libelle: 'Hôpital / Santé' },
+              { valeur: 'TRANSPORT', libelle: 'Transports (BRT/Bus)' },
+              { valeur: 'PLAGE', libelle: 'Plage / Mer' },
+              { valeur: 'COMMERCE', libelle: 'Commerces' },
+              { valeur: 'UNIVERSITE', libelle: 'Université' },
+            ]).map((prox) => {
+              const meta = getProximiteMeta(prox.valeur);
+              const Icon = meta.icon;
+              const isChecked = selectedProximites.includes(prox.valeur);
+              return (
+                <button
+                  key={prox.valeur}
+                  type="button"
+                  onClick={() => toggleProximite(prox.valeur)}
+                  className={`flex items-center gap-2 px-3 py-2 rounded-xl border text-xs font-medium text-left transition-all ${
+                    isChecked
+                      ? 'bg-clay-50 border-sahel-600 text-sahel-900 ring-1 ring-sahel-500'
+                      : 'bg-white border-sand-300 text-charcoal-700 hover:bg-sand-50'
+                  }`}
+                >
+                  <Icon className={`w-4 h-4 shrink-0 ${isChecked ? 'text-sahel-700' : 'text-charcoal-500'}`} />
+                  <span className="truncate">{prox.libelle}</span>
+                  {isChecked && <Check className="w-3.5 h-3.5 text-sahel-700 ml-auto" />}
+                </button>
+              );
+            })}
           </div>
         </div>
 
@@ -247,7 +420,7 @@ export const CreateAnnonceModal: React.FC<CreateAnnonceModalProps> = ({
         <div className="space-y-3 pt-4 border-t border-sand-300">
           <h4 className="font-display text-sm font-bold text-sahel-900 flex items-center gap-2">
             <ImageIcon className="w-4 h-4 text-terracotta-500" />
-            <span>2. Photos du bien (max 10)</span>
+            <span>5. Photos du bien (max 10)</span>
           </h4>
 
           <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
@@ -268,44 +441,85 @@ export const CreateAnnonceModal: React.FC<CreateAnnonceModalProps> = ({
               <label className="border-2 border-dashed border-sand-300 hover:border-terracotta-500 rounded-xl h-24 flex flex-col items-center justify-center cursor-pointer transition-colors text-sahel-600 hover:text-terracotta-600">
                 <Plus className="w-6 h-6 mb-1" />
                 <span className="text-[11px] font-semibold">Ajouter photo</span>
-                <input type="file" accept="image/*" multiple onChange={handlePhotoSelect} className="hidden" />
+                <input type="file" accept=".jpg,.jpeg,.png,.webp,image/jpeg,image/png,image/webp" multiple onChange={handlePhotoSelect} className="hidden" />
               </label>
             )}
           </div>
+          <p className="text-[11px] text-sahel-600">
+            Formats acceptés : Images uniquement (JPG, JPEG, PNG, WEBP — Max 5 Mo).
+          </p>
         </div>
 
-        {/* Verification Document Upload Section */}
+        {/* Verification Document Upload Section (F14) */}
         <div className="space-y-3 pt-4 border-t border-sand-300">
           <h4 className="font-display text-sm font-bold text-sahel-900 flex items-center gap-2">
             <FileText className="w-4 h-4 text-terracotta-500" />
-            <span>3. Document de vérification cadastrale (Optionnel mais recommandé)</span>
+            <span>6. Pièces justificatives de vérification (F14)</span>
           </h4>
           <p className="text-xs text-sahel-600">
-            Soumettez un titre foncier ou bail pour demander le contrôle et l'attribution du badge vérifié par nos équipes.
+            Soumettez vos preuves pour obtenir le badge <strong>Annonce vérifiée</strong>. Vous pouvez ajouter plusieurs fichiers pour chaque type (titre foncier, bail précédent, photo avec pièce d'identité).
           </p>
+
+          <div className="p-3 bg-amber-50 rounded-xl border border-amber-200 text-[11px] text-amber-800">
+            <strong>Formats acceptés par le serveur :</strong> Images (JPG, JPEG, PNG, WEBP) ou documents PDF — Max 10 Mo par fichier.
+          </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4 items-end">
             <div>
               <label className="block text-xs font-bold text-sahel-800 mb-1">Type de document</label>
               <select
-                value={docType}
-                onChange={(e) => setDocType(e.target.value as any)}
+                value={selectedDocType}
+                onChange={(e) => setSelectedDocType(e.target.value as any)}
                 className="w-full px-3 py-2 rounded-xl border border-sand-300 text-sm focus:ring-2 focus:ring-terracotta-500 outline-none"
               >
-                <option value="TITRE_FONCIER">Titre Foncier / Attestation de propriété</option>
-                <option value="BAIL_PRECEDENT">Bail enregistré / Contrat</option>
-                <option value="PIECE_IDENTITE">Pièce d'identité propriétaire</option>
+                {docTypesList.map((dt) => (
+                  <option key={dt.valeur} value={dt.valeur}>{dt.libelle}</option>
+                ))}
               </select>
             </div>
 
             <div>
               <label className="border border-sand-300 hover:border-terracotta-500 rounded-xl px-4 py-2.5 flex items-center justify-between cursor-pointer text-xs font-semibold text-sahel-800 bg-sand-50 transition-colors">
-                <span className="truncate">{docVerificationFile ? docVerificationFile.name : 'Choisir un fichier (PDF/Image)'}</span>
+                <span className="truncate">Ajouter fichier(s) (Image ou PDF)</span>
                 <Upload className="w-4 h-4 text-terracotta-500 shrink-0 ml-2" />
-                <input type="file" accept="image/*,.pdf" onChange={handleDocSelect} className="hidden" />
+                <input
+                  type="file"
+                  accept=".jpg,.jpeg,.png,.webp,.pdf,image/jpeg,image/png,image/webp,application/pdf"
+                  multiple
+                  onChange={handleDocAdd}
+                  className="hidden"
+                />
               </label>
             </div>
           </div>
+
+          {queuedDocs.length > 0 && (
+            <div className="space-y-2 pt-2">
+              <p className="text-xs font-semibold text-sahel-800">Fichiers prêts à être soumis ({queuedDocs.length}) :</p>
+              <div className="space-y-1.5 max-h-40 overflow-y-auto">
+                {queuedDocs.map((item, idx) => (
+                  <div
+                    key={idx}
+                    className="flex items-center justify-between p-2 rounded-lg bg-sand-100 border border-sand-300 text-xs text-charcoal-800"
+                  >
+                    <div className="flex items-center gap-2 truncate">
+                      <FileText className="w-3.5 h-3.5 text-terracotta-600 shrink-0" />
+                      <span className="font-semibold text-terracotta-800">[{item.type}]</span>
+                      <span className="truncate">{item.file.name}</span>
+                      <span className="text-[10px] text-charcoal-500">({(item.file.size / 1024).toFixed(0)} Ko)</span>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => removeQueuedDoc(idx)}
+                      className="p-1 hover:text-rose-600 transition-colors"
+                    >
+                      <X className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
 
         {/* Actions */}

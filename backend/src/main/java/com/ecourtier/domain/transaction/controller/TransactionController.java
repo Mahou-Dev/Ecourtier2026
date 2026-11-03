@@ -5,6 +5,9 @@ import com.ecourtier.domain.transaction.dto.TransactionResponseDTO;
 import com.ecourtier.domain.transaction.entity.TransactionEntity;
 import com.ecourtier.domain.transaction.repository.TransactionRepository;
 import com.ecourtier.domain.transaction.service.TransactionService;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.security.SecurityRequirement;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.core.io.FileSystemResource;
@@ -29,6 +32,8 @@ import java.util.UUID;
 @RestController
 @RequestMapping("/api/v1")
 @RequiredArgsConstructor
+@Tag(name = "Transactions & Séquestre", description = "Séquestre Wave simulé (caution + 1er loyer en LOCATION, acompte en VENTE), double signature électronique et génération PDF")
+@SecurityRequirement(name = "bearerAuth")
 public class TransactionController {
 
     private final TransactionService transactionService;
@@ -36,6 +41,10 @@ public class TransactionController {
 
     @PostMapping("/annonces/{id}/transactions")
     @PreAuthorize("isAuthenticated()")
+    @Operation(
+            summary = "Initier une transaction (location ou réservation d'achat)",
+            description = "Requiert une visite EFFECTUE préalable. Les montants sont calculés côté serveur (LOCATION : caution + 1er loyer + 5 000 FCFA ; VENTE : acompte de 10 % du prix + 5 000 FCFA)."
+    )
     public ResponseEntity<TransactionResponseDTO> initierTransaction(
             @PathVariable("id") UUID id,
             @Valid @RequestBody(required = false) TransactionRequestDTO request,
@@ -47,6 +56,10 @@ public class TransactionController {
 
     @PostMapping("/transactions/{id}/paiement-caution")
     @PreAuthorize("@transactionSecurityService.isLocataireOrAdmin(#id, authentication)")
+    @Operation(
+            summary = "Simuler le paiement du séquestre via Wave Sandbox",
+            description = "Déclenche le paiement Mobile Money simulé du montant total séquestré et fait passer statutSequestre de INITIALISE à BLOQUE."
+    )
     public ResponseEntity<TransactionResponseDTO> effectuerPaiementCaution(
             @PathVariable("id") UUID id,
             Authentication authentication
@@ -57,6 +70,10 @@ public class TransactionController {
 
     @PostMapping("/transactions/{id}/bail/signer")
     @PreAuthorize("@transactionSecurityService.isStakeholderOrAdmin(#id, authentication)")
+    @Operation(
+            summary = "Signer électroniquement le bail ou le récapitulatif de réservation d'achat",
+            description = "Enregistre la signature électronique du locataire/acheteur ou du propriétaire/agent. À la double signature (SIGNE_COMPLET), génère le PDF et libère automatiquement les fonds séquestrés (LIBERE)."
+    )
     public ResponseEntity<TransactionResponseDTO> signerBail(
             @PathVariable("id") UUID id,
             Authentication authentication
@@ -67,6 +84,10 @@ public class TransactionController {
 
     @GetMapping("/transactions/mes-transactions")
     @PreAuthorize("isAuthenticated()")
+    @Operation(
+            summary = "Lister mes dossiers de transaction",
+            description = "Retourne l'ensemble des transactions impliquant l'utilisateur connecté en tant que locataire/acheteur ou propriétaire/agent."
+    )
     public ResponseEntity<java.util.List<TransactionResponseDTO>> listerMesTransactions(
             Authentication authentication
     ) {
@@ -76,6 +97,10 @@ public class TransactionController {
 
     @GetMapping("/transactions/{id}")
     @PreAuthorize("@transactionSecurityService.isStakeholderOrAdmin(#id, authentication)")
+    @Operation(
+            summary = "Consulter le détail d'une transaction",
+            description = "Retourne l'état complet d'un dossier de séquestre et de signature (réservé aux parties prenantes ou à un ADMIN)."
+    )
     public ResponseEntity<TransactionResponseDTO> obtenirDetail(
             @PathVariable("id") UUID id,
             Authentication authentication
@@ -86,6 +111,10 @@ public class TransactionController {
 
     @GetMapping("/transactions/{id}/bail/pdf")
     @PreAuthorize("@transactionSecurityService.isStakeholderOrAdmin(#id, authentication)")
+    @Operation(
+            summary = "Télécharger le PDF récapitulatif généré après double signature",
+            description = "Télécharge le contrat de bail numérique (LOCATION) ou le récapitulatif de réservation d'achat (VENTE) généré une fois le statut SIGNE_COMPLET atteint."
+    )
     public ResponseEntity<Resource> telechargerPdfBail(
             @PathVariable("id") UUID id,
             Authentication authentication
@@ -94,7 +123,7 @@ public class TransactionController {
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Transaction introuvable"));
 
         if (tx.getPdfBailPath() == null || tx.getPdfBailPath().trim().isEmpty()) {
-            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Le PDF du bail n'a pas encore été généré pour cette transaction.");
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Le PDF récapitulatif n'a pas encore été généré pour cette transaction.");
         }
 
         File file = new File(tx.getPdfBailPath());

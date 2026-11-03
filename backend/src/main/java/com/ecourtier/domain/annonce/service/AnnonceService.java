@@ -61,6 +61,8 @@ public class AnnonceService {
         UtilisateurEntity user = utilisateurRepository.findByEmail(userEmail)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Utilisateur non trouvé"));
 
+        validerCoordonneesSenegal(dto.getLatitude(), dto.getLongitude());
+
         AnnonceEntity annonce = AnnonceEntity.builder()
                 .titre(dto.getTitre())
                 .description(dto.getDescription())
@@ -76,6 +78,7 @@ public class AnnonceService {
                 .longitude(dto.getLongitude())
                 .meuble(dto.isMeuble())
                 .animauxAcceptes(dto.isAnimauxAcceptes())
+                .confirmationAutomatique(dto.getConfirmationAutomatique() == null || dto.getConfirmationAutomatique())
                 .lienVisite360(dto.getLienVisite360())
                 .statutVerification(StatutVerification.EN_ATTENTE)
                 .statutPublication(StatutPublication.DISPONIBLE)
@@ -107,6 +110,10 @@ public class AnnonceService {
         AnnonceEntity annonce = annonceRepository.findByIdAndSupprimeFalse(id)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Annonce introuvable ou supprimée"));
 
+        Double effectiveLat = dto.getLatitude() != null ? dto.getLatitude() : annonce.getLatitude();
+        Double effectiveLon = dto.getLongitude() != null ? dto.getLongitude() : annonce.getLongitude();
+        validerCoordonneesSenegal(effectiveLat, effectiveLon);
+
         if (dto.getTitre() != null) annonce.setTitre(dto.getTitre());
         if (dto.getDescription() != null) annonce.setDescription(dto.getDescription());
         if (dto.getType() != null) annonce.setType(dto.getType());
@@ -121,6 +128,7 @@ public class AnnonceService {
         if (dto.getLongitude() != null) annonce.setLongitude(dto.getLongitude());
         if (dto.getMeuble() != null) annonce.setMeuble(dto.getMeuble());
         if (dto.getAnimauxAcceptes() != null) annonce.setAnimauxAcceptes(dto.getAnimauxAcceptes());
+        if (dto.getConfirmationAutomatique() != null) annonce.setConfirmationAutomatique(dto.getConfirmationAutomatique());
         if (dto.getLienVisite360() != null) annonce.setLienVisite360(dto.getLienVisite360());
         if (dto.getStatutPublication() != null) annonce.setStatutPublication(dto.getStatutPublication());
         if (dto.getEquipements() != null) annonce.setEquipements(dto.getEquipements());
@@ -227,15 +235,63 @@ public class AnnonceService {
             String auteurEmail,
             String userEmail
     ) {
+        return rechercherAnnonces(
+                pageable, budgetMin, budgetMax,
+                type != null ? List.of(type) : null,
+                modeTransaction, superficieMin, nombrePieces,
+                quartier, ville, meuble, animauxAcceptes,
+                statutVerification,
+                proximite != null ? List.of(proximite) : null,
+                includeIndisponibles, auteurEmail, userEmail
+        );
+    }
+
+    @Transactional(readOnly = true)
+    public Page<AnnonceResponseDTO> rechercherAnnonces(
+            Pageable pageable,
+            BigDecimal budgetMin,
+            BigDecimal budgetMax,
+            List<TypeBien> types,
+            ModeTransaction modeTransaction,
+            Double superficieMin,
+            Integer nombrePieces,
+            String quartier,
+            String ville,
+            Boolean meuble,
+            Boolean animauxAcceptes,
+            StatutVerification statutVerification,
+            List<ProximiteTag> proximites,
+            Boolean includeIndisponibles,
+            String auteurEmail,
+            String userEmail
+    ) {
         Specification<AnnonceEntity> spec = AnnonceSpecification.filterAnnonces(
-                budgetMin, budgetMax, type, modeTransaction, superficieMin,
+                budgetMin, budgetMax, types, modeTransaction, superficieMin,
                 nombrePieces, quartier, ville, meuble, animauxAcceptes,
-                statutVerification, proximite, includeIndisponibles, auteurEmail
+                statutVerification, proximites, includeIndisponibles, auteurEmail
         );
 
         Set<UUID> favorisIds = getFavorisIds(userEmail);
         return annonceRepository.findAll(spec, pageable)
                 .map(entity -> annonceMapper.toResponseDTO(entity, favorisIds));
+    }
+
+    @Transactional(readOnly = true)
+    public List<String> obtenirQuartiersDisponibles() {
+        return annonceRepository.findDistinctQuartiers();
+    }
+
+    private void validerCoordonneesSenegal(Double lat, Double lon) {
+        if (lat == null && lon == null) {
+            return;
+        }
+        if (lat == null || lon == null) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "La latitude et la longitude doivent être fournies ensemble");
+        }
+        if (lat < 12.0 || lat > 17.0 || lon < -17.8 || lon > -11.0) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                    "Les coordonnées géographiques doivent se situer au Sénégal (latitude entre 12.0 et 17.0, longitude entre -17.8 et -11.0).");
+        }
     }
 
     /**
@@ -336,10 +392,24 @@ public class AnnonceService {
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Annonce introuvable"));
 
         String url = fileStorageService.storeDocumentVerification(id, file);
+        String originalName = file.getOriginalFilename();
+        String safeOriginalName = null;
+        if (originalName != null && !originalName.isBlank()) {
+            safeOriginalName = originalName.replace("\\", "/");
+            int slashIdx = safeOriginalName.lastIndexOf('/');
+            if (slashIdx >= 0) {
+                safeOriginalName = safeOriginalName.substring(slashIdx + 1);
+            }
+            safeOriginalName = safeOriginalName.replace("..", "").trim();
+            if (safeOriginalName.length() > 250) {
+                safeOriginalName = safeOriginalName.substring(safeOriginalName.length() - 250);
+            }
+        }
 
         DocumentVerificationEntity doc = DocumentVerificationEntity.builder()
                 .annonce(annonce)
                 .typeDocument(typeDocument)
+                .nomFichier(safeOriginalName)
                 .url(url)
                 .statut(StatutDocument.EN_ATTENTE)
                 .build();
@@ -371,15 +441,49 @@ public class AnnonceService {
         AnnonceEntity annonce = annonceRepository.findByIdAndSupprimeFalse(id)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Annonce introuvable"));
 
-        if (decision.getStatutVerification() == StatutVerification.EN_ATTENTE) {
+        if (decision.getStatutVerification() == null || decision.getStatutVerification() == StatutVerification.EN_ATTENTE) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "La décision doit être VERIFIEE ou REJETEE");
+        }
+
+        List<DocumentVerificationEntity> docs = documentVerificationRepository.findByAnnonceId(id);
+
+        if (decision.getStatutVerification() == StatutVerification.VERIFIEE) {
+            Set<TypeDocumentVerification> typesSoumis = new HashSet<>();
+            for (DocumentVerificationEntity d : docs) {
+                if (d.getTypeDocument() != null) {
+                    typesSoumis.add(d.getTypeDocument());
+                }
+            }
+
+            List<String> manquants = new ArrayList<>();
+            if (!typesSoumis.contains(TypeDocumentVerification.PIECE_IDENTITE)) {
+                manquants.add(TypeDocumentVerification.PIECE_IDENTITE.name());
+            }
+            if (!typesSoumis.contains(TypeDocumentVerification.TITRE_FONCIER)
+                    && !typesSoumis.contains(TypeDocumentVerification.BAIL_PRECEDENT)) {
+                manquants.add(TypeDocumentVerification.TITRE_FONCIER.name() + " ou " + TypeDocumentVerification.BAIL_PRECEDENT.name());
+            }
+
+            if (!manquants.isEmpty()) {
+                throw new ResponseStatusException(
+                        HttpStatus.BAD_REQUEST,
+                        "Validation refusée : pièces justificatives manquantes (" + String.join(", ", manquants) + ")"
+                );
+            }
+        } else if (decision.getStatutVerification() == StatutVerification.REJETEE) {
+            String motif = decision.getMotifRejet() != null ? decision.getMotifRejet().trim() : "";
+            if (motif.length() < 10) {
+                throw new ResponseStatusException(
+                        HttpStatus.BAD_REQUEST,
+                        "Le motif de rejet est obligatoire et doit contenir au moins 10 caractères"
+                );
+            }
+            decision.setMotifRejet(motif);
         }
 
         annonce.setStatutVerification(decision.getStatutVerification());
         annonce.setDateVerification(LocalDateTime.now());
 
-        // Update status of associated documents
-        List<DocumentVerificationEntity> docs = documentVerificationRepository.findByAnnonceId(id);
         StatutDocument documentStatus = decision.getStatutVerification() == StatutVerification.VERIFIEE ?
                 StatutDocument.VALIDE : StatutDocument.REJETE;
 

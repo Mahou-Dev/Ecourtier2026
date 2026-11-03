@@ -1,306 +1,4434 @@
 {
-  "openapi": "3.0.3",
+  "openapi": "3.0.1",
   "info": {
-    "title": "E-Courtier Senegal API",
-    "description": "API REST officielle de la plateforme E-Courtier Senegal pour la recherche, publication et transactions immobilières certifiées.",
-    "version": "1.0.0",
+    "title": "E-Courtier API — Sénégal",
+    "description": "API REST pour la plateforme intelligente de recherche de logement au Sénégal.",
     "contact": {
-      "name": "E-Courtier Engineering Team",
-      "email": "support@ecourtier.sn"
-    }
+      "name": "Équipe E-Courtier",
+      "email": "contact@e-courtier.sn"
+    },
+    "license": {
+      "name": "Propriétaire",
+      "url": "https://e-courtier.sn"
+    },
+    "version": "1.0.0"
   },
   "servers": [
     {
       "url": "http://localhost:8080",
-      "description": "Serveur Local / Développement"
+      "description": "Generated server url"
     }
   ],
-  "components": {
-    "securitySchemes": {
-      "bearerAuth": {
-        "type": "http",
-        "scheme": "bearer",
-        "bearerFormat": "JWT",
-        "description": "Entez votre jeton JWT (obtenu via /api/v1/auth/connexion)"
-      }
-    },
-    "schemas": {
-      "ConnexionRequest": {
-        "type": "object",
-        "required": ["email", "motDePasse"],
-        "properties": {
-          "email": { "type": "string", "example": "locataire.demo@ecourtier.sn" },
-          "motDePasse": { "type": "string", "example": "LocatairePass123!" }
-        }
-      },
-      "InscriptionRequest": {
-        "type": "object",
-        "required": ["nom", "prenom", "email", "motDePasse", "telephone", "role"],
-        "properties": {
-          "nom": { "type": "string", "example": "Diop" },
-          "prenom": { "type": "string", "example": "Moussa" },
-          "email": { "type": "string", "example": "moussa.diop@example.sn" },
-          "motDePasse": { "type": "string", "example": "Pass1234!" },
-          "telephone": { "type": "string", "example": "+221771234567" },
-          "role": { "type": "string", "enum": ["LOCATAIRE", "PROPRIETAIRE", "AGENT"], "example": "LOCATAIRE" }
-        }
-      },
-      "AuthResponse": {
-        "type": "object",
-        "properties": {
-          "token": { "type": "string" },
-          "type": { "type": "string", "example": "Bearer" },
-          "utilisateur": { "$ref": "#/components/schemas/UtilisateurResponse" }
-        }
-      },
-      "UtilisateurResponse": {
-        "type": "object",
-        "properties": {
-          "id": { "type": "string", "format": "uuid" },
-          "nom": { "type": "string" },
-          "prenom": { "type": "string" },
-          "email": { "type": "string" },
-          "telephone": { "type": "string" },
-          "role": { "type": "string" },
-          "dateCreation": { "type": "string", "format": "date-time" }
-        }
-      },
-      "AnnonceResponse": {
-        "type": "object",
-        "properties": {
-          "id": { "type": "string", "format": "uuid" },
-          "titre": { "type": "string" },
-          "description": { "type": "string" },
-          "type": { "type": "string" },
-          "modeTransaction": { "type": "string" },
-          "prix": { "type": "number" },
-          "superficie": { "type": "number" },
-          "nombrePieces": { "type": "integer" },
-          "etage": { "type": "integer" },
-          "quartier": { "type": "string" },
-          "ville": { "type": "string" },
-          "latitude": { "type": "number" },
-          "longitude": { "type": "number" },
-          "meuble": { "type": "boolean" },
-          "animauxAcceptes": { "type": "boolean" },
-          "lienVisite360": { "type": "string" },
-          "statutVerification": { "type": "string" },
-          "statutPublication": { "type": "string" },
-          "dateCreation": { "type": "string", "format": "date-time" },
-          "equipements": { "type": "array", "items": { "type": "string" } },
-          "proximites": { "type": "array", "items": { "type": "string" } },
-          "photos": { "type": "array", "items": { "type": "string" } }
-        }
-      },
-      "RendezVousRequest": {
-        "type": "object",
-        "required": ["annonceId", "dateHeure"],
-        "properties": {
-          "annonceId": { "type": "string", "format": "uuid" },
-          "dateHeure": { "type": "string", "format": "date-time" },
-          "message": { "type": "string" }
-        }
-      },
-      "AvisRequest": {
-        "type": "object",
-        "required": ["note", "commentaire"],
-        "properties": {
-          "note": { "type": "integer", "minimum": 1, "maximum": 5 },
-          "commentaire": { "type": "string" }
-        }
-      },
-      "SignalementRequest": {
-        "type": "object",
-        "required": ["motif"],
-        "properties": {
-          "motif": { "type": "string", "enum": ["FAUSSE_ANNONCE", "PRIX_TROMPEUR", "PROPRIETAIRE_INJOIGNABLE", "ARNAQUE_SUSPECTEE", "AUTRE"] },
-          "description": { "type": "string" }
-        }
-      },
-      "IaChatRequest": {
-        "type": "object",
-        "required": ["prompt"],
-        "properties": {
-          "prompt": { "type": "string", "example": "Je cherche un studio à Boucotte pour 95 000 FCFA" }
-        }
-      }
+  "security": [
+    {
+      "bearerAuth": []
     }
-  },
+  ],
+  "tags": [
+    {
+      "name": "Administration Utilisateurs",
+      "description": "Gestion des comptes utilisateurs, rôles (dont AGENT) et activation/désactivation réservée aux administrateurs"
+    },
+    {
+      "name": "Uploads & Fichiers",
+      "description": "Endpoint de consultation et téléchargement des fichiers et images média"
+    },
+    {
+      "name": "Favoris",
+      "description": "Gestion des annonces favorites de l'utilisateur connecté"
+    },
+    {
+      "name": "Avis & Evaluation",
+      "description": "Gestion des avis sur les annonces immobilières"
+    },
+    {
+      "name": "Messagerie Directe",
+      "description": "Conversations privées entre locataire/acheteur et propriétaire/agent autour d'une annonce"
+    },
+    {
+      "name": "Administration Tableau de Bord",
+      "description": "Endpoint de métriques globales et de pilotage réservé à l'ADMIN"
+    },
+    {
+      "name": "Rendez-vous",
+      "description": "Gestion des visites, confirmation automatique/manuelle et rappels SMS simulés"
+    },
+    {
+      "name": "Référentiels",
+      "description": "Listes de référence dynamiques (types, équipements, proximités, documents)"
+    },
+    {
+      "name": "Transactions & Séquestre",
+      "description": "Séquestre Wave simulé (caution + 1er loyer en LOCATION, acompte en VENTE), double signature électronique et génération PDF"
+    },
+    {
+      "name": "Health Check",
+      "description": "Vérification de l'état de santé du service backend"
+    },
+    {
+      "name": "Assistant IA Chatbot",
+      "description": "Endpoints de gestion du chatbot conversationnel intelligent et shortlist personnalisée"
+    },
+    {
+      "name": "Authentification",
+      "description": "Endpoints publics de création de compte, connexion et rafraîchissement de token JWT"
+    },
+    {
+      "name": "Annonces Immobilières",
+      "description": "Endpoints de gestion, recherche et publication d'annonces"
+    },
+    {
+      "name": "Signalements d'Arnaques",
+      "description": "Signalement d'annonces frauduleuses et modération admin"
+    },
+    {
+      "name": "Notifications SMS",
+      "description": "Consultation des notifications SMS simulées liées aux visites"
+    },
+    {
+      "name": "Utilisateurs",
+      "description": "Endpoints publics et réputation des utilisateurs"
+    },
+    {
+      "name": "Administration Annonces & Vérifications",
+      "description": "Endpoints de modération et d'attribution du badge Annonce Vérifiée réservés à l'ADMIN"
+    },
+    {
+      "name": "Mon Compte Utilisateur",
+      "description": "Consultation du profil connecté et changement de mot de passe"
+    },
+    {
+      "name": "Administration Seeding",
+      "description": "Endpoints d'initialisation des données de démo réservés à l'ADMIN"
+    }
+  ],
   "paths": {
-    "/api/v1/auth/connexion": {
-      "post": {
-        "summary": "Authentification d'un utilisateur",
-        "tags": ["Authentification"],
+    "/api/v1/utilisateurs/moi/mot-de-passe": {
+      "put": {
+        "tags": [
+          "Mon Compte Utilisateur"
+        ],
+        "summary": "Modifier le mot de passe de l'utilisateur connecté",
+        "description": "Vérifie l'ancien mot de passe et enregistre le nouveau mot de passe conforme à la politique de sécurité (8 caractères minimum, une majuscule et un chiffre).",
+        "operationId": "changerMotDePasse",
         "requestBody": {
-          "required": true,
           "content": {
             "application/json": {
-              "schema": { "$ref": "#/components/schemas/ConnexionRequest" }
+              "schema": {
+                "$ref": "#/components/schemas/ChangerMotDePasseRequestDTO"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": {
+                    "type": "string"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ]
+      }
+    },
+    "/api/v1/rendez-vous/{id}/marquer-effectue": {
+      "put": {
+        "tags": [
+          "Rendez-vous"
+        ],
+        "summary": "Marquer une visite comme effectuée",
+        "description": "Débloque l'accès à l'initiation d'une transaction et au dépôt d'avis.",
+        "operationId": "marquerEffectue",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/RendezVousResponseDTO"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ]
+      }
+    },
+    "/api/v1/rendez-vous/{id}/confirmer": {
+      "put": {
+        "tags": [
+          "Rendez-vous"
+        ],
+        "summary": "Confirmer manuellement un rendez-vous de visite",
+        "description": "Réservé au propriétaire/agent de l'annonce ou à un ADMIN. Vérifie l'absence de conflit à ±60 min.",
+        "operationId": "confirmerRendezVous",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/RendezVousResponseDTO"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ]
+      }
+    },
+    "/api/v1/rendez-vous/{id}/annuler": {
+      "put": {
+        "tags": [
+          "Rendez-vous"
+        ],
+        "summary": "Annuler un rendez-vous de visite",
+        "description": "Annule le RDV et envoie un SMS simulé à l'autre partie.",
+        "operationId": "annulerRendezVous",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RendezVousAnnulationDTO"
+              }
             }
           }
         },
         "responses": {
           "200": {
-            "description": "Connexion réussie",
-            "content": { "application/json": { "schema": { "$ref": "#/components/schemas/AuthResponse" } } }
+            "description": "OK",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/RendezVousResponseDTO"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ]
+      }
+    },
+    "/api/v1/conversations/{id}/marquer-lu": {
+      "put": {
+        "tags": [
+          "Messagerie Directe"
+        ],
+        "summary": "Marquer les messages reçus comme lus",
+        "description": "Marque comme lus tous les messages non lus adressés à l'utilisateur connecté dans cette conversation.",
+        "operationId": "marquerCommeLu",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ]
+      }
+    },
+    "/api/v1/annonces/{id}": {
+      "get": {
+        "tags": [
+          "Annonces Immobilières"
+        ],
+        "summary": "Consulter le détail d'une annonce",
+        "description": "Accès public sans authentification préalable.",
+        "operationId": "obtenirAnnonceParId",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/AnnonceResponseDTO"
+                }
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "tags": [
+          "Annonces Immobilières"
+        ],
+        "summary": "Modifier une annonce",
+        "description": "Réservé à l'auteur de l'annonce ou à un administrateur.",
+        "operationId": "modifierAnnonce",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AnnonceUpdateDTO"
+              }
+            }
           },
-          "401": { "description": "Identifiants invalides" },
-          "429": { "description": "Trop de tentatives (Rate limiting)" }
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/AnnonceResponseDTO"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ]
+      },
+      "delete": {
+        "tags": [
+          "Annonces Immobilières"
+        ],
+        "summary": "Supprimer une annonce (Soft delete)",
+        "description": "Suppression logique réservée à l'auteur ou à un administrateur.",
+        "operationId": "supprimerAnnonceLogique",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ]
+      }
+    },
+    "/api/v1/annonces/{id}/photos/ordre": {
+      "put": {
+        "tags": [
+          "Annonces Immobilières"
+        ],
+        "summary": "Réordonner les photos d'une annonce",
+        "description": "Mise à jour de l'ordre d'affichage des photos.",
+        "operationId": "reordonnerPhotos",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/OrdrePhotosDTO"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/PhotoResponseDTO"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ]
+      }
+    },
+    "/api/v1/admin/utilisateurs/{id}/statut": {
+      "put": {
+        "tags": [
+          "Administration Utilisateurs"
+        ],
+        "summary": "Activer ou désactiver un compte utilisateur (ADMIN)",
+        "description": "Active ou suspend immédiatement un compte utilisateur (y compris le rejet immédiat des jetons JWT actifs et du refresh). Empêche l'auto-désactivation et protège le dernier ADMIN actif.",
+        "operationId": "changerStatut",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ChangeStatutRequestDTO"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/UtilisateurResponseDTO"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ]
+      }
+    },
+    "/api/v1/admin/utilisateurs/{id}/role": {
+      "put": {
+        "tags": [
+          "Administration Utilisateurs"
+        ],
+        "summary": "Modifier le rôle d'un utilisateur (ADMIN)",
+        "description": "Change le rôle d'un compte utilisateur. Empêche un administrateur de se retirer son propre rôle ADMIN et garantit le maintien d'au moins un ADMIN actif.",
+        "operationId": "changerRole",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ChangeRoleRequestDTO"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/UtilisateurResponseDTO"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ]
+      }
+    },
+    "/api/v1/admin/signalements/{id}/traiter": {
+      "put": {
+        "tags": [
+          "Signalements d'Arnaques"
+        ],
+        "summary": "Traiter un signalement",
+        "description": "Modérer un signalement et éventuellement suspendre l'annonce associée.",
+        "operationId": "traiterSignalement",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TraiterSignalementDTO"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/SignalementResponseDTO"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ]
+      }
+    },
+    "/api/v1/admin/annonces/{id}/verifier": {
+      "put": {
+        "tags": [
+          "Administration Annonces & Vérifications"
+        ],
+        "summary": "Valider ou rejeter la vérification d'une annonce",
+        "description": "Attribution du badge 'Annonce Vérifiée' (VERIFIEE) ou rejet avec motif (REJETEE). Réservé à l'ADMIN.",
+        "operationId": "deciderVerificationAnnonce",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/VerificationDecisionDTO"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/AnnonceResponseDTO"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ]
+      }
+    },
+    "/api/v1/transactions/{id}/paiement-caution": {
+      "post": {
+        "tags": [
+          "Transactions & Séquestre"
+        ],
+        "summary": "Simuler le paiement du séquestre via Wave Sandbox",
+        "description": "Déclenche le paiement Mobile Money simulé du montant total séquestré et fait passer statutSequestre de INITIALISE à BLOQUE.",
+        "operationId": "effectuerPaiementCaution",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/TransactionResponseDTO"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ]
+      }
+    },
+    "/api/v1/transactions/{id}/bail/signer": {
+      "post": {
+        "tags": [
+          "Transactions & Séquestre"
+        ],
+        "summary": "Signer électroniquement le bail ou le récapitulatif de réservation d'achat",
+        "description": "Enregistre la signature électronique du locataire/acheteur ou du propriétaire/agent. À la double signature (SIGNE_COMPLET), génère le PDF et libère automatiquement les fonds séquestrés (LIBERE).",
+        "operationId": "signerBail",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/TransactionResponseDTO"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ]
+      }
+    },
+    "/api/v1/rendez-vous/simuler-rappels": {
+      "post": {
+        "tags": [
+          "Rendez-vous"
+        ],
+        "summary": "Déclencher manuellement les rappels SMS de demain (démonstration ADMIN)",
+        "description": "Exécute à la demande le traitement idempotent de rappel SMS J-1 sur les rendez-vous CONFIRME prévus le lendemain (fuseau Africa/Dakar).",
+        "operationId": "simulerRappels",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": {
+                    "type": "object"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ]
+      }
+    },
+    "/api/v1/ia/conversations": {
+      "post": {
+        "tags": [
+          "Assistant IA Chatbot"
+        ],
+        "summary": "Démarrer une nouvelle conversation avec l'assistant IA",
+        "description": "Accessible en mode anonyme ou authentifié.",
+        "operationId": "demarrerConversation",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConversationCreateResponseDTO"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/ia/conversations/{id}/messages": {
+      "post": {
+        "tags": [
+          "Assistant IA Chatbot"
+        ],
+        "summary": "Envoyer un message à l'assistant IA",
+        "description": "Analyse le besoin en langage naturel, extrait les critères et retourne une shortlist d'annonces réelles en < 3s.",
+        "operationId": "envoyerMessage",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MessageUserRequestDTO"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/MessageIaResponseDTO"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/auth/rafraichir": {
+      "post": {
+        "tags": [
+          "Authentification"
+        ],
+        "summary": "Rafraîchir le token d'accès JWT",
+        "description": "Obtenir un nouveau token d'accès en fournissant un refresh token valide.",
+        "operationId": "rafraichir",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RefreshTokenRequestDTO"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/TokenResponseDTO"
+                }
+              }
+            }
+          }
         }
       }
     },
     "/api/v1/auth/inscription": {
       "post": {
-        "summary": "Création d'un nouveau compte",
-        "tags": ["Authentification"],
+        "tags": [
+          "Authentification"
+        ],
+        "summary": "Inscription d'un nouvel utilisateur",
+        "description": "Création d'un compte utilisateur avec le rôle PROPRIETAIRE ou LOCATAIRE.",
+        "operationId": "inscription",
         "requestBody": {
-          "required": true,
           "content": {
             "application/json": {
-              "schema": { "$ref": "#/components/schemas/InscriptionRequest" }
+              "schema": {
+                "$ref": "#/components/schemas/InscriptionRequestDTO"
+              }
             }
-          }
+          },
+          "required": true
         },
         "responses": {
-          "201": { "description": "Compte créé avec succès" },
-          "400": { "description": "Champs invalides ou mot de passe trop faible" },
-          "409": { "description": "Email déjà utilisé" }
+          "200": {
+            "description": "OK",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/TokenResponseDTO"
+                }
+              }
+            }
+          }
         }
       }
     },
-    "/api/v1/auth/me": {
-      "get": {
-        "summary": "Obtenir le profil de l'utilisateur connecté",
-        "tags": ["Authentification"],
-        "security": [{ "bearerAuth": [] }],
+    "/api/v1/auth/connexion": {
+      "post": {
+        "tags": [
+          "Authentification"
+        ],
+        "summary": "Connexion utilisateur",
+        "description": "Authentification par email/mot de passe et génération d'un couple de tokens JWT (access + refresh).",
+        "operationId": "connexion",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ConnexionRequestDTO"
+              }
+            }
+          },
+          "required": true
+        },
         "responses": {
-          "200": { "description": "Profil utilisateur" },
-          "401": { "description": "Non authentifié" }
+          "200": {
+            "description": "OK",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/TokenResponseDTO"
+                }
+              }
+            }
+          }
         }
       }
     },
     "/api/v1/annonces": {
       "get": {
-        "summary": "Recherche d'annonces avec filtres avancés",
-        "tags": ["Annonces"],
+        "tags": [
+          "Annonces Immobilières"
+        ],
+        "summary": "Recherche paginée d'annonces avec filtres avancés",
+        "description": "Accès public avec critères multiples (budget, superficie, ville, meublé, proximité, etc.).",
+        "operationId": "rechercherAnnonces",
         "parameters": [
-          { "name": "ville", "in": "query", "schema": { "type": "string" } },
-          { "name": "quartier", "in": "query", "schema": { "type": "string" } },
-          { "name": "minPrix", "in": "query", "schema": { "type": "number" } },
-          { "name": "maxPrix", "in": "query", "schema": { "type": "number" } },
-          { "name": "proximite", "in": "query", "schema": { "type": "string" } },
-          { "name": "mes_annonces", "in": "query", "schema": { "type": "boolean" } }
+          {
+            "name": "pageable",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "$ref": "#/components/schemas/Pageable"
+            }
+          },
+          {
+            "name": "budgetMin",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "number"
+            }
+          },
+          {
+            "name": "budgetMax",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "number"
+            }
+          },
+          {
+            "name": "type",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "enum": [
+                  "STUDIO",
+                  "APPARTEMENT",
+                  "VILLA"
+                ]
+              }
+            }
+          },
+          {
+            "name": "modeTransaction",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "LOCATION",
+                "VENTE"
+              ]
+            }
+          },
+          {
+            "name": "superficieMin",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "number",
+              "format": "double"
+            }
+          },
+          {
+            "name": "nombrePieces",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int32"
+            }
+          },
+          {
+            "name": "quartier",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "ville",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "meuble",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "boolean"
+            }
+          },
+          {
+            "name": "animauxAcceptes",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "boolean"
+            }
+          },
+          {
+            "name": "statutVerification",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "EN_ATTENTE",
+                "VERIFIEE",
+                "REJETEE"
+              ]
+            }
+          },
+          {
+            "name": "proximite",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "enum": [
+                  "ECOLE",
+                  "MARCHE",
+                  "HOPITAL",
+                  "TRANSPORT",
+                  "PLAGE",
+                  "COMMERCE",
+                  "UNIVERSITE"
+                ]
+              }
+            }
+          },
+          {
+            "name": "include_indisponibles",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "boolean",
+              "default": false
+            }
+          },
+          {
+            "name": "mes_annonces",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "boolean",
+              "default": false
+            }
+          },
+          {
+            "name": "mes-annonces",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "boolean",
+              "default": false
+            }
+          }
         ],
         "responses": {
-          "200": { "description": "Liste paginée des annonces" }
+          "200": {
+            "description": "OK",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/PageAnnonceResponseDTO"
+                }
+              }
+            }
+          }
         }
       },
       "post": {
-        "summary": "Publier une nouvelle annonce",
-        "tags": ["Annonces"],
-        "security": [{ "bearerAuth": [] }],
-        "responses": {
-          "201": { "description": "Annonce créée" },
-          "403": { "description": "Accès refusé" }
-        }
-      }
-    },
-    "/api/v1/annonces/{id}": {
-      "get": {
-        "summary": "Consulter la fiche détaillée d'une annonce",
-        "tags": ["Annonces"],
-        "parameters": [{ "name": "id", "in": "path", "required": true, "schema": { "type": "string", "format": "uuid" } }],
-        "responses": {
-          "200": { "description": "Détails de l'annonce" },
-          "404": { "description": "Annonce non trouvée" }
-        }
-      }
-    },
-    "/api/v1/rendez-vous": {
-      "post": {
-        "summary": "Demander un rendez-vous de visite",
-        "tags": ["Rendez-vous"],
-        "security": [{ "bearerAuth": [] }],
+        "tags": [
+          "Annonces Immobilières"
+        ],
+        "summary": "Créer une nouvelle annonce",
+        "description": "Création d'une annonce immobilière (réservée aux propriétaires et agents agréés).",
+        "operationId": "creerAnnonce",
         "requestBody": {
-          "required": true,
-          "content": { "application/json": { "schema": { "$ref": "#/components/schemas/RendezVousRequest" } } }
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AnnonceCreateDTO"
+              }
+            }
+          },
+          "required": true
         },
         "responses": {
-          "201": { "description": "Rendez-vous demandé" }
-        }
+          "200": {
+            "description": "OK",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/AnnonceResponseDTO"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ]
       }
     },
-    "/api/v1/rendez-vous/mes-rendez-vous": {
-      "get": {
-        "summary": "Obtenir l'agenda des rendez-vous de l'utilisateur",
-        "tags": ["Rendez-vous"],
-        "security": [{ "bearerAuth": [] }],
-        "responses": {
-          "200": { "description": "Liste des rendez-vous" }
-        }
-      }
-    },
-    "/api/v1/transactions": {
+    "/api/v1/annonces/{id}/transactions": {
       "post": {
-        "summary": "Initier une transaction immobilière",
-        "tags": ["Transactions"],
-        "security": [{ "bearerAuth": [] }],
-        "responses": {
-          "201": { "description": "Transaction créée" }
-        }
-      }
-    },
-    "/api/v1/annonces/{id}/avis": {
-      "post": {
-        "summary": "Poster un avis sur une annonce (LOCATAIRE avec RDV EFFECTUE)",
-        "tags": ["Avis & Signalements"],
-        "security": [{ "bearerAuth": [] }],
-        "parameters": [{ "name": "id", "in": "path", "required": true, "schema": { "type": "string", "format": "uuid" } }],
+        "tags": [
+          "Transactions & Séquestre"
+        ],
+        "summary": "Initier une transaction (location ou réservation d'achat)",
+        "description": "Requiert une visite EFFECTUE préalable. Les montants sont calculés côté serveur (LOCATION : caution + 1er loyer + 5 000 FCFA ; VENTE : acompte de 10 % du prix + 5 000 FCFA).",
+        "operationId": "initierTransaction",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
         "requestBody": {
-          "required": true,
-          "content": { "application/json": { "schema": { "$ref": "#/components/schemas/AvisRequest" } } }
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TransactionRequestDTO"
+              }
+            }
+          }
         },
         "responses": {
-          "201": { "description": "Avis enregistré" },
-          "403": { "description": "Pas de RDV effectué préalable" },
-          "409": { "description": "Vous avez déjà noté cette annonce" }
-        }
-      },
-      "get": {
-        "summary": "Lister les avis d'une annonce et sa note moyenne",
-        "tags": ["Avis & Signalements"],
-        "parameters": [{ "name": "id", "in": "path", "required": true, "schema": { "type": "string", "format": "uuid" } }],
-        "responses": {
-          "200": { "description": "Avis et note moyenne" }
-        }
+          "200": {
+            "description": "OK",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/TransactionResponseDTO"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ]
       }
     },
     "/api/v1/annonces/{id}/signalements": {
       "post": {
-        "summary": "Signaler une annonce suspecte",
-        "tags": ["Avis & Signalements"],
-        "security": [{ "bearerAuth": [] }],
-        "parameters": [{ "name": "id", "in": "path", "required": true, "schema": { "type": "string", "format": "uuid" } }],
+        "tags": [
+          "Signalements d'Arnaques"
+        ],
+        "summary": "Signaler une annonce",
+        "description": "Signaler une annonce suspecte ou frauduleuse (accessible à tout utilisateur connecté).",
+        "operationId": "creerSignalement",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
         "requestBody": {
-          "required": true,
-          "content": { "application/json": { "schema": { "$ref": "#/components/schemas/SignalementRequest" } } }
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SignalementCreateDTO"
+              }
+            }
+          },
+          "required": true
         },
         "responses": {
-          "201": { "description": "Signalement enregistré" }
+          "200": {
+            "description": "OK",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/SignalementResponseDTO"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ]
+      }
+    },
+    "/api/v1/annonces/{id}/rendez-vous": {
+      "get": {
+        "tags": [
+          "Rendez-vous"
+        ],
+        "summary": "Lister l'agenda des rendez-vous d'une annonce",
+        "description": "Retourne les créneaux de visite demandés ou confirmés pour une annonce donnée (réservé à l'auteur de l'annonce ou à un ADMIN).",
+        "operationId": "obtenirRendezVousAnnonce",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/RendezVousResponseDTO"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ]
+      },
+      "post": {
+        "tags": [
+          "Rendez-vous"
+        ],
+        "summary": "Demander un rendez-vous de visite",
+        "description": "Crée une demande de visite. Si confirmationAutomatique=true sur l'annonce et qu'aucun RDV CONFIRME n'existe à ±60 min, le RDV passe directement à CONFIRME.",
+        "operationId": "demanderRendezVous",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RendezVousRequestDTO"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/RendezVousResponseDTO"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ]
+      }
+    },
+    "/api/v1/annonces/{id}/photos": {
+      "post": {
+        "tags": [
+          "Annonces Immobilières"
+        ],
+        "summary": "Téléverser des photos",
+        "description": "Upload de 1 à plusieurs photos (max 10 photos par annonce, max 5MB par fichier).",
+        "operationId": "ajouterPhotos",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "required": [
+                  "files"
+                ],
+                "type": "object",
+                "properties": {
+                  "files": {
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "format": "binary"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/PhotoResponseDTO"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ]
+      }
+    },
+    "/api/v1/annonces/{id}/favoris": {
+      "post": {
+        "tags": [
+          "Favoris"
+        ],
+        "summary": "Ajouter une annonce aux favoris",
+        "description": "Sauvegarde une annonce disponible dans la liste de favoris de l'utilisateur connecté (retourne 409 si déjà présente).",
+        "operationId": "ajouterFavori",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ]
+      },
+      "delete": {
+        "tags": [
+          "Favoris"
+        ],
+        "summary": "Retirer une annonce des favoris",
+        "description": "Supprime l'annonce indiquée de la liste des favoris de l'utilisateur connecté.",
+        "operationId": "supprimerFavori",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ]
+      }
+    },
+    "/api/v1/annonces/{id}/documents": {
+      "post": {
+        "tags": [
+          "Annonces Immobilières"
+        ],
+        "summary": "Soumettre un document justificatif pour vérification",
+        "description": "Téléverser un document (titre foncier, bail précédent, photo du propriétaire avec sa pièce d'identité) au format image ou PDF (max 10 Mo) pour l'attribution du badge vérifié.",
+        "operationId": "ajouterDocumentVerification",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "typeDocument",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "TITRE_FONCIER",
+                "BAIL_PRECEDENT",
+                "PIECE_IDENTITE"
+              ]
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "required": [
+                  "file"
+                ],
+                "type": "object",
+                "properties": {
+                  "file": {
+                    "type": "string",
+                    "format": "binary"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/DocumentVerificationResponseDTO"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ]
+      }
+    },
+    "/api/v1/annonces/{id}/conversations": {
+      "post": {
+        "tags": [
+          "Messagerie Directe"
+        ],
+        "summary": "Initier ou récupérer une conversation sur une annonce",
+        "description": "Ouvre un fil de discussion privé entre l'utilisateur connecté et l'auteur de l'annonce (ou retourne la conversation existante).",
+        "operationId": "initierConversation",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConversationResponseDTO"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ]
+      }
+    },
+    "/api/v1/annonces/{id}/avis": {
+      "get": {
+        "tags": [
+          "Avis & Evaluation"
+        ],
+        "summary": "Obtenir la liste et la moyenne des avis d'une annonce",
+        "description": "Accès public.",
+        "operationId": "obtenirAvisAnnonce",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/AvisSummaryDTO"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "Avis & Evaluation"
+        ],
+        "summary": "Déposer un avis sur une annonce",
+        "description": "Réservé aux locataires ayant préalablement effectué une visite validée (statut EFFECTUE).",
+        "operationId": "creerAvis",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AvisCreateDTO"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/AvisResponseDTO"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ]
+      }
+    },
+    "/api/v1/admin/utilisateurs": {
+      "get": {
+        "tags": [
+          "Administration Utilisateurs"
+        ],
+        "summary": "Lister les utilisateurs avec pagination et filtres (ADMIN)",
+        "description": "Retourne la liste paginée des comptes utilisateurs avec filtrage optionnel par rôle, statut actif/inactif et recherche textuelle (nom, prénom, email, téléphone).",
+        "operationId": "listerTousLesUtilisateurs",
+        "parameters": [
+          {
+            "name": "role",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "ADMIN",
+                "AGENT",
+                "PROPRIETAIRE",
+                "LOCATAIRE"
+              ]
+            }
+          },
+          {
+            "name": "actif",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "boolean"
+            }
+          },
+          {
+            "name": "recherche",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "pageable",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "$ref": "#/components/schemas/Pageable"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/PageUtilisateurResponseDTO"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ]
+      },
+      "post": {
+        "tags": [
+          "Administration Utilisateurs"
+        ],
+        "summary": "Créer un compte utilisateur avec mot de passe temporaire (ADMIN)",
+        "description": "Permet à un administrateur de créer un compte (AGENT, PROPRIETAIRE, LOCATAIRE ou ADMIN) avec un mot de passe temporaire conforme à la politique de sécurité, retourné une seule fois.",
+        "operationId": "creerUtilisateur",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AdminCreateUtilisateurRequestDTO"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminCreateUtilisateurResponseDTO"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ]
+      }
+    },
+    "/api/v1/admin/seed-demo": {
+      "post": {
+        "tags": [
+          "Administration Seeding"
+        ],
+        "summary": "Initialiser les données de démonstration en production",
+        "description": "Déclenche le peuplement manuel de la base avec des annonces et comptes de démo. Endpoint idempotent : ignoré si la base contient déjà des annonces.",
+        "operationId": "seedDemoData",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": {
+                    "type": "object"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ]
+      }
+    },
+    "/api/v1/utilisateurs/{id}/reputation": {
+      "get": {
+        "tags": [
+          "Utilisateurs"
+        ],
+        "summary": "Obtenir la réputation d'un propriétaire",
+        "description": "Moyenne des notes et nombre total d'avis calculés sur l'ensemble de ses annonces.",
+        "operationId": "obtenirReputationUtilisateur",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReputationResponseDTO"
+                }
+              }
+            }
+          }
         }
       }
     },
-    "/api/v1/ia/chat": {
-      "post": {
-        "summary": "Discuter avec l'assistant IA immobilier (Courtier Sénégalais)",
-        "tags": ["IA Assistant"],
-        "requestBody": {
-          "required": true,
-          "content": { "application/json": { "schema": { "$ref": "#/components/schemas/IaChatRequest" } } }
-        },
+    "/api/v1/utilisateurs/moi": {
+      "get": {
+        "tags": [
+          "Mon Compte Utilisateur"
+        ],
+        "summary": "Consulter le profil de l'utilisateur connecté",
+        "description": "Retourne les informations du compte actuellement authentifié.",
+        "operationId": "obtenirMonProfil",
         "responses": {
-          "200": { "description": "Réponse de l'IA et criteres/annonces identifiés" }
+          "200": {
+            "description": "OK",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/UtilisateurResponseDTO"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ]
+      }
+    },
+    "/api/v1/utilisateurs/moi/favoris": {
+      "get": {
+        "tags": [
+          "Favoris"
+        ],
+        "summary": "Liste paginée des annonces favorites de l'utilisateur connecté",
+        "description": "Retourne les annonces favorites de l'utilisateur connecté, triées par date d'ajout décroissante.",
+        "operationId": "listerFavoris",
+        "parameters": [
+          {
+            "name": "pageable",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "$ref": "#/components/schemas/Pageable"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/PageAnnonceResponseDTO"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ]
+      }
+    },
+    "/api/v1/utilisateurs/moi/favoris/count": {
+      "get": {
+        "tags": [
+          "Favoris"
+        ],
+        "summary": "Nombre total de favoris de l'utilisateur connecté",
+        "description": "Retourne le compteur total d'annonces enregistrées en favoris par l'utilisateur connecté.",
+        "operationId": "compterFavoris",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": {
+                    "type": "integer",
+                    "format": "int64"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ]
+      }
+    },
+    "/api/v1/uploads/annonces/{id}/{filename}": {
+      "get": {
+        "tags": [
+          "Uploads & Fichiers"
+        ],
+        "summary": "Consulter une photo d'annonce téléversée",
+        "description": "Servir une photo d'annonce publique.",
+        "operationId": "getPhoto",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "filename",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "type": "string",
+                  "format": "binary"
+                }
+              }
+            }
+          }
         }
+      }
+    },
+    "/api/v1/transactions/{id}": {
+      "get": {
+        "tags": [
+          "Transactions & Séquestre"
+        ],
+        "summary": "Consulter le détail d'une transaction",
+        "description": "Retourne l'état complet d'un dossier de séquestre et de signature (réservé aux parties prenantes ou à un ADMIN).",
+        "operationId": "obtenirDetail",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/TransactionResponseDTO"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ]
+      }
+    },
+    "/api/v1/transactions/{id}/bail/pdf": {
+      "get": {
+        "tags": [
+          "Transactions & Séquestre"
+        ],
+        "summary": "Télécharger le PDF récapitulatif généré après double signature",
+        "description": "Télécharge le contrat de bail numérique (LOCATION) ou le récapitulatif de réservation d'achat (VENTE) généré une fois le statut SIGNE_COMPLET atteint.",
+        "operationId": "telechargerPdfBail",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "type": "string",
+                  "format": "binary"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ]
+      }
+    },
+    "/api/v1/transactions/mes-transactions": {
+      "get": {
+        "tags": [
+          "Transactions & Séquestre"
+        ],
+        "summary": "Lister mes dossiers de transaction",
+        "description": "Retourne l'ensemble des transactions impliquant l'utilisateur connecté en tant que locataire/acheteur ou propriétaire/agent.",
+        "operationId": "listerMesTransactions",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/TransactionResponseDTO"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ]
+      }
+    },
+    "/api/v1/rendez-vous/mes-rendez-vous": {
+      "get": {
+        "tags": [
+          "Rendez-vous"
+        ],
+        "summary": "Lister mes rendez-vous (demandeur ou propriétaire)",
+        "description": "Retourne tous les rendez-vous de visite impliquant l'utilisateur connecté en tant que demandeur ou auteur de l'annonce.",
+        "operationId": "obtenirMesRendezVous",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/RendezVousResponseDTO"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ]
+      }
+    },
+    "/api/v1/references": {
+      "get": {
+        "tags": [
+          "Référentiels"
+        ],
+        "summary": "Obtenir toutes les listes de référence",
+        "description": "Source unique des listes pour le formulaire, les filtres et les fiches.",
+        "operationId": "getReferences",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReferencesResponseDTO"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/notifications-sms/mes-sms": {
+      "get": {
+        "tags": [
+          "Notifications SMS"
+        ],
+        "summary": "Lister mes SMS simulés (paginé)",
+        "description": "Retourne la liste paginée des notifications SMS simulées (demande, confirmation, annulation, rappel) adressées à l'utilisateur connecté.",
+        "operationId": "listerMesSms",
+        "parameters": [
+          {
+            "name": "pageable",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "$ref": "#/components/schemas/Pageable"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/PageNotificationSmsResponseDTO"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ]
+      }
+    },
+    "/api/v1/ia/conversations/{id}": {
+      "get": {
+        "tags": [
+          "Assistant IA Chatbot"
+        ],
+        "summary": "Obtenir l'historique complet d'une conversation IA",
+        "description": "Retourne la liste chronologique des messages et des critères extraits.",
+        "operationId": "obtenirHistorique",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConversationHistoryResponseDTO"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/health": {
+      "get": {
+        "tags": [
+          "Health Check"
+        ],
+        "summary": "Vérifier le statut de l'API",
+        "description": "Retourne l'état opérationnel du service backend Spring Boot.",
+        "operationId": "checkHealth",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": {
+                    "type": "object"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/conversations/{id}": {
+      "get": {
+        "tags": [
+          "Messagerie Directe"
+        ],
+        "summary": "Consulter les métadonnées d'une conversation",
+        "description": "Retourne les détails d'une conversation spécifique pour l'un de ses participants.",
+        "operationId": "obtenirConversation",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConversationResponseDTO"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ]
+      }
+    },
+    "/api/v1/conversations/{id}/messages": {
+      "get": {
+        "tags": [
+          "Messagerie Directe"
+        ],
+        "summary": "Lister les messages d'une conversation (paginé)",
+        "description": "Retourne l'historique paginé des messages échangés dans la conversation (accès réservé aux participants).",
+        "operationId": "listerMessagesPaging",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "pageable",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "$ref": "#/components/schemas/Pageable"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/PageMessageResponseDTO"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ]
+      }
+    },
+    "/api/v1/conversations/{id}/messages/tous": {
+      "get": {
+        "tags": [
+          "Messagerie Directe"
+        ],
+        "summary": "Récupérer tous les messages d'une conversation",
+        "description": "Retourne la liste chronologique complète des messages de la conversation pour affichage dans le tiroir de messagerie.",
+        "operationId": "listerTousLesMessages",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/MessageResponseDTO"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ]
+      }
+    },
+    "/api/v1/conversations/non-lus/count": {
+      "get": {
+        "tags": [
+          "Messagerie Directe"
+        ],
+        "summary": "Compter le total des messages non lus",
+        "description": "Retourne le nombre total de messages non lus reçus par l'utilisateur connecté sur l'ensemble de ses conversations.",
+        "operationId": "compterMessagesNonLus",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": {
+                    "type": "integer",
+                    "format": "int64"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ]
+      }
+    },
+    "/api/v1/conversations/mes-conversations": {
+      "get": {
+        "tags": [
+          "Messagerie Directe"
+        ],
+        "summary": "Lister mes conversations actives",
+        "description": "Retourne la liste des conversations auxquelles participe l'utilisateur connecté, triées par dernier message.",
+        "operationId": "listerMesConversations",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/ConversationResponseDTO"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ]
+      }
+    },
+    "/api/v1/annonces/{id}/documents/{documentId}/fichier": {
+      "get": {
+        "tags": [
+          "Annonces Immobilières"
+        ],
+        "summary": "Télécharger / consulter un document de vérification",
+        "description": "Accès sécurisé réservé à l'auteur de l'annonce ou un ADMIN. Retourne le flux binaire avec son type MIME (image ou application/pdf).",
+        "operationId": "obtenirFichierDocumentVerification",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "documentId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "type": "string",
+                  "format": "binary"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ]
+      }
+    },
+    "/api/v1/annonces/quartiers": {
+      "get": {
+        "tags": [
+          "Annonces Immobilières"
+        ],
+        "summary": "Liste des quartiers distincts des annonces disponibles",
+        "description": "Accès public pour l'autocomplétion.",
+        "operationId": "obtenirQuartiersDisponibles",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/admin/statistiques": {
+      "get": {
+        "tags": [
+          "Administration Tableau de Bord"
+        ],
+        "summary": "Obtenir toutes les métriques de la plateforme",
+        "description": "Endpoint unique agrégeant les métriques d'utilisateurs, d'annonces, d'activité commerciale, de modération et de l'assistant IA pour le tableau de bord administrateur.",
+        "operationId": "obtenirStatistiques",
+        "parameters": [
+          {
+            "name": "periode",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "default": "30j"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminStatistiquesDTO"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ]
+      }
+    },
+    "/api/v1/admin/signalements": {
+      "get": {
+        "tags": [
+          "Signalements d'Arnaques"
+        ],
+        "summary": "Lister les signalements",
+        "description": "Accès administrateur avec filtrage optionnel par statut.",
+        "operationId": "listerSignalements",
+        "parameters": [
+          {
+            "name": "statut",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "EN_ATTENTE",
+                "TRAITE",
+                "REJETE"
+              ]
+            }
+          },
+          {
+            "name": "pageable",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "$ref": "#/components/schemas/Pageable"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/PageSignalementResponseDTO"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ]
+      }
+    },
+    "/api/v1/admin/annonces/en-attente-verification": {
+      "get": {
+        "tags": [
+          "Administration Annonces & Vérifications"
+        ],
+        "summary": "Lister les annonces en attente de vérification",
+        "description": "Réservé aux administrateurs E-Courtier pour l'audit des pièces justificatives.",
+        "operationId": "listerAnnoncesEnAttenteVerification",
+        "parameters": [
+          {
+            "name": "pageable",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "$ref": "#/components/schemas/Pageable"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/PageAnnonceResponseDTO"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ]
+      }
+    },
+    "/api/v1/annonces/{id}/photos/{photoId}": {
+      "delete": {
+        "tags": [
+          "Annonces Immobilières"
+        ],
+        "summary": "Supprimer une photo",
+        "description": "Supprime la photo physiquement et en base de données.",
+        "operationId": "supprimerPhoto",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "photoId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ]
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "ChangerMotDePasseRequestDTO": {
+        "required": [
+          "ancienMotDePasse",
+          "nouveauMotDePasse"
+        ],
+        "type": "object",
+        "properties": {
+          "ancienMotDePasse": {
+            "type": "string"
+          },
+          "nouveauMotDePasse": {
+            "maxLength": 2147483647,
+            "minLength": 8,
+            "pattern": "^(?=.*[A-Z])(?=.*\\d).*$",
+            "type": "string"
+          }
+        }
+      },
+      "RendezVousResponseDTO": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "annonceId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "annonceTitre": {
+            "type": "string"
+          },
+          "demandeurId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "demandeurNomComplet": {
+            "type": "string"
+          },
+          "demandeurEmail": {
+            "type": "string"
+          },
+          "dateHeure": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "statut": {
+            "type": "string",
+            "enum": [
+              "DEMANDE",
+              "CONFIRME",
+              "ANNULE",
+              "EFFECTUE"
+            ]
+          },
+          "motifAnnulation": {
+            "type": "string"
+          },
+          "rappelEnvoye": {
+            "type": "boolean"
+          },
+          "dateCreation": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "RendezVousAnnulationDTO": {
+        "required": [
+          "motif"
+        ],
+        "type": "object",
+        "properties": {
+          "motif": {
+            "type": "string"
+          }
+        }
+      },
+      "AnnonceUpdateDTO": {
+        "type": "object",
+        "properties": {
+          "titre": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string"
+          },
+          "type": {
+            "type": "string",
+            "enum": [
+              "STUDIO",
+              "APPARTEMENT",
+              "VILLA"
+            ]
+          },
+          "modeTransaction": {
+            "type": "string",
+            "enum": [
+              "LOCATION",
+              "VENTE"
+            ]
+          },
+          "prix": {
+            "type": "number"
+          },
+          "superficie": {
+            "type": "number",
+            "format": "double"
+          },
+          "nombrePieces": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "etage": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "quartier": {
+            "type": "string"
+          },
+          "ville": {
+            "type": "string"
+          },
+          "latitude": {
+            "type": "number",
+            "format": "double"
+          },
+          "longitude": {
+            "type": "number",
+            "format": "double"
+          },
+          "meuble": {
+            "type": "boolean"
+          },
+          "animauxAcceptes": {
+            "type": "boolean"
+          },
+          "confirmationAutomatique": {
+            "type": "boolean",
+            "description": "Confirmation automatique des demandes de visite sans conflit à ±60 min",
+            "example": true
+          },
+          "lienVisite360": {
+            "type": "string"
+          },
+          "statutPublication": {
+            "type": "string",
+            "enum": [
+              "DISPONIBLE",
+              "RESERVEE",
+              "LOUEE",
+              "VENDUE",
+              "SUSPENDUE"
+            ]
+          },
+          "equipements": {
+            "uniqueItems": true,
+            "type": "array",
+            "items": {
+              "type": "string",
+              "enum": [
+                "WIFI",
+                "PARKING",
+                "CLIMATISATION",
+                "PISCINE",
+                "GARDIEN",
+                "GROUPE_ELECTROGENE",
+                "RESERVE_EAU"
+              ]
+            }
+          },
+          "proximites": {
+            "uniqueItems": true,
+            "type": "array",
+            "items": {
+              "type": "string",
+              "enum": [
+                "ECOLE",
+                "MARCHE",
+                "HOPITAL",
+                "TRANSPORT",
+                "PLAGE",
+                "COMMERCE",
+                "UNIVERSITE"
+              ]
+            }
+          }
+        }
+      },
+      "AnnonceResponseDTO": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "titre": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string"
+          },
+          "type": {
+            "type": "string",
+            "enum": [
+              "STUDIO",
+              "APPARTEMENT",
+              "VILLA"
+            ]
+          },
+          "modeTransaction": {
+            "type": "string",
+            "enum": [
+              "LOCATION",
+              "VENTE"
+            ]
+          },
+          "prix": {
+            "type": "number"
+          },
+          "superficie": {
+            "type": "number",
+            "format": "double"
+          },
+          "nombrePieces": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "etage": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "quartier": {
+            "type": "string"
+          },
+          "ville": {
+            "type": "string"
+          },
+          "latitude": {
+            "type": "number",
+            "format": "double"
+          },
+          "longitude": {
+            "type": "number",
+            "format": "double"
+          },
+          "meuble": {
+            "type": "boolean"
+          },
+          "animauxAcceptes": {
+            "type": "boolean"
+          },
+          "confirmationAutomatique": {
+            "type": "boolean",
+            "description": "Indique si les demandes de visite sans conflit à ±60 min sont confirmées automatiquement",
+            "example": true
+          },
+          "lienVisite360": {
+            "type": "string"
+          },
+          "statutVerification": {
+            "type": "string",
+            "enum": [
+              "EN_ATTENTE",
+              "VERIFIEE",
+              "REJETEE"
+            ]
+          },
+          "statutPublication": {
+            "type": "string",
+            "enum": [
+              "DISPONIBLE",
+              "RESERVEE",
+              "LOUEE",
+              "VENDUE",
+              "SUSPENDUE"
+            ]
+          },
+          "dateCreation": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "auteurRole": {
+            "type": "string",
+            "description": "Rôle de l'auteur de l'annonce (PROPRIETAIRE, AGENT, ADMIN)",
+            "enum": [
+              "ADMIN",
+              "AGENT",
+              "PROPRIETAIRE",
+              "LOCATAIRE"
+            ]
+          },
+          "auteur": {
+            "$ref": "#/components/schemas/UtilisateurResponseDTO"
+          },
+          "photos": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PhotoResponseDTO"
+            }
+          },
+          "equipements": {
+            "uniqueItems": true,
+            "type": "array",
+            "items": {
+              "type": "string",
+              "enum": [
+                "WIFI",
+                "PARKING",
+                "CLIMATISATION",
+                "PISCINE",
+                "GARDIEN",
+                "GROUPE_ELECTROGENE",
+                "RESERVE_EAU"
+              ]
+            }
+          },
+          "proximites": {
+            "uniqueItems": true,
+            "type": "array",
+            "items": {
+              "type": "string",
+              "enum": [
+                "ECOLE",
+                "MARCHE",
+                "HOPITAL",
+                "TRANSPORT",
+                "PLAGE",
+                "COMMERCE",
+                "UNIVERSITE"
+              ]
+            }
+          },
+          "documentsVerification": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/DocumentVerificationResponseDTO"
+            }
+          },
+          "estFavori": {
+            "type": "boolean"
+          }
+        }
+      },
+      "DocumentVerificationResponseDTO": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "typeDocument": {
+            "type": "string",
+            "enum": [
+              "TITRE_FONCIER",
+              "BAIL_PRECEDENT",
+              "PIECE_IDENTITE"
+            ]
+          },
+          "nomFichier": {
+            "type": "string"
+          },
+          "url": {
+            "type": "string"
+          },
+          "statut": {
+            "type": "string",
+            "enum": [
+              "EN_ATTENTE",
+              "VALIDE",
+              "REJETE"
+            ]
+          },
+          "motifRejet": {
+            "type": "string"
+          },
+          "dateCreation": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "PhotoResponseDTO": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "url": {
+            "type": "string"
+          },
+          "ordre": {
+            "type": "integer",
+            "format": "int32"
+          }
+        }
+      },
+      "UtilisateurResponseDTO": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "nom": {
+            "type": "string"
+          },
+          "prenom": {
+            "type": "string"
+          },
+          "email": {
+            "type": "string"
+          },
+          "telephone": {
+            "type": "string"
+          },
+          "role": {
+            "type": "string",
+            "enum": [
+              "ADMIN",
+              "AGENT",
+              "PROPRIETAIRE",
+              "LOCATAIRE"
+            ]
+          },
+          "dateCreation": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "actif": {
+            "type": "boolean"
+          },
+          "photoProfilUrl": {
+            "type": "string"
+          }
+        }
+      },
+      "OrdrePhotosDTO": {
+        "required": [
+          "photoIdsEnOrdre"
+        ],
+        "type": "object",
+        "properties": {
+          "photoIdsEnOrdre": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        }
+      },
+      "ChangeStatutRequestDTO": {
+        "required": [
+          "actif"
+        ],
+        "type": "object",
+        "properties": {
+          "actif": {
+            "type": "boolean"
+          }
+        }
+      },
+      "ChangeRoleRequestDTO": {
+        "required": [
+          "role"
+        ],
+        "type": "object",
+        "properties": {
+          "role": {
+            "type": "string",
+            "enum": [
+              "ADMIN",
+              "AGENT",
+              "PROPRIETAIRE",
+              "LOCATAIRE"
+            ]
+          }
+        }
+      },
+      "TraiterSignalementDTO": {
+        "required": [
+          "statut"
+        ],
+        "type": "object",
+        "properties": {
+          "statut": {
+            "type": "string",
+            "enum": [
+              "EN_ATTENTE",
+              "TRAITE",
+              "REJETE"
+            ]
+          },
+          "suspendreAnnonce": {
+            "type": "boolean"
+          }
+        }
+      },
+      "SignalementResponseDTO": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "annonceId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "annonceTitre": {
+            "type": "string"
+          },
+          "auteurId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "auteurEmail": {
+            "type": "string"
+          },
+          "motif": {
+            "type": "string",
+            "enum": [
+              "FAUSSE_ANNONCE",
+              "PRIX_TROMPEUR",
+              "PROPRIETAIRE_INJOIGNABLE",
+              "ARNAQUE_SUSPECTEE",
+              "AUTRE"
+            ]
+          },
+          "description": {
+            "type": "string"
+          },
+          "statut": {
+            "type": "string",
+            "enum": [
+              "EN_ATTENTE",
+              "TRAITE",
+              "REJETE"
+            ]
+          },
+          "dateCreation": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "VerificationDecisionDTO": {
+        "required": [
+          "statutVerification"
+        ],
+        "type": "object",
+        "properties": {
+          "statutVerification": {
+            "type": "string",
+            "enum": [
+              "EN_ATTENTE",
+              "VERIFIEE",
+              "REJETEE"
+            ]
+          },
+          "motifRejet": {
+            "type": "string"
+          }
+        }
+      },
+      "TransactionResponseDTO": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "annonceId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "annonceTitre": {
+            "type": "string"
+          },
+          "modeTransaction": {
+            "type": "string",
+            "description": "Mode de transaction de l'annonce (LOCATION ou VENTE)",
+            "enum": [
+              "LOCATION",
+              "VENTE"
+            ]
+          },
+          "annoncePrix": {
+            "type": "number",
+            "description": "Prix affiché sur l'annonce (loyer mensuel ou prix de vente)"
+          },
+          "acomptePourcentage": {
+            "type": "integer",
+            "description": "Pourcentage d'acompte appliqué en mode VENTE (ex: 10)",
+            "format": "int32"
+          },
+          "locataireId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "locataireNomComplet": {
+            "type": "string"
+          },
+          "proprietaireId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "proprietaireNomComplet": {
+            "type": "string"
+          },
+          "montantCaution": {
+            "type": "number"
+          },
+          "montantPremierLoyer": {
+            "type": "number"
+          },
+          "fraisDossier": {
+            "type": "number"
+          },
+          "montantTotalSequestre": {
+            "type": "number"
+          },
+          "montantVerseProprietaire": {
+            "type": "number"
+          },
+          "statutSequestre": {
+            "type": "string",
+            "enum": [
+              "INITIALISE",
+              "BLOQUE",
+              "LIBERE",
+              "REMBOURSE"
+            ]
+          },
+          "referenceWave": {
+            "type": "string"
+          },
+          "statutBail": {
+            "type": "string",
+            "enum": [
+              "NON_SIGNE",
+              "SIGNE_LOCATAIRE",
+              "SIGNE_PROPRIETAIRE",
+              "SIGNE_COMPLET"
+            ]
+          },
+          "dateSignatureLocataire": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "dateSignatureProprietaire": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "dateLiberation": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "pdfBailPath": {
+            "type": "string"
+          },
+          "dateCreation": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "ConversationCreateResponseDTO": {
+        "type": "object",
+        "properties": {
+          "conversationId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "dateCreation": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "MessageUserRequestDTO": {
+        "required": [
+          "message"
+        ],
+        "type": "object",
+        "properties": {
+          "message": {
+            "maxLength": 500,
+            "minLength": 0,
+            "type": "string"
+          }
+        }
+      },
+      "CriteresExtraitsDTO": {
+        "type": "object",
+        "properties": {
+          "budgetMin": {
+            "type": "number"
+          },
+          "budgetMax": {
+            "type": "number"
+          },
+          "type": {
+            "type": "string",
+            "enum": [
+              "STUDIO",
+              "APPARTEMENT",
+              "VILLA"
+            ]
+          },
+          "modeTransaction": {
+            "type": "string",
+            "enum": [
+              "LOCATION",
+              "VENTE"
+            ]
+          },
+          "quartier": {
+            "type": "string"
+          },
+          "ville": {
+            "type": "string"
+          },
+          "nombrePieces": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "etage": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "meuble": {
+            "type": "boolean"
+          },
+          "animauxAcceptes": {
+            "type": "boolean"
+          },
+          "superficieMin": {
+            "type": "number",
+            "format": "double"
+          },
+          "confiance": {
+            "type": "number",
+            "format": "double"
+          },
+          "questionDeRelance": {
+            "type": "string"
+          }
+        }
+      },
+      "MessageIaResponseDTO": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "reponse": {
+            "type": "string"
+          },
+          "annoncesSuggeres": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AnnonceResponseDTO"
+            }
+          },
+          "criteresExtraits": {
+            "$ref": "#/components/schemas/CriteresExtraitsDTO"
+          },
+          "questionDeRelance": {
+            "type": "string"
+          },
+          "dateEnvoi": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "RefreshTokenRequestDTO": {
+        "required": [
+          "refreshToken"
+        ],
+        "type": "object",
+        "properties": {
+          "refreshToken": {
+            "type": "string"
+          }
+        }
+      },
+      "TokenResponseDTO": {
+        "type": "object",
+        "properties": {
+          "accessToken": {
+            "type": "string"
+          },
+          "refreshToken": {
+            "type": "string"
+          },
+          "tokenType": {
+            "type": "string"
+          },
+          "expiresIn": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "utilisateur": {
+            "$ref": "#/components/schemas/UtilisateurResponseDTO"
+          }
+        }
+      },
+      "InscriptionRequestDTO": {
+        "required": [
+          "email",
+          "motDePasse",
+          "nom",
+          "prenom",
+          "role",
+          "telephone"
+        ],
+        "type": "object",
+        "properties": {
+          "nom": {
+            "type": "string"
+          },
+          "prenom": {
+            "type": "string"
+          },
+          "email": {
+            "type": "string"
+          },
+          "motDePasse": {
+            "maxLength": 2147483647,
+            "minLength": 8,
+            "pattern": "^(?=.*[A-Z])(?=.*\\d).*$",
+            "type": "string"
+          },
+          "telephone": {
+            "type": "string"
+          },
+          "role": {
+            "type": "string",
+            "enum": [
+              "ADMIN",
+              "AGENT",
+              "PROPRIETAIRE",
+              "LOCATAIRE"
+            ]
+          }
+        }
+      },
+      "ConnexionRequestDTO": {
+        "required": [
+          "email",
+          "motDePasse"
+        ],
+        "type": "object",
+        "properties": {
+          "email": {
+            "type": "string"
+          },
+          "motDePasse": {
+            "type": "string"
+          }
+        }
+      },
+      "AnnonceCreateDTO": {
+        "required": [
+          "description",
+          "latitude",
+          "longitude",
+          "modeTransaction",
+          "nombrePieces",
+          "prix",
+          "quartier",
+          "superficie",
+          "titre",
+          "type",
+          "ville"
+        ],
+        "type": "object",
+        "properties": {
+          "titre": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string"
+          },
+          "type": {
+            "type": "string",
+            "enum": [
+              "STUDIO",
+              "APPARTEMENT",
+              "VILLA"
+            ]
+          },
+          "modeTransaction": {
+            "type": "string",
+            "enum": [
+              "LOCATION",
+              "VENTE"
+            ]
+          },
+          "prix": {
+            "type": "number"
+          },
+          "superficie": {
+            "type": "number",
+            "format": "double"
+          },
+          "nombrePieces": {
+            "minimum": 1,
+            "type": "integer",
+            "format": "int32"
+          },
+          "etage": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "quartier": {
+            "type": "string"
+          },
+          "ville": {
+            "type": "string"
+          },
+          "latitude": {
+            "type": "number",
+            "format": "double"
+          },
+          "longitude": {
+            "type": "number",
+            "format": "double"
+          },
+          "meuble": {
+            "type": "boolean"
+          },
+          "animauxAcceptes": {
+            "type": "boolean"
+          },
+          "confirmationAutomatique": {
+            "type": "boolean",
+            "description": "Confirmation automatique des demandes de visite sans conflit à ±60 min",
+            "example": true,
+            "default": true
+          },
+          "lienVisite360": {
+            "type": "string"
+          },
+          "equipements": {
+            "uniqueItems": true,
+            "type": "array",
+            "items": {
+              "type": "string",
+              "enum": [
+                "WIFI",
+                "PARKING",
+                "CLIMATISATION",
+                "PISCINE",
+                "GARDIEN",
+                "GROUPE_ELECTROGENE",
+                "RESERVE_EAU"
+              ]
+            }
+          },
+          "proximites": {
+            "uniqueItems": true,
+            "type": "array",
+            "items": {
+              "type": "string",
+              "enum": [
+                "ECOLE",
+                "MARCHE",
+                "HOPITAL",
+                "TRANSPORT",
+                "PLAGE",
+                "COMMERCE",
+                "UNIVERSITE"
+              ]
+            }
+          }
+        }
+      },
+      "TransactionRequestDTO": {
+        "type": "object",
+        "properties": {
+          "montantCaution": {
+            "type": "number"
+          }
+        }
+      },
+      "SignalementCreateDTO": {
+        "required": [
+          "motif"
+        ],
+        "type": "object",
+        "properties": {
+          "motif": {
+            "type": "string",
+            "enum": [
+              "FAUSSE_ANNONCE",
+              "PRIX_TROMPEUR",
+              "PROPRIETAIRE_INJOIGNABLE",
+              "ARNAQUE_SUSPECTEE",
+              "AUTRE"
+            ]
+          },
+          "description": {
+            "type": "string"
+          }
+        }
+      },
+      "RendezVousRequestDTO": {
+        "required": [
+          "dateHeure"
+        ],
+        "type": "object",
+        "properties": {
+          "dateHeure": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "ConversationResponseDTO": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "annonceId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "annonceTitre": {
+            "type": "string"
+          },
+          "locataire": {
+            "$ref": "#/components/schemas/UtilisateurResponseDTO"
+          },
+          "proprietaire": {
+            "$ref": "#/components/schemas/UtilisateurResponseDTO"
+          },
+          "dernierMessage": {
+            "$ref": "#/components/schemas/MessageResponseDTO"
+          },
+          "nbMessagesNonLus": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "dateCreation": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "MessageResponseDTO": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "conversationId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "expediteur": {
+            "$ref": "#/components/schemas/UtilisateurResponseDTO"
+          },
+          "contenu": {
+            "type": "string"
+          },
+          "dateEnvoi": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "lu": {
+            "type": "boolean"
+          }
+        }
+      },
+      "AvisCreateDTO": {
+        "required": [
+          "note"
+        ],
+        "type": "object",
+        "properties": {
+          "note": {
+            "maximum": 5,
+            "minimum": 1,
+            "type": "integer",
+            "format": "int32"
+          },
+          "commentaire": {
+            "type": "string"
+          }
+        }
+      },
+      "AvisResponseDTO": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "annonceId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "note": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "commentaire": {
+            "type": "string"
+          },
+          "auteurId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "auteurPrenom": {
+            "type": "string"
+          },
+          "auteurNom": {
+            "type": "string"
+          },
+          "dateCreation": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "AdminCreateUtilisateurRequestDTO": {
+        "required": [
+          "email",
+          "nom",
+          "prenom",
+          "role",
+          "telephone"
+        ],
+        "type": "object",
+        "properties": {
+          "nom": {
+            "type": "string"
+          },
+          "prenom": {
+            "type": "string"
+          },
+          "email": {
+            "type": "string"
+          },
+          "telephone": {
+            "type": "string"
+          },
+          "role": {
+            "type": "string",
+            "enum": [
+              "ADMIN",
+              "AGENT",
+              "PROPRIETAIRE",
+              "LOCATAIRE"
+            ]
+          },
+          "motDePasseTemporaire": {
+            "type": "string",
+            "description": "Mot de passe temporaire optionnel (au moins 8 caractères, 1 majuscule, 1 chiffre). Généré automatiquement s'il est omis."
+          }
+        }
+      },
+      "AdminCreateUtilisateurResponseDTO": {
+        "type": "object",
+        "properties": {
+          "utilisateur": {
+            "$ref": "#/components/schemas/UtilisateurResponseDTO"
+          },
+          "motDePasseTemporaire": {
+            "type": "string",
+            "description": "Mot de passe temporaire en clair, retourné uniquement à la création du compte"
+          }
+        }
+      },
+      "ReputationResponseDTO": {
+        "type": "object",
+        "properties": {
+          "utilisateurId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "noteMoyenne": {
+            "type": "number",
+            "format": "double"
+          },
+          "nombreAvis": {
+            "type": "integer",
+            "format": "int64"
+          }
+        }
+      },
+      "Pageable": {
+        "type": "object",
+        "properties": {
+          "page": {
+            "minimum": 0,
+            "type": "integer",
+            "format": "int32"
+          },
+          "size": {
+            "minimum": 1,
+            "type": "integer",
+            "format": "int32"
+          },
+          "sort": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        }
+      },
+      "PageAnnonceResponseDTO": {
+        "type": "object",
+        "properties": {
+          "totalElements": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "totalPages": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "pageable": {
+            "$ref": "#/components/schemas/PageableObject"
+          },
+          "first": {
+            "type": "boolean"
+          },
+          "last": {
+            "type": "boolean"
+          },
+          "numberOfElements": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "size": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "content": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AnnonceResponseDTO"
+            }
+          },
+          "number": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "sort": {
+            "$ref": "#/components/schemas/SortObject"
+          },
+          "empty": {
+            "type": "boolean"
+          }
+        }
+      },
+      "PageableObject": {
+        "type": "object",
+        "properties": {
+          "paged": {
+            "type": "boolean"
+          },
+          "pageNumber": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "pageSize": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "unpaged": {
+            "type": "boolean"
+          },
+          "offset": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "sort": {
+            "$ref": "#/components/schemas/SortObject"
+          }
+        }
+      },
+      "SortObject": {
+        "type": "object",
+        "properties": {
+          "sorted": {
+            "type": "boolean"
+          },
+          "unsorted": {
+            "type": "boolean"
+          },
+          "empty": {
+            "type": "boolean"
+          }
+        }
+      },
+      "ReferenceItemDTO": {
+        "type": "object",
+        "properties": {
+          "valeur": {
+            "type": "string"
+          },
+          "libelle": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string"
+          }
+        }
+      },
+      "ReferencesResponseDTO": {
+        "type": "object",
+        "properties": {
+          "typesBien": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ReferenceItemDTO"
+            }
+          },
+          "equipements": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ReferenceItemDTO"
+            }
+          },
+          "proximites": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ReferenceItemDTO"
+            }
+          },
+          "modesTransaction": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ReferenceItemDTO"
+            }
+          },
+          "typesDocument": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ReferenceItemDTO"
+            }
+          }
+        }
+      },
+      "NotificationSmsResponseDTO": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "utilisateurId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "telephone": {
+            "type": "string"
+          },
+          "type": {
+            "type": "string",
+            "enum": [
+              "RDV_DEMANDE",
+              "RDV_CONFIRME",
+              "RDV_ANNULE",
+              "RDV_RAPPEL"
+            ]
+          },
+          "message": {
+            "type": "string"
+          },
+          "statut": {
+            "type": "string"
+          },
+          "rdvId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "annonceTitre": {
+            "type": "string"
+          },
+          "dateCreation": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "description": "Notification SMS simulée enregistrée pour un utilisateur"
+      },
+      "PageNotificationSmsResponseDTO": {
+        "type": "object",
+        "properties": {
+          "totalElements": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "totalPages": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "pageable": {
+            "$ref": "#/components/schemas/PageableObject"
+          },
+          "first": {
+            "type": "boolean"
+          },
+          "last": {
+            "type": "boolean"
+          },
+          "numberOfElements": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "size": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "content": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/NotificationSmsResponseDTO"
+            }
+          },
+          "number": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "sort": {
+            "$ref": "#/components/schemas/SortObject"
+          },
+          "empty": {
+            "type": "boolean"
+          }
+        }
+      },
+      "ConversationHistoryResponseDTO": {
+        "type": "object",
+        "properties": {
+          "conversationId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "dateCreation": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "messages": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/MessageItemDTO"
+            }
+          }
+        }
+      },
+      "MessageItemDTO": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "role": {
+            "type": "string",
+            "enum": [
+              "UTILISATEUR",
+              "ASSISTANT"
+            ]
+          },
+          "contenu": {
+            "type": "string"
+          },
+          "criteresExtraits": {
+            "$ref": "#/components/schemas/CriteresExtraitsDTO"
+          },
+          "dateEnvoi": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "PageMessageResponseDTO": {
+        "type": "object",
+        "properties": {
+          "totalElements": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "totalPages": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "pageable": {
+            "$ref": "#/components/schemas/PageableObject"
+          },
+          "first": {
+            "type": "boolean"
+          },
+          "last": {
+            "type": "boolean"
+          },
+          "numberOfElements": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "size": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "content": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/MessageResponseDTO"
+            }
+          },
+          "number": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "sort": {
+            "$ref": "#/components/schemas/SortObject"
+          },
+          "empty": {
+            "type": "boolean"
+          }
+        }
+      },
+      "AvisSummaryDTO": {
+        "type": "object",
+        "properties": {
+          "noteMoyenne": {
+            "type": "number",
+            "format": "double"
+          },
+          "nombreAvis": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "avis": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AvisResponseDTO"
+            }
+          }
+        }
+      },
+      "PageUtilisateurResponseDTO": {
+        "type": "object",
+        "properties": {
+          "totalElements": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "totalPages": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "pageable": {
+            "$ref": "#/components/schemas/PageableObject"
+          },
+          "first": {
+            "type": "boolean"
+          },
+          "last": {
+            "type": "boolean"
+          },
+          "numberOfElements": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "size": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "content": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/UtilisateurResponseDTO"
+            }
+          },
+          "number": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "sort": {
+            "$ref": "#/components/schemas/SortObject"
+          },
+          "empty": {
+            "type": "boolean"
+          }
+        }
+      },
+      "ActiviteCommercialeStatsDTO": {
+        "type": "object",
+        "properties": {
+          "nombreRdvParStatut": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "integer",
+              "format": "int64"
+            }
+          },
+          "tauxConversionRdvToTransaction": {
+            "type": "number",
+            "format": "double"
+          },
+          "tauxConversionTransactionToBail": {
+            "type": "number",
+            "format": "double"
+          },
+          "montantTotalSequestreBloque": {
+            "type": "number"
+          },
+          "montantTotalLibere": {
+            "type": "number"
+          }
+        }
+      },
+      "AdminStatistiquesDTO": {
+        "type": "object",
+        "properties": {
+          "periode": {
+            "type": "string"
+          },
+          "utilisateurs": {
+            "$ref": "#/components/schemas/UtilisateursStatsDTO"
+          },
+          "annonces": {
+            "$ref": "#/components/schemas/AnnoncesStatsDTO"
+          },
+          "activiteCommerciale": {
+            "$ref": "#/components/schemas/ActiviteCommercialeStatsDTO"
+          },
+          "moderation": {
+            "$ref": "#/components/schemas/ModerationStatsDTO"
+          },
+          "assistantIA": {
+            "$ref": "#/components/schemas/AssistantIAStatsDTO"
+          }
+        }
+      },
+      "AnnoncesStatsDTO": {
+        "type": "object",
+        "properties": {
+          "totalParStatutPublication": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "integer",
+              "format": "int64"
+            }
+          },
+          "totalParStatutVerification": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "integer",
+              "format": "int64"
+            }
+          },
+          "repartitionParVilleQuartier": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/RepartitionGeographiqueDTO"
+            }
+          },
+          "prixMoyenParTypeBien": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "number",
+              "format": "double"
+            }
+          },
+          "tempsMoyenDecisionMinutes": {
+            "type": "number",
+            "format": "double"
+          }
+        }
+      },
+      "AssistantIAStatsDTO": {
+        "type": "object",
+        "properties": {
+          "nombreConversations": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "tauxConversationsShortlistNonVide": {
+            "type": "number",
+            "format": "double"
+          }
+        }
+      },
+      "ModerationStatsDTO": {
+        "type": "object",
+        "properties": {
+          "signalementsParStatut": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "integer",
+              "format": "int64"
+            }
+          },
+          "signalementsParMotif": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "integer",
+              "format": "int64"
+            }
+          },
+          "noteMoyenneGlobale": {
+            "type": "number",
+            "format": "double"
+          }
+        }
+      },
+      "RepartitionGeographiqueDTO": {
+        "type": "object",
+        "properties": {
+          "ville": {
+            "type": "string"
+          },
+          "quartier": {
+            "type": "string"
+          },
+          "total": {
+            "type": "integer",
+            "format": "int64"
+          }
+        }
+      },
+      "SerieTemporelleDTO": {
+        "type": "object",
+        "properties": {
+          "date": {
+            "type": "string"
+          },
+          "valeur": {
+            "type": "integer",
+            "format": "int64"
+          }
+        }
+      },
+      "UtilisateursStatsDTO": {
+        "type": "object",
+        "properties": {
+          "totalParRole": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "integer",
+              "format": "int64"
+            }
+          },
+          "nouvellesInscriptions": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/SerieTemporelleDTO"
+            }
+          }
+        }
+      },
+      "PageSignalementResponseDTO": {
+        "type": "object",
+        "properties": {
+          "totalElements": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "totalPages": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "pageable": {
+            "$ref": "#/components/schemas/PageableObject"
+          },
+          "first": {
+            "type": "boolean"
+          },
+          "last": {
+            "type": "boolean"
+          },
+          "numberOfElements": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "size": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "content": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/SignalementResponseDTO"
+            }
+          },
+          "number": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "sort": {
+            "$ref": "#/components/schemas/SortObject"
+          },
+          "empty": {
+            "type": "boolean"
+          }
+        }
+      }
+    },
+    "securitySchemes": {
+      "bearerAuth": {
+        "type": "http",
+        "description": "Saisissez le token JWT (obtenu lors de la connexion) pour vous authentifier.",
+        "name": "bearerAuth",
+        "scheme": "bearer",
+        "bearerFormat": "JWT"
       }
     }
   }

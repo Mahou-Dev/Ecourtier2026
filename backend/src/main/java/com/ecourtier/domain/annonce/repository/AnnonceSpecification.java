@@ -69,6 +69,33 @@ public class AnnonceSpecification {
             Boolean includeIndisponibles,
             String auteurEmail
     ) {
+        return filterAnnonces(
+                budgetMin, budgetMax,
+                type != null ? List.of(type) : null,
+                modeTransaction, superficieMin, nombrePieces,
+                quartier, ville, meuble, animauxAcceptes,
+                statutVerification,
+                proximite != null ? List.of(proximite) : null,
+                includeIndisponibles, auteurEmail
+        );
+    }
+
+    public static Specification<AnnonceEntity> filterAnnonces(
+            BigDecimal budgetMin,
+            BigDecimal budgetMax,
+            List<TypeBien> types,
+            ModeTransaction modeTransaction,
+            Double superficieMin,
+            Integer nombrePieces,
+            String quartier,
+            String ville,
+            Boolean meuble,
+            Boolean animauxAcceptes,
+            StatutVerification statutVerification,
+            List<ProximiteTag> proximites,
+            Boolean includeIndisponibles,
+            String auteurEmail
+    ) {
         return (root, query, criteriaBuilder) -> {
             List<Predicate> predicates = new ArrayList<>();
 
@@ -91,9 +118,13 @@ public class AnnonceSpecification {
                 predicates.add(criteriaBuilder.lessThanOrEqualTo(root.get("prix"), budgetMax));
             }
 
-            // 3. Type Bien
-            if (type != null) {
-                predicates.add(criteriaBuilder.equal(root.get("type"), type));
+            // 3. Types de bien (Support choix unique ou multiple)
+            if (types != null && !types.isEmpty()) {
+                if (types.size() == 1) {
+                    predicates.add(criteriaBuilder.equal(root.get("type"), types.get(0)));
+                } else {
+                    predicates.add(root.get("type").in(types));
+                }
             }
 
             // 4. Mode Transaction (LOCATION / VENTE)
@@ -142,10 +173,17 @@ public class AnnonceSpecification {
                 predicates.add(criteriaBuilder.equal(root.get("statutVerification"), statutVerification));
             }
 
-            // 12. Tag de Proximité (Join ElementCollection)
-            if (proximite != null) {
+            // 12. Tag(s) de Proximité (Join ElementCollection)
+            if (proximites != null && !proximites.isEmpty()) {
                 Join<AnnonceEntity, ProximiteTag> proximiteJoin = root.join("proximites");
-                predicates.add(criteriaBuilder.equal(proximiteJoin, proximite));
+                if (proximites.size() == 1) {
+                    predicates.add(criteriaBuilder.equal(proximiteJoin, proximites.get(0)));
+                } else {
+                    predicates.add(proximiteJoin.in(proximites));
+                }
+                if (query != null) {
+                    query.distinct(true);
+                }
             }
 
             return criteriaBuilder.and(predicates.toArray(new Predicate[0]));

@@ -16,12 +16,14 @@ import java.util.UUID;
 @Service
 public class FileStorageService {
 
-    private static final long MAX_FILE_SIZE = 5 * 1024 * 1024; // 5 MB
-    private static final List<String> ALLOWED_EXTENSIONS = List.of("jpg", "jpeg", "png", "webp");
+    private static final long MAX_PHOTO_SIZE = 5 * 1024 * 1024; // 5 MB pour les photos d'annonce
+    private static final long MAX_DOCUMENT_SIZE = 10 * 1024 * 1024; // 10 MB pour les pièces justificatives (images ou PDF)
+    private static final List<String> ALLOWED_IMAGE_EXTENSIONS = List.of("jpg", "jpeg", "png", "webp");
+    private static final List<String> ALLOWED_DOCUMENT_EXTENSIONS = List.of("jpg", "jpeg", "png", "webp", "pdf");
     private static final String UPLOAD_ROOT_DIR = "uploads";
 
     public String storePhotoAnnonce(UUID annonceId, MultipartFile file) {
-        validateFile(file);
+        validatePhotoFile(file);
 
         try {
             Path targetDir = Paths.get(UPLOAD_ROOT_DIR, "annonces", annonceId.toString());
@@ -30,7 +32,7 @@ public class FileStorageService {
             }
 
             String originalFilename = file.getOriginalFilename();
-            String extension = getExtension(originalFilename);
+            String extension = getExtension(originalFilename).toLowerCase();
             String newFilename = UUID.randomUUID() + "." + extension;
 
             Path targetPath = targetDir.resolve(newFilename);
@@ -43,7 +45,7 @@ public class FileStorageService {
     }
 
     public String storeDocumentVerification(UUID annonceId, MultipartFile file) {
-        validateFile(file);
+        validateDocumentFile(file);
 
         try {
             Path targetDir = Paths.get(UPLOAD_ROOT_DIR, "documents", annonceId.toString());
@@ -52,7 +54,7 @@ public class FileStorageService {
             }
 
             String originalFilename = file.getOriginalFilename();
-            String extension = getExtension(originalFilename);
+            String extension = getExtension(originalFilename).toLowerCase();
             String newFilename = UUID.randomUUID() + "." + extension;
 
             Path targetPath = targetDir.resolve(newFilename);
@@ -105,46 +107,79 @@ public class FileStorageService {
         }
     }
 
-    private void validateFile(MultipartFile file) {
+    private void validatePhotoFile(MultipartFile file) {
         if (file == null || file.isEmpty()) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Le fichier soumis est vide");
         }
 
-        if (file.getSize() > MAX_FILE_SIZE) {
+        if (file.getSize() > MAX_PHOTO_SIZE) {
             throw new ResponseStatusException(
                     HttpStatus.BAD_REQUEST,
                     "La taille du fichier dépasse la limite maximale autorisée de 5MB"
             );
         }
 
-        String extension = getExtension(file.getOriginalFilename());
-        if (!ALLOWED_EXTENSIONS.contains(extension.toLowerCase())) {
+        String extension = getExtension(file.getOriginalFilename()).toLowerCase();
+        if (!ALLOWED_IMAGE_EXTENSIONS.contains(extension)) {
             throw new ResponseStatusException(
                     HttpStatus.BAD_REQUEST,
-                    "Format de fichier non pris en charge. Formats acceptés : jpg, jpeg, png, webp"
+                    "Format de fichier non pris en charge pour une photo d'annonce. Formats acceptés : jpg, jpeg, png, webp"
             );
         }
 
-        // Inspection binaire des magic bytes pour valider le contenu réel du fichier
-        try {
-            byte[] header = new byte[12];
-            int bytesRead;
-            try (var is = file.getInputStream()) {
-                bytesRead = is.read(header);
-            }
+        byte[] header = new byte[12];
+        int bytesRead = readHeader(file, header);
+        if (bytesRead < 4 || !isImageContentValid(header, bytesRead)) {
+            throw new ResponseStatusException(
+                    HttpStatus.BAD_REQUEST,
+                    "Le contenu du fichier est invalide ou corrompu (signature binaire non reconnue)"
+            );
+        }
+    }
 
-            if (bytesRead < 4 || !isContentValid(header, bytesRead)) {
-                throw new ResponseStatusException(
-                        HttpStatus.BAD_REQUEST,
-                        "Le contenu du fichier est invalide ou corrompu (signature binaire non reconnue)"
-                );
-            }
+    private void validateDocumentFile(MultipartFile file) {
+        if (file == null || file.isEmpty()) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Le fichier soumis est vide");
+        }
+
+        if (file.getSize() > MAX_DOCUMENT_SIZE) {
+            throw new ResponseStatusException(
+                    HttpStatus.BAD_REQUEST,
+                    "La taille du document dépasse la limite maximale autorisée de 10 Mo"
+            );
+        }
+
+        String extension = getExtension(file.getOriginalFilename()).toLowerCase();
+        if (!ALLOWED_DOCUMENT_EXTENSIONS.contains(extension)) {
+            throw new ResponseStatusException(
+                    HttpStatus.BAD_REQUEST,
+                    "Format de document non pris en charge. Formats acceptés : jpg, jpeg, png, webp, pdf"
+            );
+        }
+
+        byte[] header = new byte[12];
+        int bytesRead = readHeader(file, header);
+        boolean validContent = "pdf".equals(extension)
+                ? isPdfContentValid(header, bytesRead)
+                : (bytesRead >= 4 && isImageContentValid(header, bytesRead));
+
+        if (!validContent) {
+            throw new ResponseStatusException(
+                    HttpStatus.BAD_REQUEST,
+                    "Le contenu du document est invalide ou corrompu (signature binaire %PDF- ou image non reconnue)"
+            );
+        }
+    }
+
+    private int readHeader(MultipartFile file, byte[] header) {
+        try (var is = file.getInputStream()) {
+            return is.read(header);
         } catch (IOException e) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Impossible de lire le contenu du fichier");
         }
     }
 
-    private boolean isContentValid(byte[] h, int len) {
+    private boolean isImageContentValid(byte[] h, int len) {
         // 1. JPEG: FF D8 FF
         boolean isJpeg = (h[0] & 0xFF) == 0xFF && (h[1] & 0xFF) == 0xD8 && (h[2] & 0xFF) == 0xFF;
         // 2. PNG: 89 50 4E 47
@@ -154,6 +189,11 @@ public class FileStorageService {
                 && h[8] == 'W' && h[9] == 'E' && h[10] == 'B' && h[11] == 'P';
 
         return isJpeg || isPng || isWebp;
+    }
+
+    private boolean isPdfContentValid(byte[] h, int len) {
+        // PDF magic bytes: %PDF- (25 50 44 46 2D)
+        return len >= 5 && h[0] == '%' && h[1] == 'P' && h[2] == 'D' && h[3] == 'F' && h[4] == '-';
     }
 
     private String getExtension(String filename) {

@@ -5,6 +5,7 @@ Ne journalise aucun jeton JWT ni clé secrète.
 """
 import io
 import json
+import os
 import struct
 import subprocess
 import time
@@ -13,6 +14,12 @@ import urllib.parse
 import urllib.request
 import zlib
 from datetime import datetime, timedelta, timezone
+
+ADMIN_PASSWORD = os.environ.get("AUDIT_ADMIN_PASSWORD", "AdminPass123!")
+AGENT_PASSWORD = os.environ.get("AUDIT_AGENT_PASSWORD", "AgentPass123!")
+PROPRIO_PASSWORD = os.environ.get("AUDIT_PROPRIO_PASSWORD", "ProprioPass123!")
+LOCATAIRE_PASSWORD = os.environ.get("AUDIT_LOCATAIRE_PASSWORD", "LocatairePass123!")
+TEST_PASSWORD = os.environ.get("AUDIT_TEST_PASSWORD", "AuditSecure2026!")
 
 BASE = "http://localhost:8080"
 TS = int(time.time())
@@ -131,10 +138,10 @@ def main():
     # 1. T1 & Auth: Connexion des 4 rôles + inscription nouveau locataire + blocage AGENT public
     tokens = {}
     for label, email, pwd in [
-        ("admin", "admin@ecourtier.sn", os.environ["AUDIT_ADMIN_PASSWORD"]),
-        ("agent", "agent@ecourtier.sn", os.environ["AUDIT_AGENT_PASSWORD"]),
-        ("proprio", "proprio.demo@ecourtier.sn", os.environ["AUDIT_PROPRIO_PASSWORD"]),
-        ("locataire_demo", "locataire.demo@ecourtier.sn", os.environ["AUDIT_LOCATAIRE_PASSWORD"]),
+        ("admin", "admin@ecourtier.sn", ADMIN_PASSWORD),
+        ("agent", "agent@ecourtier.sn", AGAGENT_PWD := AGENT_PASSWORD),
+        ("proprio", "proprio.demo@ecourtier.sn", PROPRIO_PASSWORD),
+        ("locataire_demo", "locataire.demo@ecourtier.sn", LOCATAIRE_PASSWORD),
     ]:
         st, data, dt = req("POST", "/api/v1/auth/connexion", {"email": email, "motDePasse": pwd})
         tokens[label] = data["accessToken"]
@@ -162,7 +169,7 @@ def main():
         "nom": "Sall",
         "prenom": "Ibrahima",
         "email": f"agent.test.{TS}@ecourtier.sn",
-        "motDePasse": os.environ["AUDIT_TEST_PASSWORD"],
+        "motDePasse": TEST_PASSWORD,
         "telephone": "+221771112233",
         "role": "AGENT",
     })
@@ -174,7 +181,7 @@ def main():
         "nom": "Fall",
         "prenom": "Aminata",
         "email": buyer_email,
-        "motDePasse": os.environ["AUDIT_TEST_PASSWORD"],
+        "motDePasse": TEST_PASSWORD,
         "telephone": "+221772223344",
         "role": "LOCATAIRE",
     })
@@ -217,7 +224,7 @@ def main():
         "description": "Villa R+1 en vente directe avec piscine et jardin arboré aux Almadies pour test du parcours achat de bout en bout.",
         "type": "VILLA",
         "modeTransaction": "VENTE",
-        "prix": 65000000,
+        "prix": 45000000,
         "superficie": 280.0,
         "nombrePieces": 5,
         "etage": 0,
@@ -357,15 +364,17 @@ def main():
     # 6a. Initiate transaction BEFORE visit -> 400
     st_tx_pre, d_tx_pre, _ = req("POST", f"/api/v1/annonces/{loc_id}/transactions", {"montantCaution": 1}, token=tokens["acheteur"])
 
-    # 6b. Create RDV for tomorrow 14:00 (for SMS reminder test too)
+    # 6b. Create RDV for tomorrow 14:00 (with confirmation_automatique=true)
     tomorrow_14h = (datetime.now() + timedelta(days=1)).replace(hour=14, minute=0, second=0, microsecond=0).strftime("%Y-%m-%dT%H:%M:%S")
     tomorrow_14h30 = (datetime.now() + timedelta(days=1)).replace(hour=14, minute=30, second=0, microsecond=0).strftime("%Y-%m-%dT%H:%M:%S")
 
-    st_rdv1, rdv1, _ = req("POST", f"/api/v1/annonces/{loc_id}/rendez-vous", {"dateHeure": tomorrow_14h, "notes": "Visite audit location"}, token=tokens["acheteur"])
+    # RDV 1: should be CONFIRME automatically
+    st_rdv1, rdv1, _ = req("POST", f"/api/v1/annonces/{loc_id}/rendez-vous", {"dateHeure": tomorrow_14h, "notes": "Visite audit location auto-confirm"}, token=tokens["acheteur"])
+    
+    # RDV 2: overlapping at +30min (within ±60 min of rdv1) -> must remain DEMANDE
     st_rdv2, rdv2, _ = req("POST", f"/api/v1/annonces/{loc_id}/rendez-vous", {"dateHeure": tomorrow_14h30, "notes": "Visite chevauchante +30min"}, token=tokens["locataire_demo"])
 
-    # Confirm RDV 1 -> 200 CONFIRME; Confirm overlapping RDV 2 -> 409 CONFLICT
-    st_conf1, rdv1_conf, _ = req("PUT", f"/api/v1/rendez-vous/{rdv1['id']}/confirmer", token=tokens["proprio"])
+    # Manual confirmation of overlapping RDV 2 -> 409 CONFLICT
     st_conf2, rdv2_conf, _ = req("PUT", f"/api/v1/rendez-vous/{rdv2['id']}/confirmer", token=tokens["proprio"])
 
     # Trigger manual SMS reminder endpoint & inspect docker logs
@@ -374,7 +383,11 @@ def main():
     st_sms, d_sms, _ = req("POST", "/api/v1/rendez-vous/simuler-rappels", token=tokens["admin"])
     time.sleep(0.5)
     logs_sms = subprocess.check_output(["docker", "logs", "--since", log_since, "ecourtier-backend"], stderr=subprocess.STDOUT).decode("utf-8", "replace")
-    sms_lines = [ln for ln in logs_sms.splitlines() if "SIMULATION SMS" in ln or "RendezVous" in ln]
+    sms_lines = [ln for ln in logs_sms.splitlines() if "[SMS SIMULÉ]" in ln or "SMS SIMULÉ" in ln or "RendezVous" in ln]
+
+    # Query GET /api/v1/notifications-sms/mes-sms for both parties
+    st_sms_buyer, sms_buyer, _ = req("GET", "/api/v1/notifications-sms/mes-sms", token=tokens["acheteur"])
+    st_sms_prop, sms_prop, _ = req("GET", "/api/v1/notifications-sms/mes-sms", token=tokens["proprio"])
 
     # Check agenda endpoint & mark RDV 1 EFFECTUE
     st_my_rdv, my_rdv, _ = req("GET", "/api/v1/rendez-vous/mes-rendez-vous", token=tokens["proprio"])
@@ -384,13 +397,14 @@ def main():
 
     proofs["steps"]["F15_F16_F17_S3_rdv_and_sms"] = {
         "tx_before_visit_blocked": {"status": st_tx_pre, "response": d_tx_pre},
-        "rdv_created_initial_status": rdv1.get("statut"),
-        "rdv_confirm_status": st_conf1,
-        "rdv_confirmed_statut": rdv1_conf.get("statut"),
-        "overlap_30min_confirm_status": st_conf2,
-        "overlap_30min_response": rdv2_conf,
+        "rdv1_auto_confirmed_status": rdv1.get("statut"),
+        "rdv2_overlap_created_status": rdv2.get("statut"),
+        "rdv2_manual_confirm_conflict_status": st_conf2,
+        "rdv2_manual_confirm_conflict_response": rdv2_conf,
         "simuler_rappels_http": {"status": st_sms, "response": d_sms},
         "rappelEnvoye_after_trigger": rdv1_after_sms.get("rappelEnvoye") if rdv1_after_sms else None,
+        "buyer_notifications_sms": {"status": st_sms_buyer, "total": sms_buyer.get("totalElements") if isinstance(sms_buyer, dict) else None, "items": sms_buyer.get("content", [])[:3] if isinstance(sms_buyer, dict) else []},
+        "proprio_notifications_sms": {"status": st_sms_prop, "total": sms_prop.get("totalElements") if isinstance(sms_prop, dict) else None, "items": sms_prop.get("content", [])[:3] if isinstance(sms_prop, dict) else []},
         "backend_sms_log_lines": sms_lines,
         "rdv_effectue_status": st_eff1,
     }
@@ -454,18 +468,26 @@ def main():
         "backend_logs": tx_log_lines,
     }
 
-    # 7. F29: End-to-End VENTE (ACHAT) workflow on `vente_id` (65 000 000 FCFA)
+    # 7. F29: End-to-End VENTE (ACHAT) workflow on `vente_id` (45 000 000 FCFA)
     tomorrow_16h = (datetime.now() + timedelta(days=1)).replace(hour=16, minute=0, second=0, microsecond=0).strftime("%Y-%m-%dT%H:%M:%S")
     _, rdv_v, _ = req("POST", f"/api/v1/annonces/{vente_id}/rendez-vous", {"dateHeure": tomorrow_16h, "notes": "Visite achat villa"}, token=tokens["acheteur"])
-    req("PUT", f"/api/v1/rendez-vous/{rdv_v['id']}/confirmer", token=tokens["agent"])
+    # If auto-confirm is true on vente listing, rdv_v is already CONFIRME
+    if rdv_v.get("statut") != "CONFIRME":
+        req("PUT", f"/api/v1/rendez-vous/{rdv_v['id']}/confirmer", token=tokens["agent"])
     req("PUT", f"/api/v1/rendez-vous/{rdv_v['id']}/marquer-effectue", token=tokens["agent"])
 
-    st_tx_v, tx_v, _ = req("POST", f"/api/v1/annonces/{vente_id}/transactions", {}, token=tokens["acheteur"])
+    # Client sends forged montantCaution=9999999 -> server recalculates 10% of 45M = 4 500 000
+    st_tx_v, tx_v, _ = req("POST", f"/api/v1/annonces/{vente_id}/transactions", {"montantCaution": 9999999}, token=tokens["acheteur"])
     tx_v_id = tx_v["id"]
-    req("POST", f"/api/v1/transactions/{tx_v_id}/paiement-caution", token=tokens["acheteur"])
-    req("POST", f"/api/v1/transactions/{tx_v_id}/bail/signer", token=tokens["acheteur"])
-    _, tx_v_done, _ = req("POST", f"/api/v1/transactions/{tx_v_id}/bail/signer", token=tokens["agent"])
-    _, d_pdf_v, _ = req("GET", f"/api/v1/transactions/{tx_v_id}/bail/pdf", token=tokens["acheteur"])
+    st_pay_v, tx_v_paid, _ = req("POST", f"/api/v1/transactions/{tx_v_id}/paiement-caution", token=tokens["acheteur"])
+    st_sig_v1, tx_v_sig1, _ = req("POST", f"/api/v1/transactions/{tx_v_id}/bail/signer", token=tokens["acheteur"])
+    st_sig_v2, tx_v_done, _ = req("POST", f"/api/v1/transactions/{tx_v_id}/bail/signer", token=tokens["agent"])
+    st_pdf_v, d_pdf_v, _ = req("GET", f"/api/v1/transactions/{tx_v_id}/bail/pdf", token=tokens["acheteur"])
+    
+    if isinstance(d_pdf_v, dict) and "raw_bytes" in d_pdf_v:
+        with open("docs/audit/sample_reservation_achat.pdf", "wb") as f_pdf:
+            f_pdf.write(d_pdf_v["raw_bytes"])
+    
     pdf_vente_text = extract_pdf_strings(d_pdf_v["raw_bytes"]) if isinstance(d_pdf_v, dict) and "raw_bytes" in d_pdf_v else ""
     if isinstance(d_pdf_v, dict):
         d_pdf_v.pop("raw_bytes", None)
@@ -473,14 +495,23 @@ def main():
 
     proofs["steps"]["F29_vente_achat_end_to_end"] = {
         "tx_init_status": st_tx_v,
-        "montantCaution_equals_full_sale_price": tx_v.get("montantCaution"),
+        "modeTransaction": tx_v.get("modeTransaction"),
+        "acomptePourcentage": tx_v.get("acomptePourcentage"),
+        "montantCaution_acompte_10_pct": tx_v.get("montantCaution"),
         "montantPremierLoyer": tx_v.get("montantPremierLoyer"),
         "fraisDossier": tx_v.get("fraisDossier"),
         "montantTotalSequestre": tx_v.get("montantTotalSequestre"),
+        "wave_payment_status": st_pay_v,
+        "signature_acheteur_status": st_sig_v1,
+        "signature_agent_vendeur_status": st_sig_v2,
         "final_statutSequestre": tx_v_done.get("statutSequestre"),
         "final_statutBail": tx_v_done.get("statutBail"),
         "montantVerseProprietaire": tx_v_done.get("montantVerseProprietaire"),
         "annonce_statutPublication_after_sale": ann_vente_after.get("statutPublication"),
+        "pdf_download_status": st_pdf_v,
+        "pdf_saved_path": "docs/audit/sample_reservation_achat.pdf",
+        "pdf_has_reservation_title": "RECAPITULATIF DE RESERVATION D'ACHAT" in pdf_vente_text.upper() or "RÉCAPITULATIF DE RÉSERVATION D'ACHAT" in pdf_vente_text,
+        "pdf_has_legal_disclaimer": "ne constitue pas un acte de vente" in pdf_vente_text,
         "pdf_vente_extracted_text": pdf_vente_text[:600],
     }
 

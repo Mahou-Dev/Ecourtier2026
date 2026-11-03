@@ -90,6 +90,10 @@ public class AnnonceEntity {
     @Builder.Default
     private boolean animauxAcceptes = false;
 
+    @Column(name = "confirmation_automatique", nullable = false)
+    @Builder.Default
+    private boolean confirmationAutomatique = true;
+
     @Column(name = "lien_visite_360", length = 512)
     private String lienVisite360;
 

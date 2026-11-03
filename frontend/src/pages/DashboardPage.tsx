@@ -10,7 +10,10 @@ import {
   CheckCircle2,
   Clock,
   Building,
-  MessageSquare
+  MessageSquare,
+  Pencil,
+  Trash2,
+  Smartphone
 } from 'lucide-react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { apiFetch, getPhotoUrl } from '../services/api';
@@ -22,8 +25,11 @@ import { Badge } from '../components/ui/Badge';
 import { Card, CardBody } from '../components/ui/Card';
 import { Avatar } from '../components/ui/Avatar';
 import { Skeleton } from '../components/ui/Skeleton';
+import { Modal } from '../components/ui/Modal';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { CreateAnnonceModal } from '../components/dashboard/CreateAnnonceModal';
+import { EditAnnonceModal } from '../components/dashboard/EditAnnonceModal';
+import { SmsSimulesTab } from '../components/dashboard/SmsSimulesTab';
 import { TransactionDetailsModal } from '../components/transaction/TransactionDetailsModal';
 import { ConversationsTab } from '../components/messagerie/ConversationsTab';
 import { toast } from 'sonner';
@@ -33,17 +39,38 @@ export const DashboardPage: React.FC = () => {
   const [searchParams] = useSearchParams();
   const queryClient = useQueryClient();
   const { utilisateur, logout } = useAuthStore();
-  const [activeTab, setActiveTab] = useState<'ANNONCES' | 'VISITES' | 'SEQUESTRES' | 'MESSAGES'>('ANNONCES');
+  const [activeTab, setActiveTab] = useState<'ANNONCES' | 'VISITES' | 'SEQUESTRES' | 'MESSAGES' | 'SMS'>('ANNONCES');
 
   React.useEffect(() => {
     if (searchParams.get('tab') === 'messages') {
       setActiveTab('MESSAGES');
     }
+    if (searchParams.get('tab') === 'sms') {
+      setActiveTab('SMS');
+    }
   }, [searchParams]);
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
+  const [annonceEnEdition, setAnnonceEnEdition] = useState<AnnonceDTO | null>(null);
+  const [annonceASupprimer, setAnnonceASupprimer] = useState<AnnonceDTO | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
   const [selectedTransaction, setSelectedTransaction] = useState<TransactionResponseDTO | null>(null);
   const [isTxModalOpen, setIsTxModalOpen] = useState(false);
   const [actionLoadingId, setActionLoadingId] = useState<string | null>(null);
+
+  const handleConfirmSuppression = async () => {
+    if (!annonceASupprimer) return;
+    setIsDeleting(true);
+    try {
+      await apiFetch(`/api/v1/annonces/${annonceASupprimer.id}`, { method: 'DELETE' });
+      toast.success('Annonce supprimée avec succès');
+      setAnnonceASupprimer(null);
+      queryClient.invalidateQueries({ queryKey: ['my-annonces'] });
+    } catch (err: any) {
+      toast.error(err.message || 'Erreur lors de la suppression de l\'annonce');
+    } finally {
+      setIsDeleting(false);
+    }
+  };
 
   // Redirect to login if unauthenticated
   React.useEffect(() => {
@@ -237,6 +264,18 @@ export const DashboardPage: React.FC = () => {
                 </Badge>
               )}
             </button>
+
+            <button
+              onClick={() => setActiveTab('SMS')}
+              className={`w-full flex items-center justify-between px-4 py-3 rounded-xl text-xs font-semibold transition-colors ${
+                activeTab === 'SMS' ? 'bg-terracotta-500 text-white shadow-terracotta-glow' : 'text-sahel-200 hover:bg-sahel-800'
+              }`}
+            >
+              <div className="flex items-center gap-2.5">
+                <Smartphone className="w-4 h-4 text-emerald-400" />
+                <span>SMS simulés</span>
+              </div>
+            </button>
           </nav>
         </div>
 
@@ -332,6 +371,28 @@ export const DashboardPage: React.FC = () => {
                         </div>
 
                         <div className="flex items-center gap-2 w-full sm:w-auto justify-end border-t sm:border-t-0 pt-3 sm:pt-0 border-sand-200">
+                          {(utilisateur.role === 'ADMIN' || utilisateur.id === item.auteur?.id) && (
+                            <>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => setAnnonceEnEdition(item)}
+                                className="text-xs flex items-center gap-1.5 text-sahel-700 hover:bg-sand-200"
+                              >
+                                <Pencil className="w-3.5 h-3.5 text-terracotta-600" />
+                                <span>Modifier</span>
+                              </Button>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => setAnnonceASupprimer(item)}
+                                className="text-xs flex items-center gap-1.5 text-rose-600 hover:bg-rose-50"
+                              >
+                                <Trash2 className="w-3.5 h-3.5 text-rose-600" />
+                                <span>Supprimer</span>
+                              </Button>
+                            </>
+                          )}
                           <Button
                             variant="ghost"
                             size="sm"
@@ -485,11 +546,19 @@ export const DashboardPage: React.FC = () => {
                             <h3 className="font-display font-bold text-base text-sahel-900">{tx.annonceTitre}</h3>
                           </div>
                           <p className="text-xs text-sahel-600">
-                            Locataire: <strong>{tx.locataireNomComplet}</strong> | Propriétaire: <strong>{tx.proprietaireNomComplet || 'Agent'}</strong>
+                            {tx.modeTransaction === 'VENTE' ? (
+                              <>Acheteur : <strong>{tx.locataireNomComplet}</strong> | Vendeur : <strong>{tx.proprietaireNomComplet || 'Agent'}</strong></>
+                            ) : (
+                              <>Locataire : <strong>{tx.locataireNomComplet}</strong> | Propriétaire : <strong>{tx.proprietaireNomComplet || 'Agent'}</strong></>
+                            )}
                           </p>
                           <p className="text-xs text-terracotta-700 font-bold">
                             Total séquestre : {(tx.montantTotalSequestre ?? (tx.montantCaution + (tx.montantPremierLoyer || 0) + tx.fraisDossier)).toLocaleString('fr-FR')} FCFA
-                            {tx.montantPremierLoyer > 0 ? ` (Caution: ${tx.montantCaution.toLocaleString('fr-FR')} + 1er Loyer: ${tx.montantPremierLoyer.toLocaleString('fr-FR')} + Frais: 5 000)` : ` (Caution: ${tx.montantCaution.toLocaleString('fr-FR')} + Frais: 5 000)`}
+                            {tx.modeTransaction === 'VENTE'
+                              ? ` (Acompte de réservation (${tx.acomptePourcentage || 10} % du prix) : ${tx.montantCaution.toLocaleString('fr-FR')} FCFA + Frais: 5 000 FCFA)`
+                              : tx.montantPremierLoyer > 0
+                                ? ` (Caution: ${tx.montantCaution.toLocaleString('fr-FR')} + 1er Loyer: ${tx.montantPremierLoyer.toLocaleString('fr-FR')} + Frais: 5 000)`
+                                : ` (Caution: ${tx.montantCaution.toLocaleString('fr-FR')} + Frais: 5 000)`}
                           </p>
                         </div>
 
@@ -525,6 +594,9 @@ export const DashboardPage: React.FC = () => {
         {/* TAB 4: MESSAGERIE */}
         {activeTab === 'MESSAGES' && <ConversationsTab />}
 
+        {/* TAB 5: SMS SIMULÉS */}
+        {activeTab === 'SMS' && <SmsSimulesTab />}
+
       </main>
 
       {/* CREATE LISTING MODAL */}
@@ -535,6 +607,51 @@ export const DashboardPage: React.FC = () => {
           queryClient.invalidateQueries({ queryKey: ['my-annonces'] });
         }}
       />
+
+      {/* EDIT LISTING MODAL */}
+      <EditAnnonceModal
+        isOpen={!!annonceEnEdition}
+        onClose={() => setAnnonceEnEdition(null)}
+        annonce={annonceEnEdition}
+        onSuccess={() => {
+          queryClient.invalidateQueries({ queryKey: ['my-annonces'] });
+        }}
+      />
+
+      {/* DELETE CONFIRMATION MODAL */}
+      <Modal
+        isOpen={!!annonceASupprimer}
+        onClose={() => setAnnonceASupprimer(null)}
+        title="Confirmer la suppression"
+        size="sm"
+      >
+        <div className="space-y-4">
+          <p className="text-sm text-charcoal-700">
+            Êtes-vous sûr de vouloir supprimer l'annonce <strong>« {annonceASupprimer?.titre} »</strong> ?
+          </p>
+          <p className="text-xs text-charcoal-500 bg-sand-100 p-3 rounded-xl border border-sand-300">
+            Cette action effectue une <strong>suppression logique</strong> : le bien ne sera plus accessible aux recherches publiques, mais restera archivé pour l'historique administratif.
+          </p>
+          <div className="flex justify-end gap-3 pt-3">
+            <Button
+              variant="ghost"
+              type="button"
+              onClick={() => setAnnonceASupprimer(null)}
+              disabled={isDeleting}
+            >
+              Annuler
+            </Button>
+            <Button
+              variant="primary"
+              className="bg-rose-600 hover:bg-rose-700 text-white"
+              onClick={handleConfirmSuppression}
+              isLoading={isDeleting}
+            >
+              Confirmer la suppression
+            </Button>
+          </div>
+        </div>
+      </Modal>
 
       {/* TRANSACTION DETAILS & SIGNATURE MODAL */}
       <TransactionDetailsModal

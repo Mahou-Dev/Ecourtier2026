@@ -20,12 +20,14 @@ import com.ecourtier.domain.utilisateur.entity.UtilisateurEntity;
 import com.ecourtier.domain.utilisateur.repository.UtilisateurRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
 
 import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.time.LocalDateTime;
 import java.util.Optional;
 import java.util.UUID;
@@ -42,6 +44,9 @@ public class TransactionService {
     private final TransactionMapper transactionMapper;
     private final WaveClient waveClient;
     private final PdfBailGeneratorService pdfBailGeneratorService;
+
+    @Value("${ecourtier.vente.acompte-pourcentage:10}")
+    private int acomptePourcentage = 10;
 
     @Transactional
     public TransactionResponseDTO initierTransaction(UUID annonceId, TransactionRequestDTO request, String userEmail) {
@@ -65,15 +70,22 @@ public class TransactionService {
             );
         }
 
-        // Calcul des montants strictement côté serveur à partir de l'annonce (§4)
+        // Calcul des montants strictement côté serveur à partir de l'annonce (§4 / F29)
         // LOCATION : caution = 1 mois de loyer (prix), 1er loyer = prix, frais = 5 000 FCFA
-        // VENTE : caution = prix (acompte/garantie), 1er loyer = 0, frais = 5 000 FCFA
+        // VENTE : montantCaution = acompte = prix × acomptePourcentage / 100 (arrondi au franc), 1er loyer = 0, frais = 5 000 FCFA
         // Tout montant envoyé par le client dans la requête est délibérément ignoré
         BigDecimal prixAnnonce = annonce.getPrix() != null ? annonce.getPrix() : BigDecimal.ZERO;
-        BigDecimal montantCaution = prixAnnonce;
-        BigDecimal montantPremierLoyer = (annonce.getModeTransaction() == ModeTransaction.LOCATION)
-                ? prixAnnonce
-                : BigDecimal.ZERO;
+        BigDecimal montantCaution;
+        BigDecimal montantPremierLoyer;
+        if (annonce.getModeTransaction() == ModeTransaction.VENTE) {
+            montantCaution = prixAnnonce
+                    .multiply(BigDecimal.valueOf(acomptePourcentage))
+                    .divide(BigDecimal.valueOf(100), 0, RoundingMode.HALF_UP);
+            montantPremierLoyer = BigDecimal.ZERO;
+        } else {
+            montantCaution = prixAnnonce;
+            montantPremierLoyer = prixAnnonce;
+        }
         BigDecimal fraisDossier = BigDecimal.valueOf(5000);
 
         TransactionEntity tx = TransactionEntity.builder()
