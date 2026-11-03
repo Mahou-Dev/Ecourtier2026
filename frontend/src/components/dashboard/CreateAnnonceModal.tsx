@@ -461,7 +461,7 @@ export const CreateAnnonceModal: React.FC<CreateAnnonceModalProps> = ({
           </p>
 
           <div className="p-3 bg-amber-50 rounded-xl border border-amber-200 text-[11px] text-amber-800">
-            <strong>Formats acceptés par le serveur :</strong> Images uniquement (JPG, JPEG, PNG, WEBP — Max 5 Mo par fichier).
+            <strong>Formats acceptés par le serveur :</strong> Images (JPG, JPEG, PNG, WEBP) ou documents PDF — Max 10 Mo par fichier.
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4 items-end">
@@ -480,11 +480,11 @@ export const CreateAnnonceModal: React.FC<CreateAnnonceModalProps> = ({
 
             <div>
               <label className="border border-sand-300 hover:border-terracotta-500 rounded-xl px-4 py-2.5 flex items-center justify-between cursor-pointer text-xs font-semibold text-sahel-800 bg-sand-50 transition-colors">
-                <span className="truncate">Ajouter fichier(s)</span>
+                <span className="truncate">Ajouter fichier(s) (Image ou PDF)</span>
                 <Upload className="w-4 h-4 text-terracotta-500 shrink-0 ml-2" />
                 <input
                   type="file"
-                  accept=".jpg,.jpeg,.png,.webp,image/jpeg,image/png,image/webp"
+                  accept=".jpg,.jpeg,.png,.webp,.pdf,image/jpeg,image/png,image/webp,application/pdf"
                   multiple
                   onChange={handleDocAdd}
                   className="hidden"

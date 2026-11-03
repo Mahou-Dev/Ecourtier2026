@@ -18,7 +18,9 @@ const LoginPage = lazy(() => import('./pages/LoginPage').then(m => ({ default: m
 const RegisterPage = lazy(() => import('./pages/RegisterPage').then(m => ({ default: m.RegisterPage })));
 const DashboardPage = lazy(() => import('./pages/DashboardPage').then(m => ({ default: m.DashboardPage })));
 const FavorisPage = lazy(() => import('./pages/FavorisPage').then(m => ({ default: m.FavorisPage })));
+const MonComptePage = lazy(() => import('./pages/MonComptePage').then(m => ({ default: m.MonComptePage })));
 const AdminDashboardPage = lazy(() => import('./pages/AdminDashboardPage').then(m => ({ default: m.AdminDashboardPage })));
+const AdminUtilisateursPage = lazy(() => import('./pages/AdminUtilisateursPage').then(m => ({ default: m.AdminUtilisateursPage })));
 const AdminVerificationPage = lazy(() => import('./pages/AdminVerificationPage').then(m => ({ default: m.AdminVerificationPage })));
 const AdminSignalementsPage = lazy(() => import('./pages/AdminSignalementsPage').then(m => ({ default: m.AdminSignalementsPage })));
 
@@ -60,8 +62,10 @@ const AnimatedRoutes: React.FC = () => {
             <Route path="/connexion" element={<LoginPage />} />
             <Route path="/inscription" element={<RegisterPage />} />
             <Route path="/dashboard" element={<DashboardPage />} />
+            <Route path="/mon-compte" element={<MonComptePage />} />
             <Route path="/admin" element={<Navigate to="/admin/dashboard" replace />} />
             <Route path="/admin/dashboard" element={<AdminDashboardPage />} />
+            <Route path="/admin/utilisateurs" element={<AdminUtilisateursPage />} />
             <Route path="/admin/verification" element={<AdminVerificationPage />} />
             <Route path="/admin/signalements" element={<AdminSignalementsPage />} />
           </Routes>

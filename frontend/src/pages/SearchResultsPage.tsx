@@ -111,6 +111,42 @@ export const SearchResultsPage: React.FC = () => {
     return { min: 0, max: 2_000_000, step: 25_000 };
   }, [modeTransaction]);
 
+  // Synchronize state when URL search parameters change externally (e.g. Back/Forward button)
+  useEffect(() => {
+    const mode = searchParams.get('modeTransaction') || 'TOUS';
+    const types = searchParams.getAll('type');
+    const singleType = searchParams.get('type');
+    const finalTypes = types.length > 0 ? types : (singleType && singleType !== 'TOUS' ? [singleType] : []);
+    const city = searchParams.get('ville') || searchParams.get('city') || 'TOUS';
+    const quartier = searchParams.get('quartier') || '';
+    const bMin = searchParams.get('budgetMin') ? Number(searchParams.get('budgetMin')) : undefined;
+    const bMax = searchParams.get('budgetMax') ? Number(searchParams.get('budgetMax')) : undefined;
+    const sMin = searchParams.get('superficieMin') ? Number(searchParams.get('superficieMin')) : undefined;
+    const nPieces = searchParams.get('nombrePieces') ? Number(searchParams.get('nombrePieces')) : undefined;
+    const m = searchParams.get('meuble');
+    const mFilter = m === 'true' ? 'MEUBLE' : m === 'false' ? 'NON_MEUBLE' : 'TOUS';
+    const animaux = searchParams.get('animauxAcceptes') === 'true';
+    const proxs = searchParams.getAll('proximite');
+    const singleProx = searchParams.get('proximite');
+    const finalProxs = proxs.length > 0 ? proxs : (singleProx && singleProx !== 'TOUS' ? [singleProx] : []);
+    const verified = searchParams.get('statutVerification') === 'VERIFIEE' || searchParams.get('onlyVerified') === 'true';
+    const p = searchParams.get('page') ? Number(searchParams.get('page')) : 0;
+
+    setModeTransaction((prev) => prev !== mode ? mode : prev);
+    setSelectedTypes((prev) => JSON.stringify(prev) !== JSON.stringify(finalTypes) ? finalTypes : prev);
+    setCityFilter((prev) => prev !== city ? city : prev);
+    setQuartierFilter((prev) => prev !== quartier ? quartier : prev);
+    setBudgetMin((prev) => prev !== bMin ? bMin : prev);
+    setBudgetMax((prev) => prev !== bMax ? bMax : prev);
+    setSuperficieMin((prev) => prev !== sMin ? sMin : prev);
+    setNombrePieces((prev) => prev !== nPieces ? nPieces : prev);
+    setMeubleFilter((prev) => prev !== mFilter ? mFilter : prev);
+    setAnimauxAcceptes((prev) => prev !== animaux ? animaux : prev);
+    setSelectedProximites((prev) => JSON.stringify(prev) !== JSON.stringify(finalProxs) ? finalProxs : prev);
+    setOnlyVerified((prev) => prev !== verified ? verified : prev);
+    setPage((prev) => prev !== p ? p : prev);
+  }, [searchParams]);
+
   // Synchronize filter states to URL search parameters
   useEffect(() => {
     const newParams = new URLSearchParams();
@@ -129,7 +165,9 @@ export const SearchResultsPage: React.FC = () => {
     selectedProximites.forEach((p) => newParams.append('proximite', p));
     if (onlyVerified) newParams.set('statutVerification', 'VERIFIEE');
 
-    setSearchParams(newParams, { replace: true });
+    if (newParams.toString() !== searchParams.toString()) {
+      setSearchParams(newParams);
+    }
   }, [
     page,
     modeTransaction,
@@ -144,6 +182,7 @@ export const SearchResultsPage: React.FC = () => {
     animauxAcceptes,
     selectedProximites,
     onlyVerified,
+    searchParams,
     setSearchParams,
   ]);
 
@@ -442,6 +481,8 @@ export const SearchResultsPage: React.FC = () => {
                   <button
                     type="button"
                     onClick={chip.onRemove}
+                    data-testid={`remove-chip-${chip.id}`}
+                    aria-label={`Supprimer le filtre ${chip.label}`}
                     className="p-0.5 hover:bg-terracotta-200 rounded-full transition-colors text-terracotta-700"
                   >
                     <X className="w-3 h-3" />
@@ -541,6 +582,11 @@ export const SearchResultsPage: React.FC = () => {
                               <ShieldCheck className="w-3 h-3" /> Vérifié
                             </span>
                           )}
+                          {(prop.auteurRole === 'AGENT' || prop.auteur?.role === 'AGENT') && (
+                            <span className="bg-amber-700 text-white text-[10px] font-bold px-1.5 py-0.5 rounded shadow">
+                              Agent immobilier
+                            </span>
+                          )}
                         </div>
                         <div className="absolute top-2 right-2">
                           <FavoriteButton
@@ -580,8 +626,13 @@ export const SearchResultsPage: React.FC = () => {
                         </div>
 
                         <div className="flex items-center justify-between pt-1">
-                          <div className="flex items-center gap-1.5 text-[11px] text-charcoal-600">
+                          <div className="flex items-center gap-1.5 text-[11px] text-charcoal-600 flex-wrap">
                             <span className="font-semibold text-charcoal-800">{prop.auteur?.prenom} {prop.auteur?.nom}</span>
+                            {(prop.auteurRole === 'AGENT' || prop.auteur?.role === 'AGENT') && (
+                              <span className="bg-amber-100 text-amber-900 border border-amber-300 text-[10px] font-bold px-1.5 py-0.5 rounded">
+                                Publié par un agent immobilier
+                              </span>
+                            )}
                           </div>
                           <Link to={`/annonce/${prop.id}`}>
                             <Button variant="primary" size="sm" className="text-xs py-1.5 px-3">

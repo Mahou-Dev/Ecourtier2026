@@ -151,10 +151,21 @@ export const Header: React.FC = () => {
         <div className="flex items-center gap-1.5 sm:gap-3 shrink-0">
           {utilisateur ? (
             <div className="flex items-center gap-2">
-              <div className="hidden sm:flex flex-col text-right">
-                <span className="text-xs font-bold text-charcoal-900">{utilisateur.prenom} {utilisateur.nom}</span>
-                <span className="text-[10px] text-terracotta-600 font-semibold">{utilisateur.role}</span>
-              </div>
+              <Link
+                to="/mon-compte"
+                title="Mon compte"
+                className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl border transition-colors ${
+                  location.pathname === '/mon-compte'
+                    ? 'bg-terracotta-50 border-terracotta-400 text-terracotta-800'
+                    : 'border-transparent hover:bg-sand-200/80'
+                }`}
+              >
+                <User className="w-4 h-4 text-sahel-800 sm:hidden" />
+                <div className="hidden sm:flex flex-col text-right">
+                  <span className="text-xs font-bold text-charcoal-900">{utilisateur.prenom} {utilisateur.nom}</span>
+                  <span className="text-[10px] text-terracotta-600 font-semibold">Mon compte &bull; {utilisateur.role}</span>
+                </div>
+              </Link>
               <Button
                 variant="ghost"
                 size="sm"

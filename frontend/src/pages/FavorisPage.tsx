@@ -173,10 +173,15 @@ export const FavorisPage: React.FC = () => {
                     </div>
 
                     <div className="flex items-center justify-between pt-1">
-                      <div className="flex items-center gap-1.5 text-[11px] text-charcoal-600">
+                      <div className="flex items-center gap-1.5 text-[11px] text-charcoal-600 flex-wrap">
                         <span className="font-semibold text-charcoal-800">
                           {prop.auteur?.prenom} {prop.auteur?.nom}
                         </span>
+                        {(prop.auteurRole === 'AGENT' || prop.auteur?.role === 'AGENT') && (
+                          <span className="bg-amber-100 text-amber-900 border border-amber-300 text-[10px] font-bold px-1.5 py-0.5 rounded">
+                            Publié par un agent immobilier
+                          </span>
+                        )}
                       </div>
                       <Link to={`/annonce/${prop.id}`}>
                         <Button variant="primary" size="sm" className="text-xs py-1.5 px-3">
