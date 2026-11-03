@@ -26,6 +26,10 @@
   ],
   "tags": [
     {
+      "name": "Administration Utilisateurs",
+      "description": "Gestion des comptes utilisateurs, rôles (dont AGENT) et activation/désactivation réservée aux administrateurs"
+    },
+    {
       "name": "Uploads & Fichiers",
       "description": "Endpoint de consultation et téléchargement des fichiers et images média"
     },
@@ -38,12 +42,20 @@
       "description": "Gestion des avis sur les annonces immobilières"
     },
     {
+      "name": "Messagerie Directe",
+      "description": "Conversations privées entre locataire/acheteur et propriétaire/agent autour d'une annonce"
+    },
+    {
       "name": "Administration Tableau de Bord",
       "description": "Endpoint de métriques globales et de pilotage réservé à l'ADMIN"
     },
     {
       "name": "Rendez-vous",
       "description": "Gestion des visites, confirmation automatique/manuelle et rappels SMS simulés"
+    },
+    {
+      "name": "Référentiels",
+      "description": "Listes de référence dynamiques (types, équipements, proximités, documents)"
     },
     {
       "name": "Transactions & Séquestre",
@@ -74,10 +86,6 @@
       "description": "Consultation des notifications SMS simulées liées aux visites"
     },
     {
-      "name": "Administration Utilisateurs",
-      "description": "Endpoints réservés aux administrateurs E-Courtier"
-    },
-    {
       "name": "Utilisateurs",
       "description": "Endpoints publics et réputation des utilisateurs"
     },
@@ -86,11 +94,55 @@
       "description": "Endpoints de modération et d'attribution du badge Annonce Vérifiée réservés à l'ADMIN"
     },
     {
+      "name": "Mon Compte Utilisateur",
+      "description": "Consultation du profil connecté et changement de mot de passe"
+    },
+    {
       "name": "Administration Seeding",
       "description": "Endpoints d'initialisation des données de démo réservés à l'ADMIN"
     }
   ],
   "paths": {
+    "/api/v1/utilisateurs/moi/mot-de-passe": {
+      "put": {
+        "tags": [
+          "Mon Compte Utilisateur"
+        ],
+        "summary": "Modifier le mot de passe de l'utilisateur connecté",
+        "description": "Vérifie l'ancien mot de passe et enregistre le nouveau mot de passe conforme à la politique de sécurité (8 caractères minimum, une majuscule et un chiffre).",
+        "operationId": "changerMotDePasse",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ChangerMotDePasseRequestDTO"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": {
+                    "type": "string"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ]
+      }
+    },
     "/api/v1/rendez-vous/{id}/marquer-effectue": {
       "put": {
         "tags": [
@@ -217,8 +269,10 @@
     "/api/v1/conversations/{id}/marquer-lu": {
       "put": {
         "tags": [
-          "messagerie-rest-controller"
+          "Messagerie Directe"
         ],
+        "summary": "Marquer les messages reçus comme lus",
+        "description": "Marque comme lus tous les messages non lus adressés à l'utilisateur connecté dans cette conversation.",
         "operationId": "marquerCommeLu",
         "parameters": [
           {
@@ -235,7 +289,12 @@
           "200": {
             "description": "OK"
           }
-        }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ]
       }
     },
     "/api/v1/annonces/{id}": {
@@ -397,6 +456,102 @@
         ]
       }
     },
+    "/api/v1/admin/utilisateurs/{id}/statut": {
+      "put": {
+        "tags": [
+          "Administration Utilisateurs"
+        ],
+        "summary": "Activer ou désactiver un compte utilisateur (ADMIN)",
+        "description": "Active ou suspend immédiatement un compte utilisateur (y compris le rejet immédiat des jetons JWT actifs et du refresh). Empêche l'auto-désactivation et protège le dernier ADMIN actif.",
+        "operationId": "changerStatut",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ChangeStatutRequestDTO"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/UtilisateurResponseDTO"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ]
+      }
+    },
+    "/api/v1/admin/utilisateurs/{id}/role": {
+      "put": {
+        "tags": [
+          "Administration Utilisateurs"
+        ],
+        "summary": "Modifier le rôle d'un utilisateur (ADMIN)",
+        "description": "Change le rôle d'un compte utilisateur. Empêche un administrateur de se retirer son propre rôle ADMIN et garantit le maintien d'au moins un ADMIN actif.",
+        "operationId": "changerRole",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ChangeRoleRequestDTO"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/UtilisateurResponseDTO"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ]
+      }
+    },
     "/api/v1/admin/signalements/{id}/traiter": {
       "put": {
         "tags": [
@@ -499,6 +654,7 @@
           "Transactions & Séquestre"
         ],
         "summary": "Simuler le paiement du séquestre via Wave Sandbox",
+        "description": "Déclenche le paiement Mobile Money simulé du montant total séquestré et fait passer statutSequestre de INITIALISE à BLOQUE.",
         "operationId": "effectuerPaiementCaution",
         "parameters": [
           {
@@ -536,6 +692,7 @@
           "Transactions & Séquestre"
         ],
         "summary": "Signer électroniquement le bail ou le récapitulatif de réservation d'achat",
+        "description": "Enregistre la signature électronique du locataire/acheteur ou du propriétaire/agent. À la double signature (SIGNE_COMPLET), génère le PDF et libère automatiquement les fonds séquestrés (LIBERE).",
         "operationId": "signerBail",
         "parameters": [
           {
@@ -573,6 +730,7 @@
           "Rendez-vous"
         ],
         "summary": "Déclencher manuellement les rappels SMS de demain (démonstration ADMIN)",
+        "description": "Exécute à la demande le traitement idempotent de rappel SMS J-1 sur les rendez-vous CONFIRME prévus le lendemain (fuseau Africa/Dakar).",
         "operationId": "simulerRappels",
         "responses": {
           "200": {
@@ -795,12 +953,15 @@
             "in": "query",
             "required": false,
             "schema": {
-              "type": "string",
-              "enum": [
-                "STUDIO",
-                "APPARTEMENT",
-                "VILLA"
-              ]
+              "type": "array",
+              "items": {
+                "type": "string",
+                "enum": [
+                  "STUDIO",
+                  "APPARTEMENT",
+                  "VILLA"
+                ]
+              }
             }
           },
           {
@@ -883,16 +1044,19 @@
             "in": "query",
             "required": false,
             "schema": {
-              "type": "string",
-              "enum": [
-                "ECOLE",
-                "MARCHE",
-                "HOPITAL",
-                "TRANSPORT",
-                "PLAGE",
-                "COMMERCE",
-                "UNIVERSITE"
-              ]
+              "type": "array",
+              "items": {
+                "type": "string",
+                "enum": [
+                  "ECOLE",
+                  "MARCHE",
+                  "HOPITAL",
+                  "TRANSPORT",
+                  "PLAGE",
+                  "COMMERCE",
+                  "UNIVERSITE"
+                ]
+              }
             }
           },
           {
@@ -1073,6 +1237,7 @@
           "Rendez-vous"
         ],
         "summary": "Lister l'agenda des rendez-vous d'une annonce",
+        "description": "Retourne les créneaux de visite demandés ou confirmés pour une annonce donnée (réservé à l'auteur de l'annonce ou à un ADMIN).",
         "operationId": "obtenirRendezVousAnnonce",
         "parameters": [
           {
@@ -1221,6 +1386,7 @@
           "Favoris"
         ],
         "summary": "Ajouter une annonce aux favoris",
+        "description": "Sauvegarde une annonce disponible dans la liste de favoris de l'utilisateur connecté (retourne 409 si déjà présente).",
         "operationId": "ajouterFavori",
         "parameters": [
           {
@@ -1249,6 +1415,7 @@
           "Favoris"
         ],
         "summary": "Retirer une annonce des favoris",
+        "description": "Supprime l'annonce indiquée de la liste des favoris de l'utilisateur connecté.",
         "operationId": "supprimerFavori",
         "parameters": [
           {
@@ -1279,7 +1446,7 @@
           "Annonces Immobilières"
         ],
         "summary": "Soumettre un document justificatif pour vérification",
-        "description": "Téléverser un document (titre foncier, bail précédent, pièce d'identité) pour l'attribution du badge vérifié.",
+        "description": "Téléverser un document (titre foncier, bail précédent, photo du propriétaire avec sa pièce d'identité) au format image ou PDF (max 10 Mo) pour l'attribution du badge vérifié.",
         "operationId": "ajouterDocumentVerification",
         "parameters": [
           {
@@ -1345,8 +1512,10 @@
     "/api/v1/annonces/{id}/conversations": {
       "post": {
         "tags": [
-          "messagerie-rest-controller"
+          "Messagerie Directe"
         ],
+        "summary": "Initier ou récupérer une conversation sur une annonce",
+        "description": "Ouvre un fil de discussion privé entre l'utilisateur connecté et l'auteur de l'annonce (ou retourne la conversation existante).",
         "operationId": "initierConversation",
         "parameters": [
           {
@@ -1370,7 +1539,12 @@
               }
             }
           }
-        }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ]
       }
     },
     "/api/v1/annonces/{id}/avis": {
@@ -1452,6 +1626,108 @@
         ]
       }
     },
+    "/api/v1/admin/utilisateurs": {
+      "get": {
+        "tags": [
+          "Administration Utilisateurs"
+        ],
+        "summary": "Lister les utilisateurs avec pagination et filtres (ADMIN)",
+        "description": "Retourne la liste paginée des comptes utilisateurs avec filtrage optionnel par rôle, statut actif/inactif et recherche textuelle (nom, prénom, email, téléphone).",
+        "operationId": "listerTousLesUtilisateurs",
+        "parameters": [
+          {
+            "name": "role",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "ADMIN",
+                "AGENT",
+                "PROPRIETAIRE",
+                "LOCATAIRE"
+              ]
+            }
+          },
+          {
+            "name": "actif",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "boolean"
+            }
+          },
+          {
+            "name": "recherche",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "pageable",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "$ref": "#/components/schemas/Pageable"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/PageUtilisateurResponseDTO"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ]
+      },
+      "post": {
+        "tags": [
+          "Administration Utilisateurs"
+        ],
+        "summary": "Créer un compte utilisateur avec mot de passe temporaire (ADMIN)",
+        "description": "Permet à un administrateur de créer un compte (AGENT, PROPRIETAIRE, LOCATAIRE ou ADMIN) avec un mot de passe temporaire conforme à la politique de sécurité, retourné une seule fois.",
+        "operationId": "creerUtilisateur",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AdminCreateUtilisateurRequestDTO"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminCreateUtilisateurResponseDTO"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ]
+      }
+    },
     "/api/v1/admin/seed-demo": {
       "post": {
         "tags": [
@@ -1515,12 +1791,40 @@
         }
       }
     },
+    "/api/v1/utilisateurs/moi": {
+      "get": {
+        "tags": [
+          "Mon Compte Utilisateur"
+        ],
+        "summary": "Consulter le profil de l'utilisateur connecté",
+        "description": "Retourne les informations du compte actuellement authentifié.",
+        "operationId": "obtenirMonProfil",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/UtilisateurResponseDTO"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ]
+      }
+    },
     "/api/v1/utilisateurs/moi/favoris": {
       "get": {
         "tags": [
           "Favoris"
         ],
         "summary": "Liste paginée des annonces favorites de l'utilisateur connecté",
+        "description": "Retourne les annonces favorites de l'utilisateur connecté, triées par date d'ajout décroissante.",
         "operationId": "listerFavoris",
         "parameters": [
           {
@@ -1557,6 +1861,7 @@
           "Favoris"
         ],
         "summary": "Nombre total de favoris de l'utilisateur connecté",
+        "description": "Retourne le compteur total d'annonces enregistrées en favoris par l'utilisateur connecté.",
         "operationId": "compterFavoris",
         "responses": {
           "200": {
@@ -1628,6 +1933,7 @@
           "Transactions & Séquestre"
         ],
         "summary": "Consulter le détail d'une transaction",
+        "description": "Retourne l'état complet d'un dossier de séquestre et de signature (réservé aux parties prenantes ou à un ADMIN).",
         "operationId": "obtenirDetail",
         "parameters": [
           {
@@ -1665,6 +1971,7 @@
           "Transactions & Séquestre"
         ],
         "summary": "Télécharger le PDF récapitulatif généré après double signature",
+        "description": "Télécharge le contrat de bail numérique (LOCATION) ou le récapitulatif de réservation d'achat (VENTE) généré une fois le statut SIGNE_COMPLET atteint.",
         "operationId": "telechargerPdfBail",
         "parameters": [
           {
@@ -1703,6 +2010,7 @@
           "Transactions & Séquestre"
         ],
         "summary": "Lister mes dossiers de transaction",
+        "description": "Retourne l'ensemble des transactions impliquant l'utilisateur connecté en tant que locataire/acheteur ou propriétaire/agent.",
         "operationId": "listerMesTransactions",
         "responses": {
           "200": {
@@ -1732,6 +2040,7 @@
           "Rendez-vous"
         ],
         "summary": "Lister mes rendez-vous (demandeur ou propriétaire)",
+        "description": "Retourne tous les rendez-vous de visite impliquant l'utilisateur connecté en tant que demandeur ou auteur de l'annonce.",
         "operationId": "obtenirMesRendezVous",
         "responses": {
           "200": {
@@ -1753,6 +2062,28 @@
             "bearerAuth": []
           }
         ]
+      }
+    },
+    "/api/v1/references": {
+      "get": {
+        "tags": [
+          "Référentiels"
+        ],
+        "summary": "Obtenir toutes les listes de référence",
+        "description": "Source unique des listes pour le formulaire, les filtres et les fiches.",
+        "operationId": "getReferences",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReferencesResponseDTO"
+                }
+              }
+            }
+          }
+        }
       }
     },
     "/api/v1/notifications-sms/mes-sms": {
@@ -1853,8 +2184,10 @@
     "/api/v1/conversations/{id}": {
       "get": {
         "tags": [
-          "messagerie-rest-controller"
+          "Messagerie Directe"
         ],
+        "summary": "Consulter les métadonnées d'une conversation",
+        "description": "Retourne les détails d'une conversation spécifique pour l'un de ses participants.",
         "operationId": "obtenirConversation",
         "parameters": [
           {
@@ -1878,14 +2211,21 @@
               }
             }
           }
-        }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ]
       }
     },
     "/api/v1/conversations/{id}/messages": {
       "get": {
         "tags": [
-          "messagerie-rest-controller"
+          "Messagerie Directe"
         ],
+        "summary": "Lister les messages d'une conversation (paginé)",
+        "description": "Retourne l'historique paginé des messages échangés dans la conversation (accès réservé aux participants).",
         "operationId": "listerMessagesPaging",
         "parameters": [
           {
@@ -1917,14 +2257,21 @@
               }
             }
           }
-        }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ]
       }
     },
     "/api/v1/conversations/{id}/messages/tous": {
       "get": {
         "tags": [
-          "messagerie-rest-controller"
+          "Messagerie Directe"
         ],
+        "summary": "Récupérer tous les messages d'une conversation",
+        "description": "Retourne la liste chronologique complète des messages de la conversation pour affichage dans le tiroir de messagerie.",
         "operationId": "listerTousLesMessages",
         "parameters": [
           {
@@ -1951,14 +2298,21 @@
               }
             }
           }
-        }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ]
       }
     },
     "/api/v1/conversations/non-lus/count": {
       "get": {
         "tags": [
-          "messagerie-rest-controller"
+          "Messagerie Directe"
         ],
+        "summary": "Compter le total des messages non lus",
+        "description": "Retourne le nombre total de messages non lus reçus par l'utilisateur connecté sur l'ensemble de ses conversations.",
         "operationId": "compterMessagesNonLus",
         "responses": {
           "200": {
@@ -1975,14 +2329,21 @@
               }
             }
           }
-        }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ]
       }
     },
     "/api/v1/conversations/mes-conversations": {
       "get": {
         "tags": [
-          "messagerie-rest-controller"
+          "Messagerie Directe"
         ],
+        "summary": "Lister mes conversations actives",
+        "description": "Retourne la liste des conversations auxquelles participe l'utilisateur connecté, triées par dernier message.",
         "operationId": "listerMesConversations",
         "responses": {
           "200": {
@@ -1998,7 +2359,12 @@
               }
             }
           }
-        }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ]
       }
     },
     "/api/v1/annonces/{id}/documents/{documentId}/fichier": {
@@ -2007,7 +2373,7 @@
           "Annonces Immobilières"
         ],
         "summary": "Télécharger / consulter un document de vérification",
-        "description": "Accès sécurisé réservé à l'auteur de l'annonce ou un ADMIN.",
+        "description": "Accès sécurisé réservé à l'auteur de l'annonce ou un ADMIN. Retourne le flux binaire avec son type MIME (image ou application/pdf).",
         "operationId": "obtenirFichierDocumentVerification",
         "parameters": [
           {
@@ -2049,14 +2415,14 @@
         ]
       }
     },
-    "/api/v1/admin/utilisateurs": {
+    "/api/v1/annonces/quartiers": {
       "get": {
         "tags": [
-          "Administration Utilisateurs"
+          "Annonces Immobilières"
         ],
-        "summary": "Lister tous les utilisateurs (ADMIN uniquement)",
-        "description": "Route d'administration protégée réservée exclusivement aux utilisateurs ayant le rôle ADMIN.",
-        "operationId": "listerTousLesUtilisateurs",
+        "summary": "Liste des quartiers distincts des annonces disponibles",
+        "description": "Accès public pour l'autocomplétion.",
+        "operationId": "obtenirQuartiersDisponibles",
         "responses": {
           "200": {
             "description": "OK",
@@ -2065,18 +2431,13 @@
                 "schema": {
                   "type": "array",
                   "items": {
-                    "$ref": "#/components/schemas/UtilisateurResponseDTO"
+                    "type": "string"
                   }
                 }
               }
             }
           }
-        },
-        "security": [
-          {
-            "bearerAuth": []
-          }
-        ]
+        }
       }
     },
     "/api/v1/admin/statistiques": {
@@ -2247,6 +2608,24 @@
   },
   "components": {
     "schemas": {
+      "ChangerMotDePasseRequestDTO": {
+        "required": [
+          "ancienMotDePasse",
+          "nouveauMotDePasse"
+        ],
+        "type": "object",
+        "properties": {
+          "ancienMotDePasse": {
+            "type": "string"
+          },
+          "nouveauMotDePasse": {
+            "maxLength": 2147483647,
+            "minLength": 8,
+            "pattern": "^(?=.*[A-Z])(?=.*\\d).*$",
+            "type": "string"
+          }
+        }
+      },
       "RendezVousResponseDTO": {
         "type": "object",
         "properties": {
@@ -2511,6 +2890,16 @@
             "type": "string",
             "format": "date-time"
           },
+          "auteurRole": {
+            "type": "string",
+            "description": "Rôle de l'auteur de l'annonce (PROPRIETAIRE, AGENT, ADMIN)",
+            "enum": [
+              "ADMIN",
+              "AGENT",
+              "PROPRIETAIRE",
+              "LOCATAIRE"
+            ]
+          },
           "auteur": {
             "$ref": "#/components/schemas/UtilisateurResponseDTO"
           },
@@ -2577,6 +2966,9 @@
               "BAIL_PRECEDENT",
               "PIECE_IDENTITE"
             ]
+          },
+          "nomFichier": {
+            "type": "string"
           },
           "url": {
             "type": "string"
@@ -2666,6 +3058,34 @@
               "type": "string",
               "format": "uuid"
             }
+          }
+        }
+      },
+      "ChangeStatutRequestDTO": {
+        "required": [
+          "actif"
+        ],
+        "type": "object",
+        "properties": {
+          "actif": {
+            "type": "boolean"
+          }
+        }
+      },
+      "ChangeRoleRequestDTO": {
+        "required": [
+          "role"
+        ],
+        "type": "object",
+        "properties": {
+          "role": {
+            "type": "string",
+            "enum": [
+              "ADMIN",
+              "AGENT",
+              "PROPRIETAIRE",
+              "LOCATAIRE"
+            ]
           }
         }
       },
@@ -3322,6 +3742,55 @@
           }
         }
       },
+      "AdminCreateUtilisateurRequestDTO": {
+        "required": [
+          "email",
+          "nom",
+          "prenom",
+          "role",
+          "telephone"
+        ],
+        "type": "object",
+        "properties": {
+          "nom": {
+            "type": "string"
+          },
+          "prenom": {
+            "type": "string"
+          },
+          "email": {
+            "type": "string"
+          },
+          "telephone": {
+            "type": "string"
+          },
+          "role": {
+            "type": "string",
+            "enum": [
+              "ADMIN",
+              "AGENT",
+              "PROPRIETAIRE",
+              "LOCATAIRE"
+            ]
+          },
+          "motDePasseTemporaire": {
+            "type": "string",
+            "description": "Mot de passe temporaire optionnel (au moins 8 caractères, 1 majuscule, 1 chiffre). Généré automatiquement s'il est omis."
+          }
+        }
+      },
+      "AdminCreateUtilisateurResponseDTO": {
+        "type": "object",
+        "properties": {
+          "utilisateur": {
+            "$ref": "#/components/schemas/UtilisateurResponseDTO"
+          },
+          "motDePasseTemporaire": {
+            "type": "string",
+            "description": "Mot de passe temporaire en clair, retourné uniquement à la création du compte"
+          }
+        }
+      },
       "ReputationResponseDTO": {
         "type": "object",
         "properties": {
@@ -3412,11 +3881,11 @@
           "paged": {
             "type": "boolean"
           },
-          "pageSize": {
+          "pageNumber": {
             "type": "integer",
             "format": "int32"
           },
-          "pageNumber": {
+          "pageSize": {
             "type": "integer",
             "format": "int32"
           },
@@ -3443,6 +3912,55 @@
           },
           "empty": {
             "type": "boolean"
+          }
+        }
+      },
+      "ReferenceItemDTO": {
+        "type": "object",
+        "properties": {
+          "valeur": {
+            "type": "string"
+          },
+          "libelle": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string"
+          }
+        }
+      },
+      "ReferencesResponseDTO": {
+        "type": "object",
+        "properties": {
+          "typesBien": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ReferenceItemDTO"
+            }
+          },
+          "equipements": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ReferenceItemDTO"
+            }
+          },
+          "proximites": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ReferenceItemDTO"
+            }
+          },
+          "modesTransaction": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ReferenceItemDTO"
+            }
+          },
+          "typesDocument": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ReferenceItemDTO"
+            }
           }
         }
       },
@@ -3642,6 +4160,52 @@
             "items": {
               "$ref": "#/components/schemas/AvisResponseDTO"
             }
+          }
+        }
+      },
+      "PageUtilisateurResponseDTO": {
+        "type": "object",
+        "properties": {
+          "totalElements": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "totalPages": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "pageable": {
+            "$ref": "#/components/schemas/PageableObject"
+          },
+          "first": {
+            "type": "boolean"
+          },
+          "last": {
+            "type": "boolean"
+          },
+          "numberOfElements": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "size": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "content": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/UtilisateurResponseDTO"
+            }
+          },
+          "number": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "sort": {
+            "$ref": "#/components/schemas/SortObject"
+          },
+          "empty": {
+            "type": "boolean"
           }
         }
       },
