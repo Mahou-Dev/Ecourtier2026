@@ -15,6 +15,11 @@ spring:
     locations: classpath:db/migration
     baseline-on-migrate: true
 
+  servlet:
+    multipart:
+      max-file-size: 15MB
+      max-request-size: 50MB
+
   jpa:
     open-in-view: false
     hibernate:
