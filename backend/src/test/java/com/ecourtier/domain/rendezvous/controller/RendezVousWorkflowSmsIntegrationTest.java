@@ -314,4 +314,52 @@ class RendezVousWorkflowSmsIntegrationTest {
         assertEquals(StatutRendezVous.CONFIRME, persisted.getStatut());
         assertEquals(0, notificationSmsRepository.count());
     }
+
+    @Test
+    @DisplayName("RendezVous : Confirmation manuelle, marquer effectué, mes RDV, agenda annonce et simulation rappels admin")
+    void testEndpointsRendezVousComplementaires() throws Exception {
+        LocalDateTime creneau = LocalDateTime.now().plusDays(2).withHour(15).withMinute(0).withSecond(0).withNano(0);
+
+        // 1. Demande sur annonce manuelle -> statut DEMANDE
+        MvcResult res = mockMvc.perform(post("/api/v1/annonces/" + annonceManuelle.getId() + "/rendez-vous")
+                        .with(user("loc1.sms.it@ecourtier.sn").roles("LOCATAIRE"))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"dateHeure\":\"" + creneau + "\"}"))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.statut", is("DEMANDE")))
+                .andReturn();
+
+        UUID rdvId = UUID.fromString(objectMapper.readTree(res.getResponse().getContentAsString()).get("id").asText());
+
+        // 2. Propriétaire confirme manuellement -> CONFIRME
+        mockMvc.perform(put("/api/v1/rendez-vous/" + rdvId + "/confirmer")
+                        .with(user("prop.sms.it@ecourtier.sn").roles("PROPRIETAIRE")))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.statut", is("CONFIRME")));
+
+        // 3. Propriétaire marque le RDV comme effectué -> EFFECTUE
+        mockMvc.perform(put("/api/v1/rendez-vous/" + rdvId + "/marquer-effectue")
+                        .with(user("prop.sms.it@ecourtier.sn").roles("PROPRIETAIRE")))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.statut", is("EFFECTUE")));
+
+        // 4. Locataire consulte ses rendez-vous
+        mockMvc.perform(get("/api/v1/rendez-vous/mes-rendez-vous")
+                        .with(user("loc1.sms.it@ecourtier.sn").roles("LOCATAIRE")))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$", hasSize(1)))
+                .andExpect(jsonPath("$[0].id", is(rdvId.toString())));
+
+        // 5. Propriétaire consulte l'agenda de l'annonce
+        mockMvc.perform(get("/api/v1/annonces/" + annonceManuelle.getId() + "/rendez-vous")
+                        .with(user("prop.sms.it@ecourtier.sn").roles("PROPRIETAIRE")))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$", hasSize(1)));
+
+        // 6. Admin simule les rappels SMS de demain
+        mockMvc.perform(post("/api/v1/rendez-vous/simuler-rappels")
+                        .with(user("admin.test@ecourtier.sn").roles("ADMIN")))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.statut", is("SUCCESS")));
+    }
 }

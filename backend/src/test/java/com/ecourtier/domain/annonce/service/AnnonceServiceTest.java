@@ -283,37 +283,46 @@ public class AnnonceServiceTest {
     }
 
     @Test
-    @DisplayName("Décision de vérification admin (VERIFIEE / REJETEE)")
+    @DisplayName("Décision de vérification admin (VERIFIEE avec pièces requises / REJETEE avec motif >= 10 car.)")
     void testDeciderVerificationAnnonce() {
         when(annonceRepository.findByIdAndSupprimeFalse(annonce.getId())).thenReturn(Optional.of(annonce));
 
-        DocumentVerificationEntity doc = DocumentVerificationEntity.builder()
+        DocumentVerificationEntity docIdentite = DocumentVerificationEntity.builder()
                 .id(UUID.randomUUID())
                 .annonce(annonce)
+                .typeDocument(TypeDocumentVerification.PIECE_IDENTITE)
                 .statut(StatutDocument.EN_ATTENTE)
                 .build();
 
-        when(documentVerificationRepository.findByAnnonceId(annonce.getId())).thenReturn(List.of(doc));
+        DocumentVerificationEntity docTitre = DocumentVerificationEntity.builder()
+                .id(UUID.randomUUID())
+                .annonce(annonce)
+                .typeDocument(TypeDocumentVerification.TITRE_FONCIER)
+                .statut(StatutDocument.EN_ATTENTE)
+                .build();
+
+        when(documentVerificationRepository.findByAnnonceId(annonce.getId())).thenReturn(List.of(docIdentite, docTitre));
         when(annonceRepository.save(annonce)).thenReturn(annonce);
         when(annonceMapper.toResponseDTO(any())).thenReturn(new AnnonceResponseDTO());
 
-        // 1. Décision VERIFIEE -> Document mis à VALIDE
+        // 1. Décision VERIFIEE -> Documents mis à VALIDE
         VerificationDecisionDTO decisionVerif = new VerificationDecisionDTO();
         decisionVerif.setStatutVerification(StatutVerification.VERIFIEE);
 
         annonceService.deciderVerificationAnnonce(annonce.getId(), decisionVerif);
         assertEquals(StatutVerification.VERIFIEE, annonce.getStatutVerification());
-        assertEquals(StatutDocument.VALIDE, doc.getStatut());
+        assertEquals(StatutDocument.VALIDE, docIdentite.getStatut());
+        assertEquals(StatutDocument.VALIDE, docTitre.getStatut());
 
-        // 2. Décision REJETEE -> Document mis à REJETE avec motif
+        // 2. Décision REJETEE -> Documents mis à REJETE avec motif >= 10 caractères
         VerificationDecisionDTO decisionRejet = new VerificationDecisionDTO();
         decisionRejet.setStatutVerification(StatutVerification.REJETEE);
         decisionRejet.setMotifRejet("Document illisible");
 
         annonceService.deciderVerificationAnnonce(annonce.getId(), decisionRejet);
         assertEquals(StatutVerification.REJETEE, annonce.getStatutVerification());
-        assertEquals(StatutDocument.REJETE, doc.getStatut());
-        assertEquals("Document illisible", doc.getMotifRejet());
+        assertEquals(StatutDocument.REJETE, docIdentite.getStatut());
+        assertEquals("Document illisible", docIdentite.getMotifRejet());
 
         // 3. Décision EN_ATTENTE -> Refus 400
         VerificationDecisionDTO decisionAttente = new VerificationDecisionDTO();

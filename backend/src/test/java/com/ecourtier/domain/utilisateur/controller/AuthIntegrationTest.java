@@ -50,10 +50,28 @@ class AuthIntegrationTest {
     private com.ecourtier.domain.annonce.repository.AnnonceRepository annonceRepository;
 
     @Autowired
+    private com.ecourtier.domain.avis.repository.SignalementRepository signalementRepository;
+
+    @Autowired
+    private com.ecourtier.domain.avis.repository.AvisRepository avisRepository;
+
+    @Autowired
     private PasswordEncoder passwordEncoder;
+
+    @org.junit.jupiter.api.AfterEach
+    void tearDown() {
+        signalementRepository.deleteAll();
+        avisRepository.deleteAll();
+        transactionRepository.deleteAll();
+        rendezVousRepository.deleteAll();
+        annonceRepository.deleteAll();
+        utilisateurRepository.deleteAll();
+    }
 
     @BeforeEach
     void setUp() {
+        signalementRepository.deleteAll();
+        avisRepository.deleteAll();
         transactionRepository.deleteAll();
         rendezVousRepository.deleteAll();
         annonceRepository.deleteAll();
