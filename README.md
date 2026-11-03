@@ -204,7 +204,12 @@ Tous les mots de passe de démonstration respectent la politique de sécurité (
 | **Propriétaire** | `proprio.demo@ecourtier.sn` | `ProprioPass123!` |
 | **Locataire** | `locataire.demo@ecourtier.sn` | `LocatairePass123!` |
 
----
+### 4.1 Rôle Agent Immobilier & Mandat Implicite
+
+Dans E-Courtier, les comptes ayant le rôle **AGENT** (courtier agréé) sont créés exclusivement par l'administrateur de la plateforme via la route `POST /api/v1/admin/utilisateurs` et l'interface `/admin/utilisateurs` (les inscriptions publiques ne permettent pas de s'auto-attribuer le statut d'agent).
+
+- **Mandat implicite** : Un agent immobilier agit en tant que mandataire pour les biens qu'il publie (il dispose des mêmes prérogatives qu'un propriétaire pour la création, la modification, le téléversement des pièces justificatives et le suivi des visites, sans nécessiter de module formel de gestion de mandats).
+- **Transparence publique** : Le rôle de l'auteur (`auteurRole`) est exposé dans tous les DTO d'annonces (`AnnonceResponseDTO`), et les fiches détaillées ainsi que les cartes de recherche affichent le badge distinctif **« Publié par un agent immobilier »**.
 
 ## 5. Installation & Démarrage Rapide
 
