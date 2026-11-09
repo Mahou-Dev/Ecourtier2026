@@ -4,6 +4,12 @@ spring:
     username: ${SPRING_DATASOURCE_USERNAME:ecourtier_user}
     password: ${SPRING_DATASOURCE_PASSWORD:ecourtier_secure_pass_2026}
     driver-class-name: org.postgresql.Driver
+  flyway:
+    enabled: ${SPRING_FLYWAY_ENABLED:false}
+  devtools:
+    restart:
+      enabled: ${SPRING_DEVTOOLS_RESTART_ENABLED:false}
+      additional-exclude: db/migration/**
   jpa:
     hibernate:
       ddl-auto: validate
