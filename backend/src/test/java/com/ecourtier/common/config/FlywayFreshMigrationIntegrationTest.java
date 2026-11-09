@@ -22,6 +22,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
     "spring.datasource.driver-class-name=org.postgresql.Driver",
     "spring.flyway.enabled=true",
     "spring.flyway.baseline-on-migrate=true",
+    "spring.jpa.database-platform=org.hibernate.dialect.PostgreSQLDialect",
     "spring.jpa.hibernate.ddl-auto=validate"
 })
 @ActiveProfiles("test")
@@ -32,12 +33,22 @@ public class FlywayFreshMigrationIntegrationTest {
     private Flyway flyway;
 
     @Test
-    @DisplayName("Vérifie l'exécution sans erreur de toutes les migrations Flyway (V1 à V12) sur une base PostgreSQL vierge")
+    @DisplayName("Vérifie l'exécution sans erreur de toutes les migrations Flyway (V1 à V14) sur une base PostgreSQL vierge")
     void testFlywayMigrationsOnFreshDatabase() {
         assertNotNull(flyway, "Flyway bean doit être disponible");
         MigrationInfo current = flyway.info().current();
         assertNotNull(current, "Une version courante de migration doit être enregistrée");
-        assertEquals("12", current.getVersion().getVersion(), "La dernière migration appliquée doit être la V12");
-        assertTrue(current.getState().isApplied(), "La migration V12 doit être appliquée avec succès");
+        assertEquals("14", current.getVersion().getVersion(), "La dernière migration appliquée doit être la V14");
+        assertTrue(current.getState().isApplied(), "La migration V14 doit être appliquée avec succès");
+
+        MigrationInfo[] applied = flyway.info().applied();
+        assertEquals(14, applied.length, "Toutes les migrations V1 à V14 doivent être appliquées");
+        for (int v = 1; v <= 14; v++) {
+            MigrationInfo migration = applied[v - 1];
+            assertEquals(String.valueOf(v), migration.getVersion().getVersion(),
+                    "La migration V" + v + " doit être présente dans l'ordre");
+            assertTrue(migration.getState().isApplied(),
+                    "La migration V" + v + " doit être appliquée avec succès");
+        }
     }
 }

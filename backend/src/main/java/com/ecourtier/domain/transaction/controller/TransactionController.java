@@ -1,5 +1,6 @@
 package com.ecourtier.domain.transaction.controller;
 
+import com.ecourtier.domain.transaction.dto.RemboursementRequestDTO;
 import com.ecourtier.domain.transaction.dto.TransactionRequestDTO;
 import com.ecourtier.domain.transaction.dto.TransactionResponseDTO;
 import com.ecourtier.domain.transaction.entity.TransactionEntity;
@@ -65,6 +66,21 @@ public class TransactionController {
             Authentication authentication
     ) {
         TransactionResponseDTO response = transactionService.effectuerPaiementCaution(id, authentication.getName());
+        return ResponseEntity.ok(response);
+    }
+
+    @PostMapping({"/transactions/{id}/remboursement", "/transactions/{id}/rembourser"})
+    @PreAuthorize("hasRole('ADMIN')")
+    @Operation(
+            summary = "Rembourser le séquestre d'une transaction (ADMIN uniquement)",
+            description = "Exécute le remboursement simulé Wave Sandbox d'une transaction à l'état BLOQUE (dont les fonds n'ont pas été libérés), conserve la référence de paiement initial, enregistre la référence et le montant du remboursement et passe statutSequestre à REMBOURSE."
+    )
+    public ResponseEntity<TransactionResponseDTO> rembourserTransaction(
+            @PathVariable("id") UUID id,
+            @Valid @RequestBody(required = false) RemboursementRequestDTO request,
+            Authentication authentication
+    ) {
+        TransactionResponseDTO response = transactionService.rembourserTransaction(id, request, authentication.getName());
         return ResponseEntity.ok(response);
     }
 

@@ -43,6 +43,11 @@ public class TransactionResponseDTO {
     private BigDecimal montantVerseProprietaire;
     private StatutSequestre statutSequestre;
     private String referenceWave;
+    private LocalDateTime datePaiement;
+    private String referenceRemboursementWave;
+    private BigDecimal montantRembourse;
+    private LocalDateTime dateRemboursement;
+    private String motifRemboursement;
     private StatutBail statutBail;
     private LocalDateTime dateSignatureLocataire;
     private LocalDateTime dateSignatureProprietaire;

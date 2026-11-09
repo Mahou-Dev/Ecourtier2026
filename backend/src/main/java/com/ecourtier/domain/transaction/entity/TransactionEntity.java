@@ -14,6 +14,7 @@ import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.PrePersist;
 import jakarta.persistence.Table;
+import jakarta.persistence.Version;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Getter;
@@ -69,6 +70,21 @@ public class TransactionEntity {
     @Column(name = "reference_wave", length = 100)
     private String referenceWave;
 
+    @Column(name = "date_paiement")
+    private LocalDateTime datePaiement;
+
+    @Column(name = "reference_remboursement_wave", length = 100)
+    private String referenceRemboursementWave;
+
+    @Column(name = "montant_rembourse", precision = 15, scale = 2)
+    private BigDecimal montantRembourse;
+
+    @Column(name = "date_remboursement")
+    private LocalDateTime dateRemboursement;
+
+    @Column(name = "motif_remboursement", length = 500)
+    private String motifRemboursement;
+
     @Enumerated(EnumType.STRING)
     @Column(name = "statut_bail", nullable = false, length = 20)
     @Builder.Default
@@ -90,6 +106,15 @@ public class TransactionEntity {
     @Column(name = "date_creation", nullable = false, updatable = false)
     private LocalDateTime dateCreation;
 
+    @Column(name = "dossier_actif", nullable = false)
+    @Builder.Default
+    private Boolean dossierActif = Boolean.TRUE;
+
+    @Version
+    @Column(name = "version", nullable = false)
+    @Builder.Default
+    private Long version = 0L;
+
     @PrePersist
     protected void onCreate() {
         if (dateCreation == null) {
@@ -106,6 +131,12 @@ public class TransactionEntity {
         }
         if (statutBail == null) {
             statutBail = StatutBail.NON_SIGNE;
+        }
+        if (dossierActif == null) {
+            dossierActif = Boolean.TRUE;
+        }
+        if (version == null) {
+            version = 0L;
         }
     }
 

@@ -70,6 +70,9 @@ class WorkflowTransactionIntegrationTest {
     @Autowired
     private PdfBailGeneratorService pdfBailGeneratorService;
 
+    @Autowired
+    private com.ecourtier.domain.transaction.client.WaveClientMock waveClientMock;
+
     private UtilisateurEntity proprietaire;
     private UtilisateurEntity locataire;
     private UtilisateurEntity tiers;
@@ -77,6 +80,7 @@ class WorkflowTransactionIntegrationTest {
 
     @BeforeEach
     void setUp() {
+        waveClientMock.resetState();
         transactionRepository.deleteAll();
         rendezVousRepository.deleteAll();
         annonceRepository.deleteAll();
@@ -458,5 +462,561 @@ class WorkflowTransactionIntegrationTest {
         assertTrue(textVente.contains("Acompte de réservation (10 % du prix) : 4500000 FCFA"));
         assertTrue(textVente.contains("4505000"));
         pdfVenteFile.delete();
+    }
+
+    @Test
+    @DisplayName("ANO-01 : Idempotence du paiement de caution — refus d'un second paiement et préservation de la référence et des dates")
+    @WithMockUser(username = "loc.tx.test@ecourtier.sn", roles = {"LOCATAIRE"})
+    void testPaiementCautionIdempotenceEtRefusSecondPaiement() throws Exception {
+        rendezVousRepository.save(RendezVousEntity.builder()
+                .annonce(annonce)
+                .demandeur(locataire)
+                .dateHeure(LocalDateTime.now().minusDays(1))
+                .statut(StatutRendezVous.EFFECTUE)
+                .build());
+
+        MvcResult txResult = mockMvc.perform(post("/api/v1/annonces/" + annonce.getId() + "/transactions")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{}"))
+                .andExpect(status().isCreated())
+                .andReturn();
+
+        String txId = objectMapper.readTree(txResult.getResponse().getContentAsString()).get("id").asText();
+
+        // 1. Premier paiement valide -> 200 OK
+        MvcResult firstPayResult = mockMvc.perform(post("/api/v1/transactions/" + txId + "/paiement-caution"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.statutSequestre", is("BLOQUE")))
+                .andExpect(jsonPath("$.referenceWave", notNullValue()))
+                .andExpect(jsonPath("$.datePaiement", notNullValue()))
+                .andReturn();
+
+        String firstWaveRef = objectMapper.readTree(firstPayResult.getResponse().getContentAsString()).get("referenceWave").asText();
+        TransactionEntity txAfterFirstPay = transactionRepository.findById(UUID.fromString(txId)).orElseThrow();
+        LocalDateTime persistedDatePaiement = txAfterFirstPay.getDatePaiement();
+
+        // 2. Deuxième paiement sur la transaction déjà BLOQUE -> 409 Conflict
+        mockMvc.perform(post("/api/v1/transactions/" + txId + "/paiement-caution"))
+                .andExpect(status().isConflict());
+
+        // Vérifier que la référence Wave et la date de paiement n'ont pas été écrasées
+        TransactionEntity txAfterRetry = transactionRepository.findById(UUID.fromString(txId)).orElseThrow();
+        assertEquals(StatutSequestre.BLOQUE, txAfterRetry.getStatutSequestre());
+        assertEquals(firstWaveRef, txAfterRetry.getReferenceWave());
+        assertEquals(persistedDatePaiement, txAfterRetry.getDatePaiement());
+
+        // 3. Double signature -> LIBERE, puis nouvelle tentative de paiement sur état LIBERE -> 409 Conflict
+        mockMvc.perform(post("/api/v1/transactions/" + txId + "/bail/signer"))
+                .andExpect(status().isOk());
+        mockMvc.perform(post("/api/v1/transactions/" + txId + "/bail/signer")
+                        .with(org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.user("prop.tx.test@ecourtier.sn").roles("PROPRIETAIRE")))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.statutSequestre", is("LIBERE")));
+
+        TransactionEntity txReleased = transactionRepository.findById(UUID.fromString(txId)).orElseThrow();
+        LocalDateTime originalDateLiberation = txReleased.getDateLiberation();
+        String originalPdfPath = txReleased.getPdfBailPath();
+
+        mockMvc.perform(post("/api/v1/transactions/" + txId + "/paiement-caution"))
+                .andExpect(status().isConflict());
+
+        TransactionEntity txAfterReleasedRetry = transactionRepository.findById(UUID.fromString(txId)).orElseThrow();
+        assertEquals(StatutSequestre.LIBERE, txAfterReleasedRetry.getStatutSequestre());
+        assertEquals(firstWaveRef, txAfterReleasedRetry.getReferenceWave());
+        assertEquals(originalDateLiberation, txAfterReleasedRetry.getDateLiberation());
+        assertEquals(originalPdfPath, txAfterReleasedRetry.getPdfBailPath());
+    }
+
+    @Test
+    @DisplayName("ANO-01 : Concurrence sur le paiement de caution — deux appels simultanés ne déclenchent qu'un seul paiement")
+    void testConcurrencePaiementCaution() throws Exception {
+        rendezVousRepository.save(RendezVousEntity.builder()
+                .annonce(annonce)
+                .demandeur(locataire)
+                .dateHeure(LocalDateTime.now().minusDays(1))
+                .statut(StatutRendezVous.EFFECTUE)
+                .build());
+
+        TransactionEntity tx = transactionRepository.save(TransactionEntity.builder()
+                .annonce(annonce)
+                .locataire(locataire)
+                .proprietaire(proprietaire)
+                .montantCaution(BigDecimal.valueOf(250000))
+                .montantPremierLoyer(BigDecimal.valueOf(250000))
+                .fraisDossier(BigDecimal.valueOf(5000))
+                .statutSequestre(StatutSequestre.INITIALISE)
+                .statutBail(StatutBail.NON_SIGNE)
+                .build());
+
+        waveClientMock.resetCounters();
+
+        java.util.concurrent.CountDownLatch ready = new java.util.concurrent.CountDownLatch(2);
+        java.util.concurrent.CountDownLatch start = new java.util.concurrent.CountDownLatch(1);
+        java.util.concurrent.ExecutorService executor = java.util.concurrent.Executors.newFixedThreadPool(2);
+        java.util.List<Integer> statuses = new java.util.concurrent.CopyOnWriteArrayList<>();
+
+        Runnable payTask = () -> {
+            ready.countDown();
+            try {
+                start.await();
+                MvcResult res = mockMvc.perform(post("/api/v1/transactions/" + tx.getId() + "/paiement-caution")
+                                .with(org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.user("loc.tx.test@ecourtier.sn").roles("LOCATAIRE")))
+                        .andReturn();
+                statuses.add(res.getResponse().getStatus());
+            } catch (Exception e) {
+                statuses.add(500);
+            }
+        };
+
+        executor.submit(payTask);
+        executor.submit(payTask);
+        ready.await();
+        start.countDown();
+        executor.shutdown();
+        executor.awaitTermination(10, java.util.concurrent.TimeUnit.SECONDS);
+
+        long okCount = statuses.stream().filter(s -> s == 200).count();
+        long conflictCount = statuses.stream().filter(s -> s == 409).count();
+        assertEquals(1, okCount, "Un seul appel concurrent doit réussir (200 OK)");
+        assertEquals(1, conflictCount, "Le second appel concurrent doit être rejeté (409 Conflict)");
+        assertEquals(1, waveClientMock.getCheckoutCallCount(), "waveClient.initiateEscrowCheckout(...) doit être appelé exactement 1 fois");
+
+        TransactionEntity updated = transactionRepository.findById(tx.getId()).orElseThrow();
+        assertEquals(StatutSequestre.BLOQUE, updated.getStatutSequestre());
+        assertTrue(updated.getReferenceWave() != null && updated.getReferenceWave().startsWith("WAVE-SANDBOX-"));
+    }
+
+    @Test
+    @DisplayName("ANO-02 : Refus d'initialisation de transaction sur annonce non vérifiée, rejetée ou indisponible")
+    @WithMockUser(username = "loc.tx.test@ecourtier.sn", roles = {"LOCATAIRE"})
+    void testRefusAnnonceNonVerifieeRejeteeOuIndisponible() throws Exception {
+        rendezVousRepository.save(RendezVousEntity.builder()
+                .annonce(annonce)
+                .demandeur(locataire)
+                .dateHeure(LocalDateTime.now().minusDays(1))
+                .statut(StatutRendezVous.EFFECTUE)
+                .build());
+
+        // 1. Annonce EN_ATTENTE -> 400 Bad Request
+        annonce.setStatutVerification(StatutVerification.EN_ATTENTE);
+        annonceRepository.save(annonce);
+
+        mockMvc.perform(post("/api/v1/annonces/" + annonce.getId() + "/transactions")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{}"))
+                .andExpect(status().isBadRequest());
+
+        // 2. Annonce REJETEE -> 400 Bad Request
+        annonce.setStatutVerification(StatutVerification.REJETEE);
+        annonceRepository.save(annonce);
+
+        mockMvc.perform(post("/api/v1/annonces/" + annonce.getId() + "/transactions")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{}"))
+                .andExpect(status().isBadRequest());
+
+        // 3. Annonce VERIFIEE mais LOUEE / RESERVEE / SUSPENDUE -> 409 Conflict
+        annonce.setStatutVerification(StatutVerification.VERIFIEE);
+        for (StatutPublication statutIndispo : java.util.List.of(
+                StatutPublication.RESERVEE,
+                StatutPublication.LOUEE,
+                StatutPublication.VENDUE,
+                StatutPublication.SUSPENDUE)) {
+            annonce.setStatutPublication(statutIndispo);
+            annonceRepository.save(annonce);
+
+            mockMvc.perform(post("/api/v1/annonces/" + annonce.getId() + "/transactions")
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content("{}"))
+                    .andExpect(status().isConflict());
+        }
+    }
+
+    @Test
+    @DisplayName("ANO-02 : Refus d'une deuxième transaction active incompatible, mais réouverture autorisée après remboursement")
+    @WithMockUser(username = "loc.tx.test@ecourtier.sn", roles = {"LOCATAIRE"})
+    void testRefusDeuxiemeTransactionActiveEtAutorisationApresRemboursement() throws Exception {
+        rendezVousRepository.save(RendezVousEntity.builder()
+                .annonce(annonce)
+                .demandeur(locataire)
+                .dateHeure(LocalDateTime.now().minusDays(1))
+                .statut(StatutRendezVous.EFFECTUE)
+                .build());
+
+        rendezVousRepository.save(RendezVousEntity.builder()
+                .annonce(annonce)
+                .demandeur(tiers)
+                .dateHeure(LocalDateTime.now().minusDays(1))
+                .statut(StatutRendezVous.EFFECTUE)
+                .build());
+
+        // 1. Première transaction créée avec succès -> 201 Created
+        MvcResult firstTxRes = mockMvc.perform(post("/api/v1/annonces/" + annonce.getId() + "/transactions")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{}"))
+                .andExpect(status().isCreated())
+                .andReturn();
+
+        String firstTxId = objectMapper.readTree(firstTxRes.getResponse().getContentAsString()).get("id").asText();
+
+        // 2. Deuxième transaction sur la même annonce (par le même locataire ou un autre) -> 409 Conflict
+        mockMvc.perform(post("/api/v1/annonces/" + annonce.getId() + "/transactions")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{}"))
+                .andExpect(status().isConflict());
+
+        mockMvc.perform(post("/api/v1/annonces/" + annonce.getId() + "/transactions")
+                        .with(org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.user("tiers.tx.test@ecourtier.sn").roles("LOCATAIRE"))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{}"))
+                .andExpect(status().isConflict());
+
+        // 3. Paiement puis remboursement de la première transaction (statut -> REMBOURSE)
+        mockMvc.perform(post("/api/v1/transactions/" + firstTxId + "/paiement-caution"))
+                .andExpect(status().isOk());
+
+        mockMvc.perform(post("/api/v1/transactions/" + firstTxId + "/remboursement")
+                        .with(org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.user("admin.tx.test@ecourtier.sn").roles("ADMIN"))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"motif\": \"Désistement amiable avant signature complète\"}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.statutSequestre", is("REMBOURSE")));
+
+        // 4. La transaction remboursée ne bloque plus l'annonce disponible -> nouvelle transaction acceptée (201 Created)
+        mockMvc.perform(post("/api/v1/annonces/" + annonce.getId() + "/transactions")
+                        .with(org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.user("tiers.tx.test@ecourtier.sn").roles("LOCATAIRE"))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{}"))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.statutSequestre", is("INITIALISE")));
+    }
+
+    @Test
+    @DisplayName("ANO-02 : Concurrence à l'initialisation — deux requêtes simultanées ne créent qu'une seule transaction active")
+    void testConcurrenceInitialisationTransactionSurMemeAnnonce() throws Exception {
+        rendezVousRepository.save(RendezVousEntity.builder()
+                .annonce(annonce)
+                .demandeur(locataire)
+                .dateHeure(LocalDateTime.now().minusDays(1))
+                .statut(StatutRendezVous.EFFECTUE)
+                .build());
+
+        rendezVousRepository.save(RendezVousEntity.builder()
+                .annonce(annonce)
+                .demandeur(tiers)
+                .dateHeure(LocalDateTime.now().minusDays(1))
+                .statut(StatutRendezVous.EFFECTUE)
+                .build());
+
+        java.util.concurrent.CountDownLatch ready = new java.util.concurrent.CountDownLatch(2);
+        java.util.concurrent.CountDownLatch start = new java.util.concurrent.CountDownLatch(1);
+        java.util.concurrent.ExecutorService executor = java.util.concurrent.Executors.newFixedThreadPool(2);
+        java.util.List<Integer> statuses = new java.util.concurrent.CopyOnWriteArrayList<>();
+
+        Runnable taskLocataire1 = () -> {
+            ready.countDown();
+            try {
+                start.await();
+                MvcResult res = mockMvc.perform(post("/api/v1/annonces/" + annonce.getId() + "/transactions")
+                                .with(org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.user("loc.tx.test@ecourtier.sn").roles("LOCATAIRE"))
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .content("{}"))
+                        .andReturn();
+                statuses.add(res.getResponse().getStatus());
+            } catch (Exception e) {
+                statuses.add(500);
+            }
+        };
+
+        Runnable taskLocataire2 = () -> {
+            ready.countDown();
+            try {
+                start.await();
+                MvcResult res = mockMvc.perform(post("/api/v1/annonces/" + annonce.getId() + "/transactions")
+                                .with(org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.user("tiers.tx.test@ecourtier.sn").roles("LOCATAIRE"))
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .content("{}"))
+                        .andReturn();
+                statuses.add(res.getResponse().getStatus());
+            } catch (Exception e) {
+                statuses.add(500);
+            }
+        };
+
+        executor.submit(taskLocataire1);
+        executor.submit(taskLocataire2);
+        ready.await();
+        start.countDown();
+        executor.shutdown();
+        executor.awaitTermination(10, java.util.concurrent.TimeUnit.SECONDS);
+
+        long createdCount = statuses.stream().filter(s -> s == 201).count();
+        long conflictCount = statuses.stream().filter(s -> s == 409).count();
+        assertEquals(1, createdCount, "Une seule transaction active doit être créée (201 Created)");
+        assertEquals(1, conflictCount, "La demande concurrente doit être refusée (409 Conflict)");
+        assertEquals(1, transactionRepository.findByAnnonceIdOrderByDateCreationDesc(annonce.getId()).size());
+    }
+
+    @Test
+    @DisplayName("ANO-09 : Workflow complet de remboursement, contrôle d'accès, conservation des références et blocage sur états invalides")
+    void testWorkflowRemboursementCompletEtSecurite() throws Exception {
+        rendezVousRepository.save(RendezVousEntity.builder()
+                .annonce(annonce)
+                .demandeur(locataire)
+                .dateHeure(LocalDateTime.now().minusDays(1))
+                .statut(StatutRendezVous.EFFECTUE)
+                .build());
+
+        // 1. Créer une transaction (INITIALISE)
+        MvcResult createRes = mockMvc.perform(post("/api/v1/annonces/" + annonce.getId() + "/transactions")
+                        .with(org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.user("loc.tx.test@ecourtier.sn").roles("LOCATAIRE"))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{}"))
+                .andExpect(status().isCreated())
+                .andReturn();
+
+        String txId = objectMapper.readTree(createRes.getResponse().getContentAsString()).get("id").asText();
+
+        // 2. Refus du remboursement d'une transaction non payée (INITIALISE) -> 409 Conflict
+        mockMvc.perform(post("/api/v1/transactions/" + txId + "/remboursement")
+                        .with(org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.user("admin.tx.test@ecourtier.sn").roles("ADMIN"))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"motif\": \"Tentative sur non payé\"}"))
+                .andExpect(status().isConflict());
+
+        // 3. Paiement de la caution -> BLOQUE
+        MvcResult payRes = mockMvc.perform(post("/api/v1/transactions/" + txId + "/paiement-caution")
+                        .with(org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.user("loc.tx.test@ecourtier.sn").roles("LOCATAIRE")))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.statutSequestre", is("BLOQUE")))
+                .andReturn();
+
+        String initialWaveRef = objectMapper.readTree(payRes.getResponse().getContentAsString()).get("referenceWave").asText();
+
+        // 4. Contrôle d'autorisations : LOCATAIRE, PROPRIETAIRE et AGENT ne peuvent pas déclencher un remboursement -> 403 Forbidden
+        mockMvc.perform(post("/api/v1/transactions/" + txId + "/remboursement")
+                        .with(org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.user("loc.tx.test@ecourtier.sn").roles("LOCATAIRE")))
+                .andExpect(status().isForbidden());
+
+        mockMvc.perform(post("/api/v1/transactions/" + txId + "/remboursement")
+                        .with(org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.user("prop.tx.test@ecourtier.sn").roles("PROPRIETAIRE")))
+                .andExpect(status().isForbidden());
+
+        mockMvc.perform(post("/api/v1/transactions/" + txId + "/remboursement")
+                        .with(org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.user("agent.tx.test@ecourtier.sn").roles("AGENT")))
+                .andExpect(status().isForbidden());
+
+        // 5. Remboursement autorisé par ADMIN -> 200 OK, statut REMBOURSE, conservation de referenceWave et ajout de referenceRemboursementWave
+        MvcResult refundRes = mockMvc.perform(post("/api/v1/transactions/" + txId + "/remboursement")
+                        .with(org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.user("admin.tx.test@ecourtier.sn").roles("ADMIN"))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"motif\": \"Annulation validée par l'administration\"}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.statutSequestre", is("REMBOURSE")))
+                .andExpect(jsonPath("$.referenceWave", is(initialWaveRef)))
+                .andExpect(jsonPath("$.referenceRemboursementWave", notNullValue()))
+                .andExpect(jsonPath("$.montantRembourse").value(505000))
+                .andExpect(jsonPath("$.dateRemboursement", notNullValue()))
+                .andExpect(jsonPath("$.motifRemboursement", is("Annulation validée par l'administration")))
+                .andReturn();
+
+        String firstRefundRef = objectMapper.readTree(refundRes.getResponse().getContentAsString()).get("referenceRemboursementWave").asText();
+
+        // 6. Deuxième remboursement refusé -> 409 Conflict, référence de remboursement inchangée
+        mockMvc.perform(post("/api/v1/transactions/" + txId + "/remboursement")
+                        .with(org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.user("admin.tx.test@ecourtier.sn").roles("ADMIN")))
+                .andExpect(status().isConflict());
+
+        TransactionEntity txAfterSecondRefund = transactionRepository.findById(UUID.fromString(txId)).orElseThrow();
+        assertEquals(initialWaveRef, txAfterSecondRefund.getReferenceWave());
+        assertEquals(firstRefundRef, txAfterSecondRefund.getReferenceRemboursementWave());
+    }
+
+    @Test
+    @DisplayName("ANO-09 : Refus du remboursement d'une transaction dont les fonds ont déjà été libérés (LIBERE) et concurrence sur remboursement")
+    void testRefusRemboursementApresLiberationEtConcurrenceRemboursement() throws Exception {
+        // Partie A : Transaction déjà LIBERE -> remboursement refusé (409 Conflict)
+        TransactionEntity txLiberee = transactionRepository.save(TransactionEntity.builder()
+                .annonce(annonce)
+                .locataire(locataire)
+                .proprietaire(proprietaire)
+                .montantCaution(BigDecimal.valueOf(250000))
+                .montantPremierLoyer(BigDecimal.valueOf(250000))
+                .fraisDossier(BigDecimal.valueOf(5000))
+                .statutSequestre(StatutSequestre.LIBERE)
+                .referenceWave("WAVE-SANDBOX-REL999")
+                .dateLiberation(LocalDateTime.now())
+                .statutBail(StatutBail.SIGNE_COMPLET)
+                .build());
+
+        mockMvc.perform(post("/api/v1/transactions/" + txLiberee.getId() + "/remboursement")
+                        .with(org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.user("admin.tx.test@ecourtier.sn").roles("ADMIN")))
+                .andExpect(status().isConflict());
+
+        // Partie B : Concurrence de deux appels simultanés de remboursement sur une transaction BLOQUE réellement payée
+        TransactionEntity txBloquee = transactionRepository.save(TransactionEntity.builder()
+                .annonce(annonce)
+                .locataire(locataire)
+                .proprietaire(proprietaire)
+                .montantCaution(BigDecimal.valueOf(250000))
+                .montantPremierLoyer(BigDecimal.valueOf(250000))
+                .fraisDossier(BigDecimal.valueOf(5000))
+                .statutSequestre(StatutSequestre.INITIALISE)
+                .statutBail(StatutBail.NON_SIGNE)
+                .build());
+
+        MvcResult payRes = mockMvc.perform(post("/api/v1/transactions/" + txBloquee.getId() + "/paiement-caution")
+                        .with(org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.user("loc.tx.test@ecourtier.sn").roles("LOCATAIRE")))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.statutSequestre", is("BLOQUE")))
+                .andReturn();
+        String paidWaveRef = objectMapper.readTree(payRes.getResponse().getContentAsString()).get("referenceWave").asText();
+
+        waveClientMock.resetCounters();
+
+        java.util.concurrent.CountDownLatch ready = new java.util.concurrent.CountDownLatch(2);
+        java.util.concurrent.CountDownLatch start = new java.util.concurrent.CountDownLatch(1);
+        java.util.concurrent.ExecutorService executor = java.util.concurrent.Executors.newFixedThreadPool(2);
+        java.util.List<Integer> statuses = new java.util.concurrent.CopyOnWriteArrayList<>();
+
+        Runnable refundTask = () -> {
+            ready.countDown();
+            try {
+                start.await();
+                MvcResult res = mockMvc.perform(post("/api/v1/transactions/" + txBloquee.getId() + "/remboursement")
+                                .with(org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.user("admin.tx.test@ecourtier.sn").roles("ADMIN"))
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .content("{\"motif\": \"Test concurrence remboursement\"}"))
+                        .andReturn();
+                statuses.add(res.getResponse().getStatus());
+            } catch (Exception e) {
+                statuses.add(500);
+            }
+        };
+
+        executor.submit(refundTask);
+        executor.submit(refundTask);
+        ready.await();
+        start.countDown();
+        executor.shutdown();
+        executor.awaitTermination(10, java.util.concurrent.TimeUnit.SECONDS);
+
+        long okCount = statuses.stream().filter(s -> s == 200).count();
+        long conflictCount = statuses.stream().filter(s -> s == 409).count();
+        assertEquals(1, okCount, "Un seul remboursement concurrent doit réussir (200 OK)");
+        assertEquals(1, conflictCount, "Le second remboursement concurrent doit être rejeté (409 Conflict)");
+        assertEquals(1, waveClientMock.getRefundCallCount(), "waveClient.initiateEscrowRefund(...) doit être appelé exactement 1 fois");
+
+        TransactionEntity reloaded = transactionRepository.findById(txBloquee.getId()).orElseThrow();
+        assertEquals(StatutSequestre.REMBOURSE, reloaded.getStatutSequestre());
+        assertEquals(paidWaveRef, reloaded.getReferenceWave());
+        assertTrue(reloaded.getReferenceRemboursementWave() != null && reloaded.getReferenceRemboursementWave().startsWith("WAVE-REFUND-SANDBOX-"));
+    }
+
+    @Test
+    @DisplayName("LOT 2 : Scénario complet A (BLOQUE, actif) + B (INITIALISE, inactif) -> remboursement A -> création C -> refus paiement/signature/remboursement B (409) avec 0 appel Wave")
+    void testScenarioCompletDossierInactifHistoriqueApresRemboursement() throws Exception {
+        rendezVousRepository.save(RendezVousEntity.builder()
+                .annonce(annonce)
+                .demandeur(locataire)
+                .dateHeure(LocalDateTime.now().minusDays(2))
+                .statut(StatutRendezVous.EFFECTUE)
+                .build());
+
+        rendezVousRepository.save(RendezVousEntity.builder()
+                .annonce(annonce)
+                .demandeur(tiers)
+                .dateHeure(LocalDateTime.now().minusDays(1))
+                .statut(StatutRendezVous.EFFECTUE)
+                .build());
+
+        // 1. Dossier historique B : INITIALISE, dossier_actif = FALSE
+        TransactionEntity txB = transactionRepository.save(TransactionEntity.builder()
+                .annonce(annonce)
+                .locataire(locataire)
+                .proprietaire(proprietaire)
+                .montantCaution(BigDecimal.valueOf(250000))
+                .montantPremierLoyer(BigDecimal.valueOf(250000))
+                .fraisDossier(BigDecimal.valueOf(5000))
+                .statutSequestre(StatutSequestre.INITIALISE)
+                .statutBail(StatutBail.NON_SIGNE)
+                .dossierActif(Boolean.FALSE)
+                .build());
+
+        // 2. Dossier actif A : créé puis payé -> BLOQUE, dossier_actif = TRUE, annonce RESERVEE
+        TransactionEntity txA = transactionRepository.save(TransactionEntity.builder()
+                .annonce(annonce)
+                .locataire(locataire)
+                .proprietaire(proprietaire)
+                .montantCaution(BigDecimal.valueOf(250000))
+                .montantPremierLoyer(BigDecimal.valueOf(250000))
+                .fraisDossier(BigDecimal.valueOf(5000))
+                .statutSequestre(StatutSequestre.INITIALISE)
+                .statutBail(StatutBail.NON_SIGNE)
+                .dossierActif(Boolean.TRUE)
+                .build());
+
+        mockMvc.perform(post("/api/v1/transactions/" + txA.getId() + "/paiement-caution")
+                        .with(org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.user("loc.tx.test@ecourtier.sn").roles("LOCATAIRE")))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.statutSequestre", is("BLOQUE")));
+
+        annonce.setStatutPublication(StatutPublication.RESERVEE);
+        annonceRepository.save(annonce);
+
+        // 3. Remboursement de A par l'ADMIN -> A passe à REMBOURSE et l'annonce repasse à DISPONIBLE
+        mockMvc.perform(post("/api/v1/transactions/" + txA.getId() + "/remboursement")
+                        .with(org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.user("admin.tx.test@ecourtier.sn").roles("ADMIN"))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"motif\": \"Annulation dossier A\"}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.statutSequestre", is("REMBOURSE")));
+
+        AnnonceEntity annonceAfterRefund = annonceRepository.findById(annonce.getId()).orElseThrow();
+        assertEquals(StatutPublication.DISPONIBLE, annonceAfterRefund.getStatutPublication());
+
+        // 4. Création d'une nouvelle transaction C par un nouvel utilisateur (tiers) -> 201 Created
+        MvcResult resC = mockMvc.perform(post("/api/v1/annonces/" + annonce.getId() + "/transactions")
+                        .with(org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.user("tiers.tx.test@ecourtier.sn").roles("LOCATAIRE"))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{}"))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.statutSequestre", is("INITIALISE")))
+                .andReturn();
+        String txCId = objectMapper.readTree(resC.getResponse().getContentAsString()).get("id").asText();
+
+        // 5. Remise à zéro des compteurs Wave avant de tester les opérations interdites sur B
+        waveClientMock.resetCounters();
+
+        // 6. Tentative de paiement de B (dossier_actif = FALSE) -> 409 Conflict et 0 appel Wave
+        mockMvc.perform(post("/api/v1/transactions/" + txB.getId() + "/paiement-caution")
+                        .with(org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.user("loc.tx.test@ecourtier.sn").roles("LOCATAIRE")))
+                .andExpect(status().isConflict());
+        assertEquals(0, waveClientMock.getCheckoutCallCount(), "Aucun appel Wave ne doit avoir lieu pour un dossier inactif");
+
+        // 7. Tentative de signature de B (dossier_actif = FALSE) -> 409 Conflict
+        mockMvc.perform(post("/api/v1/transactions/" + txB.getId() + "/bail/signer")
+                        .with(org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.user("loc.tx.test@ecourtier.sn").roles("LOCATAIRE")))
+                .andExpect(status().isConflict());
+
+        // 8. Tentative de remboursement de B (dossier_actif = FALSE) -> 409 Conflict et 0 appel Wave
+        mockMvc.perform(post("/api/v1/transactions/" + txB.getId() + "/remboursement")
+                        .with(org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.user("admin.tx.test@ecourtier.sn").roles("ADMIN"))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"motif\": \"Tentative sur B inactif\"}"))
+                .andExpect(status().isConflict());
+        assertEquals(0, waveClientMock.getRefundCallCount(), "Aucun appel de remboursement Wave ne doit avoir lieu pour un dossier inactif");
+
+        TransactionEntity reloadedB = transactionRepository.findById(txB.getId()).orElseThrow();
+        assertEquals(StatutSequestre.INITIALISE, reloadedB.getStatutSequestre());
+        org.junit.jupiter.api.Assertions.assertFalse(reloadedB.getDossierActif());
+        org.junit.jupiter.api.Assertions.assertNull(reloadedB.getReferenceWave());
+
+        // 9. La transaction active C continue de fonctionner normalement (paiement caution -> 200 OK, 1 appel Wave)
+        mockMvc.perform(post("/api/v1/transactions/" + txCId + "/paiement-caution")
+                        .with(org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.user("tiers.tx.test@ecourtier.sn").roles("LOCATAIRE")))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.statutSequestre", is("BLOQUE")));
+        assertEquals(1, waveClientMock.getCheckoutCallCount(), "Le paiement de la transaction active C doit déclencher exactement 1 appel Wave");
     }
 }
