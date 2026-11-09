@@ -207,4 +207,40 @@ class AuthIntegrationTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$", notNullValue()));
     }
+
+    @Test
+    @DisplayName("ANO-06 : Un client ne peut pas contourner le rate limiter en forgeant des en-têtes X-Forwarded-For distincts")
+    void testRateLimiterCannotBeBypassedWithSpoofedXForwardedFor() throws Exception {
+        UtilisateurEntity user = UtilisateurEntity.builder()
+                .nom("Gueye")
+                .prenom("Ousmane")
+                .email("ousmane.spoof@ecourtier.sn")
+                .motDePasse(passwordEncoder.encode("Pass1234!"))
+                .telephone("+221 77 999 88 77")
+                .role(Role.LOCATAIRE)
+                .actif(true)
+                .build();
+        utilisateurRepository.save(user);
+
+        ConnexionRequestDTO wrongConnexion = ConnexionRequestDTO.builder()
+                .email("ousmane.spoof@ecourtier.sn")
+                .motDePasse("WrongPass123!")
+                .build();
+
+        // 5 tentatives échouées en changeant X-Forwarded-For à chaque appel -> 401
+        for (int i = 1; i <= 5; i++) {
+            mockMvc.perform(post("/api/v1/auth/connexion")
+                            .header("X-Forwarded-For", "203.0.113." + i)
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content(objectMapper.writeValueAsString(wrongConnexion)))
+                    .andExpect(status().isUnauthorized());
+        }
+
+        // 6ème tentative avec un nouveau X-Forwarded-For forgé -> 429 Too Many Requests
+        mockMvc.perform(post("/api/v1/auth/connexion")
+                        .header("X-Forwarded-For", "198.51.100.99")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(wrongConnexion)))
+                .andExpect(status().isTooManyRequests());
+    }
 }

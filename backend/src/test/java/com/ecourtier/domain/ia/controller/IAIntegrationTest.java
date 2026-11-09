@@ -151,4 +151,65 @@ class IAIntegrationTest {
                         .content(objectMapper.writeValueAsString(messageDto)))
                 .andExpect(status().isBadRequest());
     }
+
+    @Test
+    @DisplayName("ANO-05 : Une conversation appartenant à un utilisateur inscrit est inaccessible à un tiers authentifié (403) et à un anonyme (403)")
+    void testControleAccesConversationUtilisateurInscrit() throws Exception {
+        // Assurer l'existence d'un second utilisateur en base
+        if (utilisateurRepository.findByEmail("autre.ia.test@ecourtier.sn").isEmpty()) {
+            utilisateurRepository.save(UtilisateurEntity.builder()
+                    .nom("Ndiaye")
+                    .prenom("Fatou")
+                    .email("autre.ia.test@ecourtier.sn")
+                    .motDePasse("$2a$10$KhUqg3EWfmNgLhTIGhjP0uzeSXRI1y0ulUhiJyv1Qz0H34Ybju3IS")
+                    .telephone("+221772223344")
+                    .role(Role.LOCATAIRE)
+                    .actif(true)
+                    .build());
+        }
+
+        // 1. L'utilisateur propriétaire (prop.ia.test@ecourtier.sn) démarre une conversation
+        MvcResult convResult = mockMvc.perform(post("/api/v1/ia/conversations")
+                        .with(org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.user("prop.ia.test@ecourtier.sn").roles("PROPRIETAIRE")))
+                .andExpect(status().isCreated())
+                .andReturn();
+
+        String conversationId = objectMapper.readTree(convResult.getResponse().getContentAsString()).get("conversationId").asText();
+
+        MessageUserRequestDTO messageDto = MessageUserRequestDTO.builder()
+                .message("3 pièces à Nema, budget 150000")
+                .build();
+
+        // 2. Le propriétaire peut envoyer un message (200 OK) et consulter l'historique (200 OK)
+        mockMvc.perform(post("/api/v1/ia/conversations/" + conversationId + "/messages")
+                        .with(org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.user("prop.ia.test@ecourtier.sn").roles("PROPRIETAIRE"))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(messageDto)))
+                .andExpect(status().isOk());
+
+        mockMvc.perform(get("/api/v1/ia/conversations/" + conversationId)
+                        .with(org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.user("prop.ia.test@ecourtier.sn").roles("PROPRIETAIRE")))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.conversationId", is(conversationId)));
+
+        // 3. Un autre utilisateur authentifié tente de lire l'historique ou d'envoyer un message -> 403 Forbidden
+        mockMvc.perform(get("/api/v1/ia/conversations/" + conversationId)
+                        .with(org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.user("autre.ia.test@ecourtier.sn").roles("LOCATAIRE")))
+                .andExpect(status().isForbidden());
+
+        mockMvc.perform(post("/api/v1/ia/conversations/" + conversationId + "/messages")
+                        .with(org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.user("autre.ia.test@ecourtier.sn").roles("LOCATAIRE"))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(messageDto)))
+                .andExpect(status().isForbidden());
+
+        // 4. Un utilisateur anonyme tente de lire l'historique ou d'envoyer un message -> 403 Forbidden
+        mockMvc.perform(get("/api/v1/ia/conversations/" + conversationId))
+                .andExpect(status().isForbidden());
+
+        mockMvc.perform(post("/api/v1/ia/conversations/" + conversationId + "/messages")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(messageDto)))
+                .andExpect(status().isForbidden());
+    }
 }

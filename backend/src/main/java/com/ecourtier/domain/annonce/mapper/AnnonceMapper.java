@@ -8,6 +8,9 @@ import com.ecourtier.domain.annonce.entity.DocumentVerificationEntity;
 import com.ecourtier.domain.annonce.entity.PhotoAnnonceEntity;
 import com.ecourtier.domain.utilisateur.mapper.UtilisateurMapper;
 import lombok.RequiredArgsConstructor;
+import org.springframework.security.authentication.AnonymousAuthenticationToken;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Component;
 
 import java.util.Comparator;
@@ -25,6 +28,13 @@ public class AnnonceMapper {
         if (entity == null) {
             return null;
         }
+        return toResponseDTO(entity, canViewDocuments(entity, SecurityContextHolder.getContext().getAuthentication()));
+    }
+
+    public AnnonceResponseDTO toResponseDTO(AnnonceEntity entity, boolean includeDocuments) {
+        if (entity == null) {
+            return null;
+        }
 
         List<PhotoResponseDTO> photos = entity.getPhotos() == null ? List.of() :
                 entity.getPhotos().stream()
@@ -32,8 +42,9 @@ public class AnnonceMapper {
                         .map(this::toPhotoDTO)
                         .toList();
 
-        List<DocumentVerificationResponseDTO> docs = entity.getDocumentsVerification() == null ? List.of() :
-                entity.getDocumentsVerification().stream()
+        List<DocumentVerificationResponseDTO> docs = (!includeDocuments || entity.getDocumentsVerification() == null)
+                ? List.of()
+                : entity.getDocumentsVerification().stream()
                         .map(this::toDocumentDTO)
                         .toList();
 
@@ -77,6 +88,25 @@ public class AnnonceMapper {
             dto.setEstFavori(favorisAnnonceIds.contains(entity.getId()));
         }
         return dto;
+    }
+
+    private boolean canViewDocuments(AnnonceEntity entity, Authentication authentication) {
+        if (entity == null || authentication == null || !authentication.isAuthenticated()
+                || authentication instanceof AnonymousAuthenticationToken) {
+            return false;
+        }
+        boolean isAdmin = authentication.getAuthorities().stream()
+                .anyMatch(a -> "ROLE_ADMIN".equals(a.getAuthority()));
+        if (isAdmin) {
+            return true;
+        }
+        String currentEmail = authentication.getName();
+        if (currentEmail == null || currentEmail.isBlank() || "anonymousUser".equals(currentEmail)) {
+            return false;
+        }
+        return entity.getUtilisateur() != null
+                && entity.getUtilisateur().getEmail() != null
+                && entity.getUtilisateur().getEmail().equalsIgnoreCase(currentEmail.trim());
     }
 
     public PhotoResponseDTO toPhotoDTO(PhotoAnnonceEntity entity) {

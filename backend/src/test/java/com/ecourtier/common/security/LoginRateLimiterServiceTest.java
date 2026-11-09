@@ -57,4 +57,56 @@ public class LoginRateLimiterServiceTest {
             assertDoesNotThrow(() -> rateLimiterService.checkAndRecordAttempt(ip, email));
         }
     }
+
+    @Test
+    @DisplayName("ANO-06 : Purge automatique des entrées expirées sans supprimer les compteurs encore actifs")
+    void testEvictExpiredEntriesPreservesActiveCounters() {
+        java.util.concurrent.atomic.AtomicLong currentMillis = new java.util.concurrent.atomic.AtomicLong(1_700_000_000_000L);
+        java.time.Clock mutableClock = new java.time.Clock() {
+            @Override
+            public java.time.ZoneId getZone() {
+                return java.time.ZoneOffset.UTC;
+            }
+
+            @Override
+            public java.time.Clock withZone(java.time.ZoneId zone) {
+                return this;
+            }
+
+            @Override
+            public java.time.Instant instant() {
+                return java.time.Instant.ofEpochMilli(currentMillis.get());
+            }
+        };
+
+        LoginRateLimiterService clockService = new LoginRateLimiterService(mutableClock);
+
+        // t = 0 : 5 tentatives pour user1 (bloqué)
+        for (int i = 0; i < 5; i++) {
+            clockService.checkAndRecordAttempt("192.168.1.10", "user1@ecourtier.sn");
+        }
+        assertThrows(ResponseStatusException.class,
+                () -> clockService.checkAndRecordAttempt("192.168.1.10", "user1@ecourtier.sn"));
+
+        // t = +10 minutes : 5 tentatives pour user2 (encore actif)
+        currentMillis.addAndGet(10 * 60 * 1000L);
+        for (int i = 0; i < 5; i++) {
+            clockService.checkAndRecordAttempt("192.168.1.20", "user2@ecourtier.sn");
+        }
+        assertEquals(2, clockService.getTrackedEntriesCount());
+
+        // t = +16 minutes depuis t=0 (user1 est expiré > 15 min, user2 est à 6 min donc encore actif)
+        currentMillis.addAndGet(6 * 60 * 1000L);
+        clockService.evictExpiredEntries();
+
+        // L'entrée expirée de user1 a été purgée, seule celle de user2 subsiste
+        assertEquals(1, clockService.getTrackedEntriesCount());
+
+        // user2 est toujours bloqué (fenêtre active)
+        assertThrows(ResponseStatusException.class,
+                () -> clockService.checkAndRecordAttempt("192.168.1.20", "user2@ecourtier.sn"));
+
+        // user1 peut de nouveau tenter de se connecter
+        assertDoesNotThrow(() -> clockService.checkAndRecordAttempt("192.168.1.10", "user1@ecourtier.sn"));
+    }
 }

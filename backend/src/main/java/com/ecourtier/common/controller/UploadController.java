@@ -13,6 +13,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.net.MalformedURLException;
+import java.nio.file.InvalidPathException;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 
@@ -22,6 +23,7 @@ import java.nio.file.Paths;
 public class UploadController {
 
     private final Path fileStorageLocation = Paths.get("uploads").toAbsolutePath().normalize();
+    private final Path annoncesStorageLocation = fileStorageLocation.resolve("annonces").normalize();
 
     @GetMapping("/annonces/{id}/{filename:.+}")
     @Operation(summary = "Consulter une photo d'annonce téléversée", description = "Servir une photo d'annonce publique.")
@@ -29,8 +31,21 @@ public class UploadController {
             @PathVariable String id,
             @PathVariable String filename
     ) {
+        if (!isSafePathSegment(id) || !isSafePathSegment(filename)) {
+            return ResponseEntity.badRequest().build();
+        }
+
         try {
-            Path filePath = fileStorageLocation.resolve("annonces").resolve(id).resolve(filename).normalize();
+            Path annonceDir = annoncesStorageLocation.resolve(id).normalize();
+            if (!annonceDir.startsWith(annoncesStorageLocation) || annonceDir.equals(annoncesStorageLocation)) {
+                return ResponseEntity.badRequest().build();
+            }
+
+            Path filePath = annonceDir.resolve(filename).normalize();
+            if (!filePath.startsWith(annonceDir) || !annonceDir.equals(filePath.getParent())) {
+                return ResponseEntity.badRequest().build();
+            }
+
             Resource resource = new UrlResource(filePath.toUri());
 
             if (resource.exists() && resource.isReadable()) {
@@ -42,9 +57,19 @@ public class UploadController {
             } else {
                 return ResponseEntity.notFound().build();
             }
-        } catch (MalformedURLException e) {
+        } catch (MalformedURLException | InvalidPathException e) {
             return ResponseEntity.badRequest().build();
         }
+    }
+
+    private boolean isSafePathSegment(String segment) {
+        if (segment == null || segment.isBlank()) {
+            return false;
+        }
+        return !segment.contains("..")
+                && !segment.contains("/")
+                && !segment.contains("\\")
+                && segment.indexOf('\0') < 0;
     }
 
     private String getContentType(String filename) {

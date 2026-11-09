@@ -1,10 +1,11 @@
 package com.ecourtier.common.security;
 
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.web.server.ResponseStatusException;
 
-import java.time.Instant;
+import java.time.Clock;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -13,7 +14,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 public class LoginRateLimiterService {
 
     private static final int MAX_ATTEMPTS = 5;
-    private static final long WINDOW_MS = 15 * 60 * 1000; // 15 minutes window
+    static final long WINDOW_MS = 15 * 60 * 1000; // 15 minutes window
 
     private static class AttemptWindow {
         final long windowStart;
@@ -26,15 +27,23 @@ public class LoginRateLimiterService {
     }
 
     private final Map<String, AttemptWindow> attemptsMap = new ConcurrentHashMap<>();
+    private final Clock clock;
+
+    public LoginRateLimiterService() {
+        this(Clock.systemUTC());
+    }
+
+    @Autowired
+    public LoginRateLimiterService(Clock clock) {
+        this.clock = clock != null ? clock : Clock.systemUTC();
+    }
 
     public void checkAndRecordAttempt(String ip, String email) {
-        String key = (ip != null ? ip.trim() : "unknown") + ":" + (email != null ? email.trim().toLowerCase() : "unknown");
-        long now = Instant.now().toEpochMilli();
+        String key = buildKey(ip, email);
+        long now = clock.millis();
 
-        // Evict expired entries if map grows
-        if (attemptsMap.size() > 5000) {
-            attemptsMap.entrySet().removeIf(e -> (now - e.getValue().windowStart) > WINDOW_MS);
-        }
+        // Purge expired windows so memory does not accumulate stale entries
+        evictExpiredEntries(now);
 
         AttemptWindow window = attemptsMap.compute(key, (k, current) -> {
             if (current == null || (now - current.windowStart) > WINDOW_MS) {
@@ -61,7 +70,22 @@ public class LoginRateLimiterService {
     }
 
     public void resetAttempts(String ip, String email) {
-        String key = (ip != null ? ip.trim() : "unknown") + ":" + (email != null ? email.trim().toLowerCase() : "unknown");
-        attemptsMap.remove(key);
+        attemptsMap.remove(buildKey(ip, email));
+    }
+
+    public void evictExpiredEntries() {
+        evictExpiredEntries(clock.millis());
+    }
+
+    private void evictExpiredEntries(long now) {
+        attemptsMap.entrySet().removeIf(e -> (now - e.getValue().windowStart) > WINDOW_MS);
+    }
+
+    public int getTrackedEntriesCount() {
+        return attemptsMap.size();
+    }
+
+    private String buildKey(String ip, String email) {
+        return (ip != null ? ip.trim() : "unknown") + ":" + (email != null ? email.trim().toLowerCase() : "unknown");
     }
 }

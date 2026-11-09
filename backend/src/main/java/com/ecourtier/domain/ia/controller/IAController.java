@@ -51,8 +51,12 @@ public class IAController {
 
     @GetMapping("/{id}")
     @Operation(summary = "Obtenir l'historique complet d'une conversation IA", description = "Retourne la liste chronologique des messages et des critères extraits.")
-    public ResponseEntity<ConversationHistoryResponseDTO> obtenirHistorique(@PathVariable UUID id) {
-        ConversationHistoryResponseDTO history = iaService.obtenirHistorique(id);
+    public ResponseEntity<ConversationHistoryResponseDTO> obtenirHistorique(
+            @PathVariable UUID id,
+            Authentication authentication
+    ) {
+        String email = authentication != null ? authentication.getName() : null;
+        ConversationHistoryResponseDTO history = iaService.obtenirHistorique(id, email);
         return ResponseEntity.ok(history);
     }
 }

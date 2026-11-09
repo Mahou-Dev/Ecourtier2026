@@ -88,9 +88,14 @@ public class DocumentVerificationSecurityTest {
         doc = documentVerificationRepository.save(DocumentVerificationEntity.builder()
                 .annonce(annonce)
                 .typeDocument(TypeDocumentVerification.TITRE_FONCIER)
+                .nomFichier("titre_secret_cadastral.pdf")
                 .url("/uploads/docs/secret.pdf")
-                .statut(StatutDocument.EN_ATTENTE)
+                .statut(StatutDocument.REJETE)
+                .motifRejet("Cachet notarial illisible sur la copie")
                 .build());
+
+        annonce.setDocumentsVerification(new java.util.ArrayList<>(java.util.List.of(doc)));
+        annonce = annonceRepository.saveAndFlush(annonce);
     }
 
     @Test
@@ -109,5 +114,55 @@ public class DocumentVerificationSecurityTest {
         // L'important ici est d'avoir dépassé la sécurité 403 Forbidden
         mockMvc.perform(get("/api/v1/annonces/{id}/documents/{docId}/fichier", annonce.getId(), doc.getId()))
                 .andExpect(result -> org.junit.jupiter.api.Assertions.assertNotEquals(403, result.getResponse().getStatus()));
+    }
+
+    @Test
+    @DisplayName("ANO-04 : Visiteur anonyme ne reçoit aucune métadonnée de document justificatif")
+    void testAnonymousDoesNotReceiveDocumentMetadata() throws Exception {
+        mockMvc.perform(get("/api/v1/annonces/{id}", annonce.getId()))
+                .andExpect(status().isOk())
+                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath("$.id").value(annonce.getId().toString()))
+                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath("$.documentsVerification").isEmpty());
+
+        mockMvc.perform(get("/api/v1/annonces"))
+                .andExpect(status().isOk())
+                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath("$.content[0].documentsVerification").isEmpty());
+    }
+
+    @Test
+    @WithMockUser(username = "stranger.locataire@test.sn", roles = {"LOCATAIRE"})
+    @DisplayName("ANO-04 : Utilisateur authentifié non-propriétaire ne reçoit aucune métadonnée de document justificatif")
+    void testNonOwnerDoesNotReceiveDocumentMetadata() throws Exception {
+        mockMvc.perform(get("/api/v1/annonces/{id}", annonce.getId()))
+                .andExpect(status().isOk())
+                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath("$.documentsVerification").isEmpty());
+
+        mockMvc.perform(get("/api/v1/annonces"))
+                .andExpect(status().isOk())
+                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath("$.content[0].documentsVerification").isEmpty());
+    }
+
+    @Test
+    @WithMockUser(username = "owner.sec@test.sn", roles = {"PROPRIETAIRE"})
+    @DisplayName("ANO-04 : Le propriétaire de l'annonce reçoit les métadonnées de ses pièces justificatives")
+    void testOwnerReceivesDocumentMetadata() throws Exception {
+        mockMvc.perform(get("/api/v1/annonces/{id}", annonce.getId()))
+                .andExpect(status().isOk())
+                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath("$.documentsVerification.length()").value(1))
+                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath("$.documentsVerification[0].typeDocument").value("TITRE_FONCIER"))
+                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath("$.documentsVerification[0].nomFichier").value("titre_secret_cadastral.pdf"))
+                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath("$.documentsVerification[0].motifRejet").value("Cachet notarial illisible sur la copie"));
+    }
+
+    @Test
+    @WithMockUser(username = "admin.sec@test.sn", roles = {"ADMIN"})
+    @DisplayName("ANO-04 : Un administrateur reçoit les métadonnées des pièces justificatives")
+    void testAdminReceivesDocumentMetadata() throws Exception {
+        mockMvc.perform(get("/api/v1/annonces/{id}", annonce.getId()))
+                .andExpect(status().isOk())
+                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath("$.documentsVerification.length()").value(1))
+                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath("$.documentsVerification[0].typeDocument").value("TITRE_FONCIER"))
+                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath("$.documentsVerification[0].nomFichier").value("titre_secret_cadastral.pdf"))
+                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath("$.documentsVerification[0].motifRejet").value("Cachet notarial illisible sur la copie"));
     }
 }

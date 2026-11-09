@@ -79,6 +79,7 @@ public class SecurityConfig {
                 })
             )
             .authorizeHttpRequests(auth -> auth
+                .requestMatchers(HttpMethod.GET, "/openapi.json").permitAll()
                 .requestMatchers(
                     "/error",
                     "/swagger-ui.html",

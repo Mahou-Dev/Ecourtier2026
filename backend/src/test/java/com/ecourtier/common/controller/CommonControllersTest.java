@@ -26,6 +26,9 @@ class CommonControllersTest {
     @Autowired
     private MockMvc mockMvc;
 
+    @Autowired
+    private UploadController uploadController;
+
     @Test
     @DisplayName("GET /api/v1/health : renvoie UP et le statut du service")
     void testHealthEndpoint() throws Exception {
@@ -55,5 +58,50 @@ class CommonControllersTest {
             Files.deleteIfExists(testFile);
             Files.deleteIfExists(dir);
         }
+    }
+
+    @Test
+    @DisplayName("ANO-12 : Rejet des chemins malveillants (path traversal) et impossibilité de lire les documents privés via UploadController")
+    void testUploadControllerPathTraversalRejected() throws Exception {
+        // Créer un document justificatif privé dans uploads/documents/test-doc-id/secret.pdf
+        Path privateDocDir = Paths.get("uploads", "documents", "test-doc-id").toAbsolutePath().normalize();
+        Files.createDirectories(privateDocDir);
+        Path privateDoc = privateDocDir.resolve("secret.pdf");
+        Files.write(privateDoc, "%PDF-1.4 secret".getBytes());
+
+        try {
+            // Tentatives de path traversal via le contrôleur (appel direct + MockMvc) -> 400 Bad Request
+            org.junit.jupiter.api.Assertions.assertEquals(400,
+                    uploadController.getPhoto("..", "secret.pdf").getStatusCode().value());
+            org.junit.jupiter.api.Assertions.assertEquals(400,
+                    uploadController.getPhoto("../documents/test-doc-id", "secret.pdf").getStatusCode().value());
+            org.junit.jupiter.api.Assertions.assertEquals(400,
+                    uploadController.getPhoto("test-id", "../../documents/test-doc-id/secret.pdf").getStatusCode().value());
+            org.junit.jupiter.api.Assertions.assertEquals(400,
+                    uploadController.getPhoto("test-id", "..\\..\\documents\\test-doc-id\\secret.pdf").getStatusCode().value());
+            org.junit.jupiter.api.Assertions.assertEquals(400,
+                    uploadController.getPhoto("test-id", "sub/sample.png").getStatusCode().value());
+
+            mockMvc.perform(get("/api/v1/uploads/annonces/{id}/{filename}", "..", "secret.pdf"))
+                    .andExpect(result -> {
+                        int status = result.getResponse().getStatus();
+                        org.junit.jupiter.api.Assertions.assertTrue(status == 400 || status == 404);
+                    });
+        } finally {
+            Files.deleteIfExists(privateDoc);
+            Files.deleteIfExists(privateDocDir);
+        }
+    }
+
+    @Test
+    @DisplayName("ANO-15 : GET /openapi.json est accessible publiquement (200 OK) sans réduire la sécurité des routes privées")
+    void testPublicOpenApiJsonAccessible() throws Exception {
+        mockMvc.perform(get("/openapi.json"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.openapi").exists());
+
+        // Une ressource privée reste protégée (401)
+        mockMvc.perform(get("/api/v1/utilisateurs/moi/favoris"))
+                .andExpect(status().isUnauthorized());
     }
 }

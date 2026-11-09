@@ -71,6 +71,8 @@ public class IAService {
         ConversationIAEntity conv = conversationIARepository.findById(conversationId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Conversation IA introuvable"));
 
+        verifierAccesConversation(conv, userEmail);
+
         // 1. Extraire les critères du message actuel
         CriteresExtraitsDTO criteres = llmExtractionService.extractCriteria(request.getMessage());
 
@@ -180,8 +182,15 @@ public class IAService {
 
     @Transactional(readOnly = true)
     public ConversationHistoryResponseDTO obtenirHistorique(UUID conversationId) {
+        return obtenirHistorique(conversationId, null);
+    }
+
+    @Transactional(readOnly = true)
+    public ConversationHistoryResponseDTO obtenirHistorique(UUID conversationId, String userEmail) {
         ConversationIAEntity conv = conversationIARepository.findById(conversationId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Conversation IA introuvable"));
+
+        verifierAccesConversation(conv, userEmail);
 
         List<MessageIAEntity> messages = messageIARepository.findByConversationIdOrderByDateEnvoiAsc(conversationId);
 
@@ -199,6 +208,19 @@ public class IAService {
                 .dateCreation(conv.getDateCreation())
                 .messages(items)
                 .build();
+    }
+
+    private void verifierAccesConversation(ConversationIAEntity conv, String userEmail) {
+        if (conv.getUtilisateur() != null) {
+            String ownerEmail = conv.getUtilisateur().getEmail();
+            if (userEmail == null || userEmail.trim().isEmpty() || "anonymousUser".equals(userEmail)
+                    || ownerEmail == null || !ownerEmail.equalsIgnoreCase(userEmail.trim())) {
+                throw new ResponseStatusException(
+                        HttpStatus.FORBIDDEN,
+                        "Accès refusé : cette conversation appartient à un autre utilisateur"
+                );
+            }
+        }
     }
 
     private String serializeCriteres(CriteresExtraitsDTO dto) {
