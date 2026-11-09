@@ -9,6 +9,7 @@ import org.springframework.web.server.ResponseStatusException;
 
 import java.math.BigDecimal;
 import java.util.List;
+import java.util.Map;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -24,9 +25,42 @@ public class RuleBasedCriteriaExtractor {
             "disregard previous"
     );
 
+    private static final Map<String, Integer> MOT_VERS_NOMBRE = Map.ofEntries(
+            Map.entry("un", 1), Map.entry("une", 1),
+            Map.entry("deux", 2),
+            Map.entry("trois", 3),
+            Map.entry("quatre", 4),
+            Map.entry("cinq", 5),
+            Map.entry("six", 6),
+            Map.entry("sept", 7),
+            Map.entry("huit", 8),
+            Map.entry("neuf", 9),
+            Map.entry("dix", 10)
+    );
+
+    private static final Map<String, Integer> ORDINAUX = Map.ofEntries(
+            Map.entry("premier", 1), Map.entry("première", 1), Map.entry("premiere", 1),
+            Map.entry("deuxième", 2), Map.entry("deuxieme", 2), Map.entry("second", 2), Map.entry("seconde", 2),
+            Map.entry("troisième", 3), Map.entry("troisieme", 3),
+            Map.entry("quatrième", 4), Map.entry("quatrieme", 4),
+            Map.entry("cinquième", 5), Map.entry("cinquieme", 5),
+            Map.entry("sixième", 6), Map.entry("sixieme", 6),
+            Map.entry("septième", 7), Map.entry("septieme", 7),
+            Map.entry("huitième", 8), Map.entry("huitieme", 8),
+            Map.entry("neuvième", 9), Map.entry("neuvieme", 9),
+            Map.entry("dixième", 10), Map.entry("dixieme", 10)
+    );
+
     private static final Pattern BUDGET_RANGE_PATTERN = Pattern.compile("entre\\s+(\\d[\\d\\s]*)\\s+et\\s+(\\d[\\d\\s]*)", Pattern.CASE_INSENSITIVE);
     private static final Pattern BUDGET_SINGLE_PATTERN = Pattern.compile("(?:budget(?:\\s+de)?|max|environ)?\\s*(\\d[\\d\\s]{3,})\\s*(?:fcfa|cfa|f|k)?", Pattern.CASE_INSENSITIVE);
-    private static final Pattern PIECES_PATTERN = Pattern.compile("(?:(\\d+)\\s*(?:pièces?|pieces?|chambres?))|(?:f(\\d+))", Pattern.CASE_INSENSITIVE);
+    private static final Pattern PIECES_PATTERN = Pattern.compile(
+            "(?:(un|une|deux|trois|quatre|cinq|six|sept|huit|neuf|dix|\\d+)\\s*(?:pièces?|pieces?))|(?:f(\\d+))",
+            Pattern.CASE_INSENSITIVE
+    );
+    private static final Pattern SUPERFICIE_PATTERN = Pattern.compile(
+            "(\\d+(?:[.,]\\d+)?)\\s*(?:m²|m2|mètres\\s+carrés|metres\\s+carres|mètres\\s+carre|metres\\s+carre)",
+            Pattern.CASE_INSENSITIVE
+    );
 
     public CriteresExtraitsDTO extractCriteria(String userMessage) {
         sanitizeAndValidate(userMessage);
@@ -75,19 +109,37 @@ public class RuleBasedCriteriaExtractor {
             modeTransaction = ModeTransaction.LOCATION;
         }
 
-        // 4. Nombre de pieces
+        // 4. Nombre de pieces (exclusion stricte de 'chambres' car non présent dans le schéma AnnonceEntity)
         Matcher piecesMatcher = PIECES_PATTERN.matcher(textLower);
         if (piecesMatcher.find()) {
             String p1 = piecesMatcher.group(1);
             String p2 = piecesMatcher.group(2);
             if (p1 != null) {
-                nombrePieces = Integer.parseInt(p1);
+                String p1Lower = p1.toLowerCase();
+                if (MOT_VERS_NOMBRE.containsKey(p1Lower)) {
+                    nombrePieces = MOT_VERS_NOMBRE.get(p1Lower);
+                } else {
+                    try {
+                        nombrePieces = Integer.parseInt(p1);
+                    } catch (NumberFormatException ignored) {}
+                }
             } else if (p2 != null) {
-                nombrePieces = Integer.parseInt(p2);
+                try {
+                    nombrePieces = Integer.parseInt(p2);
+                } catch (NumberFormatException ignored) {}
             }
         }
 
-        // 5. Quartiers & Villes
+        // 5. Superficie minimale
+        Matcher supMatcher = SUPERFICIE_PATTERN.matcher(textLower);
+        if (supMatcher.find()) {
+            String valStr = supMatcher.group(1).replace(',', '.');
+            try {
+                superficieMin = Double.parseDouble(valStr);
+            } catch (NumberFormatException ignored) {}
+        }
+
+        // 6. Quartiers & Villes
         if (textLower.contains("nema")) {
             quartier = "Nema";
         } else if (textLower.contains("boucotte")) {
@@ -108,32 +160,49 @@ public class RuleBasedCriteriaExtractor {
             ville = "Ziguinchor";
         }
 
-        // 6. Meublé & Animaux
+        // 7. Meublé & Animaux
         if (textLower.contains("non meublé") || textLower.contains("non meuble") || textLower.contains("vide")) {
             meuble = false;
         } else if (textLower.contains("meublé") || textLower.contains("meuble")) {
             meuble = true;
         }
 
-        if (textLower.contains("animaux")) {
+        if (textLower.contains("pas d'animaux") || textLower.contains("pas d'animal")
+                || textLower.contains("sans animaux") || textLower.contains("sans animal")
+                || textLower.contains("animaux interdits") || textLower.contains("animaux non acceptés")
+                || textLower.contains("animaux non acceptes") || textLower.contains("animaux refusés")
+                || textLower.contains("animaux refuses")) {
+            animauxAcceptes = false;
+        } else if (textLower.contains("animaux") || textLower.contains("animal")
+                || textLower.contains("chat") || textLower.contains("chien")) {
             animauxAcceptes = true;
         }
 
+        // 8. Étage (ordinaux en lettres, chiffres et RDC)
         Integer etage = null;
-        if (textLower.contains("rdc") || textLower.contains("rez-de-chaussée") || textLower.contains("rez de chaussee")) {
+        if (textLower.contains("rdc") || textLower.contains("rez-de-chaussée") || textLower.contains("rez de chaussee") || textLower.contains("rez-de-chaussee")) {
             etage = 0;
         } else {
-            Pattern etagePattern = Pattern.compile("(?:(\\d+)(?:er|ème|eme)?\\s*étage)|(?:étage\\s*(\\d+))", Pattern.CASE_INSENSITIVE);
-            Matcher etageMatcher = etagePattern.matcher(textLower);
-            if (etageMatcher.find()) {
-                String e1 = etageMatcher.group(1);
-                String e2 = etageMatcher.group(2);
-                if (e1 != null) etage = Integer.parseInt(e1);
-                else if (e2 != null) etage = Integer.parseInt(e2);
+            Pattern ordinalPattern = Pattern.compile(
+                    "\\b(premier|première|premiere|deuxième|deuxieme|second|seconde|troisième|troisieme|quatrième|quatrieme|cinquième|cinquieme|sixième|sixieme|septième|septieme|huitième|huitieme|neuvième|neuvieme|dixième|dixieme)\\s+étages?",
+                    Pattern.CASE_INSENSITIVE
+            );
+            Matcher ordMatcher = ordinalPattern.matcher(textLower);
+            if (ordMatcher.find()) {
+                etage = ORDINAUX.get(ordMatcher.group(1).toLowerCase());
+            } else {
+                Pattern etagePattern = Pattern.compile("(?:(\\d+)(?:er|ère|ere|ème|eme)?\\s*étages?)|(?:étages?\\s*(\\d+))", Pattern.CASE_INSENSITIVE);
+                Matcher etageMatcher = etagePattern.matcher(textLower);
+                if (etageMatcher.find()) {
+                    String e1 = etageMatcher.group(1);
+                    String e2 = etageMatcher.group(2);
+                    if (e1 != null) etage = Integer.parseInt(e1);
+                    else if (e2 != null) etage = Integer.parseInt(e2);
+                }
             }
         }
 
-        // 7. Confiance & Question de relance
+        // 9. Confiance & Question de relance
         int foundCount = 0;
         if (budgetMax != null || budgetMin != null) foundCount++;
         if (type != null) foundCount++;
@@ -142,8 +211,10 @@ public class RuleBasedCriteriaExtractor {
         if (nombrePieces != null) foundCount++;
         if (etage != null) foundCount++;
         if (meuble != null) foundCount++;
+        if (animauxAcceptes != null) foundCount++;
+        if (superficieMin != null) foundCount++;
 
-        double confiance = Math.min(1.0, 0.4 + (foundCount * 0.15));
+        double confiance = Math.min(1.0, 0.4 + (foundCount * 0.1));
 
         String questionDeRelance = null;
         if (budgetMax == null && budgetMin == null) {

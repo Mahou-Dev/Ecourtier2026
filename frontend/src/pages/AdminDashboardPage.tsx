@@ -87,16 +87,12 @@ export const AdminDashboardPage: React.FC = () => {
     },
     {
       etape: 'Transactions Initiées',
-      valeur: (data?.activiteCommerciale?.nombreRdvParStatut?.['EFFECTUE'] || 0) > 0 
-        ? Math.round(((data?.activiteCommerciale?.nombreRdvParStatut?.['EFFECTUE'] || 0) * (data?.activiteCommerciale?.tauxConversionRdvToTransaction || 0)) / 100)
-        : (data?.activiteCommerciale?.tauxConversionTransactionToBail || 0) > 0 ? 1 : 0,
+      valeur: data?.activiteCommerciale?.nombreTransactionsInitiees ?? 0,
       color: PALETTE.ocher,
     },
     {
       etape: 'Baux Signés Complètement',
-      valeur: data?.activiteCommerciale?.montantTotalLibere
-        ? Math.round(Number(data.activiteCommerciale.montantTotalLibere) / 5000)
-        : 0,
+      valeur: data?.activiteCommerciale?.nombreBauxSignesComplets ?? 0,
       color: PALETTE.terracotta,
     },
   ];
@@ -253,9 +249,15 @@ export const AdminDashboardPage: React.FC = () => {
                 <div className="text-xl sm:text-2xl font-display font-extrabold text-charcoal-900 truncate">
                   {formatFCFA(Number(data.activiteCommerciale?.montantTotalSequestreBloque || 0))}
                 </div>
-                <div className="flex items-center justify-between mt-2 pt-2 border-t border-sand-200/80 text-xs text-charcoal-500">
-                  <span>Revenus libérés :</span>
-                  <span className="text-emerald-700 font-extrabold">{formatFCFA(Number(data.activiteCommerciale?.montantTotalLibere || 0))}</span>
+                <div className="mt-2 pt-2 border-t border-sand-200/80 space-y-1 text-xs text-charcoal-500">
+                  <div className="flex items-center justify-between">
+                    <span>Versé propriétaires :</span>
+                    <span className="text-emerald-700 font-extrabold">{formatFCFA(Number(data.activiteCommerciale?.montantVerseProprietaires || 0))}</span>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span>Frais conservés :</span>
+                    <span className="text-terracotta-700 font-bold">{formatFCFA(Number(data.activiteCommerciale?.fraisDossierConserves || 0))}</span>
+                  </div>
                 </div>
               </Card>
             </motion.div>

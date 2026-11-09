@@ -2,6 +2,8 @@ package com.ecourtier.domain.ia.service;
 
 import com.ecourtier.domain.annonce.dto.AnnonceResponseDTO;
 import com.ecourtier.domain.annonce.entity.AnnonceEntity;
+import com.ecourtier.domain.annonce.entity.StatutPublication;
+import com.ecourtier.domain.annonce.entity.StatutVerification;
 import com.ecourtier.domain.annonce.mapper.AnnonceMapper;
 import com.ecourtier.domain.annonce.repository.AnnonceRepository;
 import com.ecourtier.domain.annonce.repository.AnnonceSpecification;
@@ -76,25 +78,44 @@ public class IAService {
         // 1. Extraire les critères du message actuel
         CriteresExtraitsDTO criteres = llmExtractionService.extractCriteria(request.getMessage());
 
-        // Fusionner avec l'historique de la conversation si disponible
+        // Fusionner avec les critères cumulés du dernier message de la conversation
         List<MessageIAEntity> historyMessages = messageIARepository.findByConversationIdOrderByDateEnvoiAsc(conversationId);
-        for (MessageIAEntity prevMsg : historyMessages) {
-            CriteresExtraitsDTO prevCrit = deserializeCriteres(prevMsg.getCriteresExtraits());
-            if (prevCrit != null) {
-                if (criteres.getQuartier() == null) criteres.setQuartier(prevCrit.getQuartier());
-                if (criteres.getVille() == null) criteres.setVille(prevCrit.getVille());
-                if (criteres.getType() == null) criteres.setType(prevCrit.getType());
-                if (criteres.getModeTransaction() == null) criteres.setModeTransaction(prevCrit.getModeTransaction());
-                if (criteres.getBudgetMax() == null) criteres.setBudgetMax(prevCrit.getBudgetMax());
-                if (criteres.getBudgetMin() == null) criteres.setBudgetMin(prevCrit.getBudgetMin());
-                if (criteres.getNombrePieces() == null) criteres.setNombrePieces(prevCrit.getNombrePieces());
-                if (criteres.getMeuble() == null) criteres.setMeuble(prevCrit.getMeuble());
+        CriteresExtraitsDTO dernierCrit = null;
+        for (int i = historyMessages.size() - 1; i >= 0; i--) {
+            CriteresExtraitsDTO c = deserializeCriteres(historyMessages.get(i).getCriteresExtraits());
+            if (c != null) {
+                dernierCrit = c;
+                break;
             }
         }
 
-        // Si le budget est présent (directement ou via fusion), annuler la question de relance
-        if (criteres.getBudgetMax() != null || criteres.getBudgetMin() != null) {
-            criteres.setQuestionDeRelance(null);
+        if (dernierCrit != null) {
+            if (criteres.getBudgetMin() == null) criteres.setBudgetMin(dernierCrit.getBudgetMin());
+            if (criteres.getBudgetMax() == null) criteres.setBudgetMax(dernierCrit.getBudgetMax());
+            if (criteres.getType() == null) criteres.setType(dernierCrit.getType());
+            if (criteres.getModeTransaction() == null) criteres.setModeTransaction(dernierCrit.getModeTransaction());
+            if (criteres.getQuartier() == null) criteres.setQuartier(dernierCrit.getQuartier());
+            if (criteres.getVille() == null) criteres.setVille(dernierCrit.getVille());
+            if (criteres.getNombrePieces() == null) criteres.setNombrePieces(dernierCrit.getNombrePieces());
+            if (criteres.getEtage() == null) criteres.setEtage(dernierCrit.getEtage());
+            if (criteres.getMeuble() == null) criteres.setMeuble(dernierCrit.getMeuble());
+            if (criteres.getAnimauxAcceptes() == null) criteres.setAnimauxAcceptes(dernierCrit.getAnimauxAcceptes());
+            if (criteres.getSuperficieMin() == null) criteres.setSuperficieMin(dernierCrit.getSuperficieMin());
+        }
+
+        // Gestion de la question de relance / clarification :
+        // Une question reste active tant que le critère auquel elle correspond n'est pas résolu.
+        String activeQuestion = criteres.getQuestionDeRelance();
+        if ((activeQuestion == null || activeQuestion.isBlank()) && dernierCrit != null && dernierCrit.getQuestionDeRelance() != null) {
+            activeQuestion = dernierCrit.getQuestionDeRelance();
+        }
+
+        if (activeQuestion != null && !activeQuestion.isBlank()) {
+            if (estQuestionResolue(activeQuestion, criteres)) {
+                criteres.setQuestionDeRelance(null);
+            } else {
+                criteres.setQuestionDeRelance(activeQuestion);
+            }
         }
 
         String criteresJson = serializeCriteres(criteres);
@@ -132,9 +153,17 @@ public class IAService {
                     criteres.getVille(),
                     criteres.getMeuble(),
                     criteres.getAnimauxAcceptes(),
-                    null, // statutVerification optionnel
-                    null  // proximite optionnelle
+                    StatutVerification.VERIFIEE,
+                    null
             );
+
+            // Imposer simultanément la disponibilité DISPONIBLE (exclut RESERVEE, LOUEE, VENDUE, SUSPENDUE)
+            spec = spec.and((root, query, cb) -> cb.equal(root.get("statutPublication"), StatutPublication.DISPONIBLE));
+
+            // Imposer l'égalité stricte sur l'étage si renseigné
+            if (criteres.getEtage() != null) {
+                spec = spec.and((root, query, cb) -> cb.equal(root.get("etage"), criteres.getEtage()));
+            }
 
             Page<AnnonceEntity> annoncesPage = annonceRepository.findAll(spec, PageRequest.of(0, 5));
             annoncesSuggeres = annoncesPage.getContent().stream()
@@ -239,5 +268,50 @@ public class IAService {
         } catch (JsonProcessingException e) {
             return null;
         }
+    }
+
+    private boolean estQuestionResolue(String question, CriteresExtraitsDTO criteres) {
+        if (question == null || question.isBlank() || criteres == null) {
+            return true;
+        }
+        String qLower = question.toLowerCase();
+        boolean mentionsBudget = qLower.contains("budget") || qLower.contains("prix");
+        boolean mentionsType = qLower.contains("type") || qLower.contains("appartement") || qLower.contains("villa") || qLower.contains("studio");
+        boolean mentionsQuartier = qLower.contains("quartier") || qLower.contains("zone") || qLower.contains("secteur") || qLower.contains("localisation");
+        boolean mentionsVille = qLower.contains("ville");
+        boolean mentionsPieces = qLower.contains("pièce") || qLower.contains("piece") || qLower.contains("chambre");
+        boolean mentionsEtage = qLower.contains("étage") || qLower.contains("etage");
+        boolean mentionsMeuble = qLower.contains("meubl");
+        boolean mentionsAnimaux = qLower.contains("anim") || qLower.contains("chat") || qLower.contains("chien");
+        boolean mentionsSuperficie = qLower.contains("surface") || qLower.contains("superficie") || qLower.contains("m²") || qLower.contains("m2");
+
+        if (mentionsBudget && (criteres.getBudgetMax() == null && criteres.getBudgetMin() == null)) {
+            return false;
+        }
+        if (mentionsType && criteres.getType() == null) {
+            return false;
+        }
+        if (mentionsQuartier && criteres.getQuartier() == null) {
+            return false;
+        }
+        if (mentionsVille && criteres.getVille() == null) {
+            return false;
+        }
+        if (mentionsPieces && criteres.getNombrePieces() == null) {
+            return false;
+        }
+        if (mentionsEtage && criteres.getEtage() == null) {
+            return false;
+        }
+        if (mentionsMeuble && criteres.getMeuble() == null) {
+            return false;
+        }
+        if (mentionsAnimaux && criteres.getAnimauxAcceptes() == null) {
+            return false;
+        }
+        if (mentionsSuperficie && criteres.getSuperficieMin() == null) {
+            return false;
+        }
+        return true;
     }
 }

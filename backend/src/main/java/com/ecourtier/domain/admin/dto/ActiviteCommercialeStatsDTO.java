@@ -18,4 +18,8 @@ public class ActiviteCommercialeStatsDTO {
     private Double tauxConversionTransactionToBail;
     private BigDecimal montantTotalSequestreBloque;
     private BigDecimal montantTotalLibere;
+    private BigDecimal montantVerseProprietaires;
+    private BigDecimal fraisDossierConserves;
+    private Long nombreTransactionsInitiees;
+    private Long nombreBauxSignesComplets;
 }

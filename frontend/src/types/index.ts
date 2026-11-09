@@ -336,6 +336,10 @@ export interface ActiviteCommercialeStatsDTO {
   tauxConversionTransactionToBail: number;
   montantTotalSequestreBloque: number;
   montantTotalLibere: number;
+  montantVerseProprietaires?: number;
+  fraisDossierConserves?: number;
+  nombreTransactionsInitiees?: number;
+  nombreBauxSignesComplets?: number;
 }
 
 export interface ModerationStatsDTO {

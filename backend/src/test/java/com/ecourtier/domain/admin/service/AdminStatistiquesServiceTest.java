@@ -8,6 +8,10 @@ import com.ecourtier.domain.annonce.entity.StatutPublication;
 import com.ecourtier.domain.annonce.entity.StatutVerification;
 import com.ecourtier.domain.annonce.entity.TypeBien;
 import com.ecourtier.domain.annonce.repository.AnnonceRepository;
+import com.ecourtier.domain.transaction.entity.StatutBail;
+import com.ecourtier.domain.transaction.entity.StatutSequestre;
+import com.ecourtier.domain.transaction.entity.TransactionEntity;
+import com.ecourtier.domain.transaction.repository.TransactionRepository;
 import com.ecourtier.domain.utilisateur.entity.Role;
 import com.ecourtier.domain.utilisateur.entity.UtilisateurEntity;
 import com.ecourtier.domain.utilisateur.repository.UtilisateurRepository;
@@ -40,6 +44,9 @@ class AdminStatistiquesServiceTest {
     private UtilisateurRepository utilisateurRepository;
 
     @Autowired
+    private TransactionRepository transactionRepository;
+
+    @Autowired
     private AdminStatistiquesRepository adminStatistiquesRepository;
 
     @Autowired
@@ -58,6 +65,7 @@ class AdminStatistiquesServiceTest {
         if (cacheManager.getCache("adminStats") != null) {
             cacheManager.getCache("adminStats").clear();
         }
+        transactionRepository.deleteAll();
         messageIARepository.deleteAll();
         conversationIARepository.deleteAll();
         annonceRepository.deleteAll();
@@ -191,5 +199,160 @@ class AdminStatistiquesServiceTest {
         assertNotNull(stats.getAssistantIA());
         assertEquals(2L, stats.getAssistantIA().getNombreConversations());
         assertEquals(50.0, stats.getAssistantIA().getTauxConversationsShortlistNonVide());
+    }
+
+    @Test
+    @DisplayName("ANO-03 : KPI financiers - calcul réel des montants propriétaires (caution + 1er loyer), frais conservés, baux signés indépendants du séquestre et filtrage temporel")
+    void testKpiFinanciersAno03() {
+        UtilisateurEntity locataire = utilisateurRepository.save(UtilisateurEntity.builder()
+                .nom("Sow")
+                .prenom("Fatou")
+                .email("fatou.sow@ecourtier.sn")
+                .motDePasse("Password123!")
+                .telephone("+221 77 111 22 33")
+                .role(Role.LOCATAIRE)
+                .actif(true)
+                .build());
+
+        AnnonceEntity annonce = annonceRepository.save(AnnonceEntity.builder()
+                .titre("Appartement Plateau")
+                .description("Bel appartement")
+                .type(TypeBien.APPARTEMENT)
+                .modeTransaction(ModeTransaction.LOCATION)
+                .prix(BigDecimal.valueOf(250000))
+                .superficie(75.0)
+                .nombrePieces(3)
+                .quartier("Plateau")
+                .ville("Dakar")
+                .latitude(14.67)
+                .longitude(-17.43)
+                .statutPublication(StatutPublication.DISPONIBLE)
+                .statutVerification(StatutVerification.VERIFIEE)
+                .utilisateur(testUser)
+                .dateCreation(LocalDateTime.now())
+                .build());
+
+        // 1. Transaction LIBERE dans la période : caution 100 000, 1er loyer 50 000, frais 5 000
+        transactionRepository.save(TransactionEntity.builder()
+                .locataire(locataire)
+                .proprietaire(testUser)
+                .annonce(annonce)
+                .montantCaution(BigDecimal.valueOf(100000))
+                .montantPremierLoyer(BigDecimal.valueOf(50000))
+                .fraisDossier(BigDecimal.valueOf(5000))
+                .statutSequestre(StatutSequestre.LIBERE)
+                .statutBail(StatutBail.SIGNE_COMPLET)
+                .dateLiberation(LocalDateTime.now().minusDays(5))
+                .dateCreation(LocalDateTime.now().minusDays(10))
+                .dossierActif(true)
+                .build());
+
+        // 2. Transaction BLOQUE : caution 200 000, 1er loyer 100 000, frais 5 000 (ne doit pas entrer dans montants libérés)
+        transactionRepository.save(TransactionEntity.builder()
+                .locataire(locataire)
+                .proprietaire(testUser)
+                .annonce(annonce)
+                .montantCaution(BigDecimal.valueOf(200000))
+                .montantPremierLoyer(BigDecimal.valueOf(100000))
+                .fraisDossier(BigDecimal.valueOf(5000))
+                .statutSequestre(StatutSequestre.BLOQUE)
+                .statutBail(StatutBail.SIGNE_LOCATAIRE)
+                .dateCreation(LocalDateTime.now().minusDays(4))
+                .dossierActif(true)
+                .build());
+
+        // 3. Transaction INITIALISE : caution 80 000, 1er loyer 40 000, frais 5 000 (ne doit pas entrer dans montants libérés)
+        transactionRepository.save(TransactionEntity.builder()
+                .locataire(locataire)
+                .proprietaire(testUser)
+                .annonce(annonce)
+                .montantCaution(BigDecimal.valueOf(80000))
+                .montantPremierLoyer(BigDecimal.valueOf(40000))
+                .fraisDossier(BigDecimal.valueOf(5000))
+                .statutSequestre(StatutSequestre.INITIALISE)
+                .statutBail(StatutBail.NON_SIGNE)
+                .dateCreation(LocalDateTime.now().minusDays(3))
+                .dossierActif(true)
+                .build());
+
+        // 4. Transaction REMBOURSE : caution 120 000, 1er loyer 60 000, frais 5 000 (ne doit pas entrer dans montants libérés)
+        transactionRepository.save(TransactionEntity.builder()
+                .locataire(locataire)
+                .proprietaire(testUser)
+                .annonce(annonce)
+                .montantCaution(BigDecimal.valueOf(120000))
+                .montantPremierLoyer(BigDecimal.valueOf(60000))
+                .fraisDossier(BigDecimal.valueOf(5000))
+                .statutSequestre(StatutSequestre.REMBOURSE)
+                .statutBail(StatutBail.NON_SIGNE)
+                .dateCreation(LocalDateTime.now().minusDays(2))
+                .dossierActif(true)
+                .build());
+
+        // 5. Transaction BLOQUE avec SIGNE_COMPLET : bail signé même si séquestre non libéré
+        transactionRepository.save(TransactionEntity.builder()
+                .locataire(locataire)
+                .proprietaire(testUser)
+                .annonce(annonce)
+                .montantCaution(BigDecimal.valueOf(90000))
+                .montantPremierLoyer(BigDecimal.valueOf(45000))
+                .fraisDossier(BigDecimal.valueOf(5000))
+                .statutSequestre(StatutSequestre.BLOQUE)
+                .statutBail(StatutBail.SIGNE_COMPLET)
+                .dateCreation(LocalDateTime.now().minusDays(1))
+                .dossierActif(true)
+                .build());
+
+        // 6. Transaction LIBERE HORS PÉRIODE (libérée il y a 45 jours, période demandée "30j")
+        transactionRepository.save(TransactionEntity.builder()
+                .locataire(locataire)
+                .proprietaire(testUser)
+                .annonce(annonce)
+                .montantCaution(BigDecimal.valueOf(70000))
+                .montantPremierLoyer(BigDecimal.valueOf(35000))
+                .fraisDossier(BigDecimal.valueOf(5000))
+                .statutSequestre(StatutSequestre.LIBERE)
+                .statutBail(StatutBail.NON_SIGNE)
+                .dateLiberation(LocalDateTime.now().minusDays(45))
+                .dossierActif(false)
+                .build());
+
+        AdminStatistiquesDTO stats = adminStatistiquesService.obtenirStatistiques("30j");
+
+        assertNotNull(stats);
+        assertNotNull(stats.getActiviteCommerciale());
+
+        // Montant versé au propriétaire : caution (100 000) + premier loyer (50 000) = 150 000 FCFA
+        assertEquals(0, new BigDecimal("150000").compareTo(stats.getActiviteCommerciale().getMontantVerseProprietaires()));
+
+        // Frais de dossier conservés : 5 000 FCFA
+        assertEquals(0, new BigDecimal("5000").compareTo(stats.getActiviteCommerciale().getFraisDossierConserves()));
+
+        // Montant total libéré = 150 000 + 5 000 = 155 000 FCFA
+        assertEquals(0, new BigDecimal("155000").compareTo(stats.getActiviteCommerciale().getMontantTotalLibere()));
+
+        // Séquestre bloqué : Tx 2 (200k+100k+5k = 305k) + Tx 5 (90k+45k+5k = 140k) = 445 000 FCFA
+        assertEquals(0, new BigDecimal("445000").compareTo(stats.getActiviteCommerciale().getMontantTotalSequestreBloque()));
+
+        // Nombre de baux signés complètement : Tx 1 et Tx 5 dans les 30 derniers jours = 2
+        assertEquals(2L, stats.getActiviteCommerciale().getNombreBauxSignesComplets());
+
+        // Nombre réel de transactions initiées créées : Tx 1, 2, 3, 4, 5, 6 = 6
+        assertEquals(6L, stats.getActiviteCommerciale().getNombreTransactionsInitiees());
+    }
+
+    @Test
+    @DisplayName("ANO-03 : KPI financiers - aucune transaction (zéro division par zéro, valeurs cohérentes)")
+    void testKpiFinanciersAucuneTransaction() {
+        AdminStatistiquesDTO stats = adminStatistiquesService.obtenirStatistiques("30j");
+
+        assertNotNull(stats);
+        assertNotNull(stats.getActiviteCommerciale());
+        assertEquals(0, BigDecimal.ZERO.compareTo(stats.getActiviteCommerciale().getMontantVerseProprietaires()));
+        assertEquals(0, BigDecimal.ZERO.compareTo(stats.getActiviteCommerciale().getFraisDossierConserves()));
+        assertEquals(0, BigDecimal.ZERO.compareTo(stats.getActiviteCommerciale().getMontantTotalLibere()));
+        assertEquals(0, BigDecimal.ZERO.compareTo(stats.getActiviteCommerciale().getMontantTotalSequestreBloque()));
+        assertEquals(0L, stats.getActiviteCommerciale().getNombreBauxSignesComplets());
+        assertEquals(0L, stats.getActiviteCommerciale().getNombreTransactionsInitiees());
     }
 }

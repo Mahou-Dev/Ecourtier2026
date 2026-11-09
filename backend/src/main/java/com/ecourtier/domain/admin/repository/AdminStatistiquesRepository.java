@@ -51,6 +51,12 @@ public interface AdminStatistiquesRepository extends JpaRepository<UtilisateurEn
     @Query("SELECT COALESCE(SUM(COALESCE(t.montantCaution, 0) + COALESCE(t.montantPremierLoyer, 0) + COALESCE(t.fraisDossier, 0)), 0) FROM TransactionEntity t WHERE t.statutSequestre = com.ecourtier.domain.transaction.entity.StatutSequestre.BLOQUE")
     BigDecimal sumMontantSequestreBloque();
 
+    @Query("SELECT COALESCE(SUM(COALESCE(t.montantCaution, 0) + COALESCE(t.montantPremierLoyer, 0)), 0) FROM TransactionEntity t WHERE t.statutSequestre = com.ecourtier.domain.transaction.entity.StatutSequestre.LIBERE AND t.dateLiberation >= :dateDebut")
+    BigDecimal sumMontantVerseProprietaires(@Param("dateDebut") LocalDateTime dateDebut);
+
+    @Query("SELECT COALESCE(SUM(COALESCE(t.fraisDossier, 0)), 0) FROM TransactionEntity t WHERE t.statutSequestre = com.ecourtier.domain.transaction.entity.StatutSequestre.LIBERE AND t.dateLiberation >= :dateDebut")
+    BigDecimal sumFraisDossierConserves(@Param("dateDebut") LocalDateTime dateDebut);
+
     @Query("SELECT s.statut, COUNT(s) FROM SignalementEntity s GROUP BY s.statut")
     List<Object[]> countSignalementsByStatut();
 

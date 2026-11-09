@@ -192,7 +192,10 @@ public class AdminStatistiquesService {
         Double txToBailRate = countTxInitiated == 0 ? 0.0 : Math.round((countBauxComplet / (double) countTxInitiated) * 1000.0) / 10.0;
 
         BigDecimal totalSequestreBloque = repository.sumMontantSequestreBloque();
-        BigDecimal totalLibere = BigDecimal.valueOf(5000).multiply(BigDecimal.valueOf(countBauxComplet));
+        BigDecimal montantVerseProprietaires = repository.sumMontantVerseProprietaires(dateDebut);
+        BigDecimal fraisDossierConserves = repository.sumFraisDossierConserves(dateDebut);
+        BigDecimal totalLibere = (montantVerseProprietaires != null ? montantVerseProprietaires : BigDecimal.ZERO)
+                .add(fraisDossierConserves != null ? fraisDossierConserves : BigDecimal.ZERO);
 
         return ActiviteCommercialeStatsDTO.builder()
                 .nombreRdvParStatut(rdvMap)
@@ -200,6 +203,10 @@ public class AdminStatistiquesService {
                 .tauxConversionTransactionToBail(txToBailRate)
                 .montantTotalSequestreBloque(totalSequestreBloque)
                 .montantTotalLibere(totalLibere)
+                .montantVerseProprietaires(montantVerseProprietaires)
+                .fraisDossierConserves(fraisDossierConserves)
+                .nombreTransactionsInitiees(countTxInitiated)
+                .nombreBauxSignesComplets(countBauxComplet)
                 .build();
     }
 
