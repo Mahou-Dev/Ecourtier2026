@@ -12,6 +12,8 @@ import org.springframework.stereotype.Repository;
 import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import java.util.UUID;
 
 @Repository
@@ -30,4 +32,6 @@ public interface TransactionRepository extends JpaRepository<TransactionEntity, 
     List<TransactionEntity> findByLocataireIdOrProprietaireIdOrderByDateCreationDesc(UUID locataireId, UUID proprietaireId);
 
     Optional<TransactionEntity> findByAnnonceIdAndLocataireId(UUID annonceId, UUID locataireId);
+
+    Page<TransactionEntity> findByStatutSequestre(StatutSequestre statutSequestre, Pageable pageable);
 }

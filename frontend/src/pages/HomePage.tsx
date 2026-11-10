@@ -188,6 +188,11 @@ export const HomePage: React.FC = () => {
                   <img
                     src="https://images.unsplash.com/photo-1600585154340-be6161a56a0c?auto=format&fit=crop&w=800&q=80"
                     alt="Architecture Sénégal"
+                    loading="eager"
+                    fetchPriority="high"
+                    decoding="async"
+                    width={800}
+                    height={256}
                     className="w-full h-full object-cover"
                   />
                   <div className="absolute top-3 left-3 bg-sahel-900/90 text-white text-[11px] font-bold px-3 py-1 rounded-full backdrop-blur-xs border border-sahel-700 flex items-center gap-1.5">
@@ -273,7 +278,15 @@ export const HomePage: React.FC = () => {
                 to={`/recherche?city=${nh.city}`}
                 className="group relative h-48 rounded-xl overflow-hidden border border-argile-200 transition-all duration-300 hover:border-terracotta-400 hover:shadow-terracotta-card flex flex-col justify-end"
               >
-                <img src={nh.image} alt={nh.name} className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105 absolute inset-0" />
+                <img
+                  src={nh.image}
+                  alt={nh.name}
+                  loading="lazy"
+                  decoding="async"
+                  width={400}
+                  height={192}
+                  className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105 absolute inset-0"
+                />
                 <div className="absolute inset-0 bg-gradient-to-t from-charcoal-900/90 via-charcoal-900/40 to-transparent p-3.5 flex flex-col justify-end text-white z-10">
                   <span className="text-[10px] font-bold text-ocher-400 uppercase tracking-wider">{nh.city}</span>
                   <h3 className="font-display font-bold text-sm text-white group-hover:text-terracotta-200 transition-colors">{nh.name}</h3>
@@ -418,6 +431,10 @@ export const HomePage: React.FC = () => {
                     <img
                       src={photoUrl}
                       alt={prop.titre}
+                      loading="lazy"
+                      decoding="async"
+                      width={400}
+                      height={224}
                       className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
                     />
                     {prop.statutVerification === 'VERIFIEE' && (

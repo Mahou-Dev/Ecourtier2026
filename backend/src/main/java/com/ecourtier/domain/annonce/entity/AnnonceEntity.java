@@ -122,20 +122,23 @@ public class AnnonceEntity {
     private UtilisateurEntity utilisateur;
 
     @OneToMany(mappedBy = "annonce", cascade = CascadeType.ALL, orphanRemoval = true)
+    @org.hibernate.annotations.BatchSize(size = 30)
     @Builder.Default
     private List<PhotoAnnonceEntity> photos = new ArrayList<>();
 
-    @ElementCollection(targetClass = Equipement.class, fetch = FetchType.EAGER)
+    @ElementCollection(targetClass = Equipement.class, fetch = FetchType.LAZY)
     @CollectionTable(name = "equipements_annonces", joinColumns = @JoinColumn(name = "annonce_id"))
     @Column(name = "equipement", nullable = false, length = 50)
     @Enumerated(EnumType.STRING)
+    @org.hibernate.annotations.BatchSize(size = 30)
     @Builder.Default
     private Set<Equipement> equipements = new HashSet<>();
 
-    @ElementCollection(targetClass = ProximiteTag.class, fetch = FetchType.EAGER)
+    @ElementCollection(targetClass = ProximiteTag.class, fetch = FetchType.LAZY)
     @CollectionTable(name = "proximites_annonces", joinColumns = @JoinColumn(name = "annonce_id"))
     @Column(name = "proximite", nullable = false, length = 50)
     @Enumerated(EnumType.STRING)
+    @org.hibernate.annotations.BatchSize(size = 30)
     @Builder.Default
     private Set<ProximiteTag> proximites = new HashSet<>();
 

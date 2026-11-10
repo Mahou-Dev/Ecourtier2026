@@ -26,7 +26,12 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.server.ResponseStatusException;
-
+import com.ecourtier.domain.transaction.entity.StatutSequestre;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
+import org.springframework.data.web.PageableDefault;
+import org.springframework.web.bind.annotation.RequestParam;
 import java.io.File;
 import java.util.UUID;
 
@@ -81,6 +86,20 @@ public class TransactionController {
             Authentication authentication
     ) {
         TransactionResponseDTO response = transactionService.rembourserTransaction(id, request, authentication.getName());
+        return ResponseEntity.ok(response);
+    }
+
+    @GetMapping("/admin/transactions")
+    @PreAuthorize("hasRole('ADMIN')")
+    @Operation(
+            summary = "Lister toutes les transactions pour la gestion administrative et le remboursement (ADMIN)",
+            description = "Retourne la liste paginée de toutes les transactions avec filtrage optionnel par statut de séquestre."
+    )
+    public ResponseEntity<Page<TransactionResponseDTO>> listerTransactionsAdmin(
+            @RequestParam(value = "statut", required = false) StatutSequestre statut,
+            @PageableDefault(size = 20, sort = "dateCreation", direction = Sort.Direction.DESC) Pageable pageable
+    ) {
+        Page<TransactionResponseDTO> response = transactionService.listerToutesLesTransactions(statut, pageable);
         return ResponseEntity.ok(response);
     }
 

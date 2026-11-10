@@ -376,4 +376,193 @@ public class AnnonceIntegrationTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.statutVerification").value("VERIFIEE"));
     }
+
+    private UUID createAndVerifyAnnonce() throws Exception {
+        AnnonceCreateDTO dto = AnnonceCreateDTO.builder()
+                .titre("Villa Test Verification")
+                .description("Description initiale de l'annonce")
+                .type(TypeBien.VILLA)
+                .modeTransaction(ModeTransaction.LOCATION)
+                .prix(new BigDecimal("300000"))
+                .superficie(150.0)
+                .nombrePieces(4)
+                .quartier("Mermoz")
+                .ville("Dakar")
+                .latitude(14.7100)
+                .longitude(-17.4700)
+                .build();
+
+        MvcResult createResult = mockMvc.perform(post("/api/v1/annonces")
+                        .header("Authorization", "Bearer " + tokenProprietaire1)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(dto)))
+                .andExpect(status().isCreated())
+                .andReturn();
+
+        UUID annonceId = UUID.fromString(objectMapper.readTree(createResult.getResponse().getContentAsString()).get("id").asText());
+
+        byte[] validPng = new byte[]{(byte) 0x89, 'P', 'N', 'G', 0x0D, 0x0A, 0x1A, 0x0A, 0x00, 0x00, 0x00, 0x0D};
+        byte[] validPdf = "%PDF-1.4\n1 0 obj\n<< /Type /Catalog >>\nendobj\n%%EOF".getBytes(java.nio.charset.StandardCharsets.UTF_8);
+
+        mockMvc.perform(multipart("/api/v1/annonces/" + annonceId + "/documents")
+                        .file(new MockMultipartFile("file", "cni.png", "image/png", validPng))
+                        .param("typeDocument", "PIECE_IDENTITE")
+                        .header("Authorization", "Bearer " + tokenProprietaire1))
+                .andExpect(status().isCreated());
+
+        mockMvc.perform(multipart("/api/v1/annonces/" + annonceId + "/documents")
+                        .file(new MockMultipartFile("file", "titre.pdf", "application/pdf", validPdf))
+                        .param("typeDocument", "TITRE_FONCIER")
+                        .header("Authorization", "Bearer " + tokenProprietaire1))
+                .andExpect(status().isCreated());
+
+        VerificationDecisionDTO decision = VerificationDecisionDTO.builder()
+                .statutVerification(StatutVerification.VERIFIEE)
+                .build();
+
+        mockMvc.perform(put("/api/v1/admin/annonces/" + annonceId + "/verifier")
+                        .header("Authorization", "Bearer " + tokenAdmin)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(decision)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.statutVerification").value("VERIFIEE"));
+
+        return annonceId;
+    }
+
+    @Test
+    @DisplayName("ANO-08: Validation DTO - Prix négatif ou nul rejeté (400 Bad Request)")
+    void testANO08_ValidationPrixInvalide() throws Exception {
+        UUID annonceId = createAndVerifyAnnonce();
+
+        // Prix négatif
+        mockMvc.perform(put("/api/v1/annonces/" + annonceId)
+                        .header("Authorization", "Bearer " + tokenProprietaire1)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"prix\": -50000}"))
+                .andExpect(status().isBadRequest());
+
+        // Prix nul (zéro)
+        mockMvc.perform(put("/api/v1/annonces/" + annonceId)
+                        .header("Authorization", "Bearer " + tokenProprietaire1)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"prix\": 0}"))
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    @DisplayName("ANO-08: Validation DTO - Superficie négative ou nulle rejetée (400 Bad Request)")
+    void testANO08_ValidationSuperficieInvalide() throws Exception {
+        UUID annonceId = createAndVerifyAnnonce();
+
+        // Superficie négative
+        mockMvc.perform(put("/api/v1/annonces/" + annonceId)
+                        .header("Authorization", "Bearer " + tokenProprietaire1)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"superficie\": -25.0}"))
+                .andExpect(status().isBadRequest());
+
+        // Superficie nulle (zéro)
+        mockMvc.perform(put("/api/v1/annonces/" + annonceId)
+                        .header("Authorization", "Bearer " + tokenProprietaire1)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"superficie\": 0.0}"))
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    @DisplayName("ANO-08: Validation DTO - Coordonnées GPS hors limites rejetées (400 Bad Request)")
+    void testANO08_ValidationCoordonneesGpsInvalides() throws Exception {
+        UUID annonceId = createAndVerifyAnnonce();
+
+        // Latitude hors bornes géographiques (> 90)
+        mockMvc.perform(put("/api/v1/annonces/" + annonceId)
+                        .header("Authorization", "Bearer " + tokenProprietaire1)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"latitude\": 95.0}"))
+                .andExpect(status().isBadRequest());
+
+        // Longitude hors bornes géographiques (< -180)
+        mockMvc.perform(put("/api/v1/annonces/" + annonceId)
+                        .header("Authorization", "Bearer " + tokenProprietaire1)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"longitude\": -185.0}"))
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    @DisplayName("ANO-08: Validation DTO - Titre trop court rejeté (400 Bad Request)")
+    void testANO08_ValidationTitreTropCourt() throws Exception {
+        UUID annonceId = createAndVerifyAnnonce();
+
+        // Titre de 2 caractères (< 3)
+        mockMvc.perform(put("/api/v1/annonces/" + annonceId)
+                        .header("Authorization", "Bearer " + tokenProprietaire1)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"titre\": \"AB\"}"))
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    @DisplayName("ANO-08: Modification substantielle d'une annonce VERIFIEE réinitialise le statut à EN_ATTENTE et dateVerification à null")
+    void testANO08_ModificationSubstantielleReinitialiseStatut() throws Exception {
+        UUID annonceId = createAndVerifyAnnonce();
+
+        // Modification substantielle : changement de prix
+        mockMvc.perform(put("/api/v1/annonces/" + annonceId)
+                        .header("Authorization", "Bearer " + tokenProprietaire1)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"prix\": 450000}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.statutVerification").value("EN_ATTENTE"))
+                .andExpect(jsonPath("$.dateVerification").doesNotExist())
+                .andExpect(jsonPath("$.prix").value(450000));
+
+        // Vérification en base de données de l'invalidation
+        var annonceEnBase = annonceRepository.findById(annonceId).orElseThrow();
+        org.junit.jupiter.api.Assertions.assertEquals(StatutVerification.EN_ATTENTE, annonceEnBase.getStatutVerification());
+        org.junit.jupiter.api.Assertions.assertNull(annonceEnBase.getDateVerification());
+    }
+
+    @Test
+    @DisplayName("ANO-08: Modification non substantielle conserve le statut VERIFIEE et sa date")
+    void testANO08_ModificationNonSubstantielleConserveStatut() throws Exception {
+        UUID annonceId = createAndVerifyAnnonce();
+
+        var annonceAvant = annonceRepository.findById(annonceId).orElseThrow();
+        java.time.LocalDateTime dateAvant = annonceAvant.getDateVerification();
+        org.junit.jupiter.api.Assertions.assertNotNull(dateAvant);
+
+        // Modification éditoriale : titre et description uniquement
+        mockMvc.perform(put("/api/v1/annonces/" + annonceId)
+                        .header("Authorization", "Bearer " + tokenProprietaire1)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"titre\": \"Nouveau titre valide\", \"description\": \"Nouvelle description mise à jour\"}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.statutVerification").value("VERIFIEE"))
+                .andExpect(jsonPath("$.titre").value("Nouveau titre valide"));
+
+        var annonceApres = annonceRepository.findById(annonceId).orElseThrow();
+        org.junit.jupiter.api.Assertions.assertEquals(StatutVerification.VERIFIEE, annonceApres.getStatutVerification());
+        org.junit.jupiter.api.Assertions.assertEquals(dateAvant, annonceApres.getDateVerification());
+    }
+
+    @Test
+    @DisplayName("ANO-08: Tentative de forçage de statutVerification dans le payload PUT est ignorée")
+    void testANO08_TentativeInjectionStatutVerificationIgnoree() throws Exception {
+        UUID annonceId = createAndVerifyAnnonce();
+
+        // Tentative d'injection malveillante de statutVerification=VERIFIEE lors d'un changement de prix
+        mockMvc.perform(put("/api/v1/annonces/" + annonceId)
+                        .header("Authorization", "Bearer " + tokenProprietaire1)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"prix\": 750000, \"statutVerification\": \"VERIFIEE\"}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.statutVerification").value("EN_ATTENTE"))
+                .andExpect(jsonPath("$.prix").value(750000));
+
+        var annonceEnBase = annonceRepository.findById(annonceId).orElseThrow();
+        org.junit.jupiter.api.Assertions.assertEquals(StatutVerification.EN_ATTENTE, annonceEnBase.getStatutVerification());
+        org.junit.jupiter.api.Assertions.assertNull(annonceEnBase.getDateVerification());
+    }
 }

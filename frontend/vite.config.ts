@@ -12,20 +12,60 @@ export default defineConfig({
       injectRegister: 'auto',
       workbox: {
         globPatterns: ['**/*.{js,css,html,ico,png,svg,woff2}'],
+        globIgnores: [
+          '**/Admin*.js',
+          '**/admin.*.js',
+          '**/DashboardPage*.js',
+          '**/MonComptePage*.js',
+        ],
         runtimeCaching: [
           {
-            // Scope strictly to public GET /api/v1/annonces and /api/v1/annonces/{id}
+            // Scope strictly to anonymous public GET /api/v1/annonces and /api/v1/annonces/{id}
             urlPattern: ({ url, request }) => {
+              // 1. Only GET requests
               if (request.method !== 'GET') return false;
+
+              // 2. Reject ANY request bearing an Authorization header (authenticated contexts)
+              const authHeader = request.headers
+                ? (request.headers.get('authorization') || request.headers.get('Authorization'))
+                : null;
+              if (authHeader) return false;
+
+              // 2b. Reject ANY request bearing cookies or credentials (session/cookie auth contexts)
+              const cookieHeader = request.headers
+                ? (request.headers.get('cookie') || request.headers.get('Cookie'))
+                : null;
+              if (cookieHeader) return false;
+              const creds = (request as any).credentials;
+              if (creds === 'include' || creds === 'same-origin') return false;
+
               const pathname = url.pathname;
               const search = url.search;
 
-              // Exclude administrative, authenticated, or private routes
-              if (pathname.includes('/admin') || pathname.includes('/auth')) return false;
-              if (search.includes('mes_annonces') || search.includes('mes-annonces') || search.includes('mes-transactions')) return false;
+              // 3. Exclude administrative, authentication, and user-private routes
+              if (pathname.includes('/admin') || pathname.includes('/auth') || pathname.includes('/utilisateurs/moi')) {
+                return false;
+              }
 
-              // Include public listing endpoints
-              return pathname === '/api/v1/annonces' || /^\/api\/v1\/annonces\/[a-f0-9-]+$/i.test(pathname);
+              // 4. Exclude verification documents, user uploads, and private queries
+              if (pathname.includes('/documents') || pathname.includes('/fichier')) {
+                return false;
+              }
+              if (
+                search.includes('mes_annonces') ||
+                search.includes('mes-annonces') ||
+                search.includes('mes-transactions') ||
+                search.includes('favoris')
+              ) {
+                return false;
+              }
+
+              // 5. Match only genuinely public listing endpoints
+              return (
+                pathname === '/api/v1/annonces' ||
+                pathname === '/api/v1/annonces/quartiers' ||
+                /^\/api\/v1\/annonces\/[a-f0-9-]+$/i.test(pathname)
+              );
             },
             handler: 'StaleWhileRevalidate',
             options: {
@@ -35,7 +75,7 @@ export default defineConfig({
                 maxAgeSeconds: 24 * 60 * 60, // 24h
               },
               cacheableResponse: {
-                statuses: [0, 200],
+                statuses: [200],
               },
             },
           },
@@ -45,6 +85,7 @@ export default defineConfig({
         name: 'E-Courtier Sénégal',
         short_name: 'E-Courtier',
         description: 'Plateforme immobilière sénégalaise avec contrôle cadastral & séquestre bancaire',
+        lang: 'fr',
         theme_color: '#1a3c34',
         background_color: '#faf8f5',
         display: 'standalone',
@@ -77,6 +118,9 @@ export default defineConfig({
           if (id.includes('node_modules')) {
             if (id.includes('leaflet')) {
               return 'vendor-leaflet';
+            }
+            if (id.includes('yet-another-react-lightbox')) {
+              return 'vendor-lightbox';
             }
             if (id.includes('@radix-ui')) {
               return 'vendor-radix';

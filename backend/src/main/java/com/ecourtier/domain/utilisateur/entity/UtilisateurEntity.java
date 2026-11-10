@@ -20,6 +20,7 @@ import java.util.UUID;
 
 @Entity
 @Table(name = "utilisateurs")
+@org.hibernate.annotations.BatchSize(size = 30)
 @Getter
 @Setter
 @NoArgsConstructor

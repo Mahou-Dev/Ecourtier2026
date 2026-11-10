@@ -185,12 +185,21 @@ export interface TransactionResponseDTO {
   montantVerseProprietaire: number;
   statutSequestre: StatutSequestre;
   referenceWave?: string;
+  datePaiement?: string;
+  referenceRemboursementWave?: string;
+  montantRembourse?: number;
+  dateRemboursement?: string;
+  motifRemboursement?: string;
   statutBail: StatutBail;
   dateSignatureLocataire?: string;
   dateSignatureProprietaire?: string;
   dateLiberation?: string;
   pdfBailPath?: string;
   dateCreation: string;
+}
+
+export interface RemboursementRequestDTO {
+  motif?: string;
 }
 
 export type TypeNotificationSms = 'RDV_DEMANDE' | 'RDV_CONFIRME' | 'RDV_ANNULE' | 'RDV_RAPPEL';

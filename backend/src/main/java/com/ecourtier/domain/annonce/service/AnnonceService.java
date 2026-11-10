@@ -28,6 +28,7 @@ import com.ecourtier.domain.favori.repository.FavoriRepository;
 import com.ecourtier.domain.utilisateur.entity.UtilisateurEntity;
 import com.ecourtier.domain.utilisateur.repository.UtilisateurRepository;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.domain.Specification;
@@ -45,6 +46,7 @@ import java.util.Set;
 import java.util.UUID;
 
 @Service
+@Slf4j
 @RequiredArgsConstructor
 public class AnnonceService {
 
@@ -114,6 +116,14 @@ public class AnnonceService {
         Double effectiveLon = dto.getLongitude() != null ? dto.getLongitude() : annonce.getLongitude();
         validerCoordonneesSenegal(effectiveLat, effectiveLon);
 
+        // ANO-08 : Invalidation du badge si l'annonce est VERIFIEE et subit une modification substantielle
+        boolean modificationSubstantielle = estModificationSubstantielle(annonce, dto);
+        if (annonce.getStatutVerification() == StatutVerification.VERIFIEE && modificationSubstantielle) {
+            log.info("[ANO-08] Invalidation du statut de vérification pour l'annonce {}: passage de VERIFIEE à EN_ATTENTE suite à modification substantielle.", id);
+            annonce.setStatutVerification(StatutVerification.EN_ATTENTE);
+            annonce.setDateVerification(null);
+        }
+
         if (dto.getTitre() != null) annonce.setTitre(dto.getTitre());
         if (dto.getDescription() != null) annonce.setDescription(dto.getDescription());
         if (dto.getType() != null) annonce.setType(dto.getType());
@@ -136,6 +146,60 @@ public class AnnonceService {
 
         AnnonceEntity updated = annonceRepository.save(annonce);
         return annonceMapper.toResponseDTO(updated);
+    }
+
+    /**
+     * ANO-08 : Détermine si la mise à jour contient une modification substantielle
+     * sur l'un des 7 attributs critiques : prix, superficie, type, modeTransaction,
+     * quartier, latitude, longitude.
+     */
+    private boolean estModificationSubstantielle(AnnonceEntity annonce, AnnonceUpdateDTO dto) {
+        // 1. Prix
+        if (dto.getPrix() != null && (annonce.getPrix() == null || dto.getPrix().compareTo(annonce.getPrix()) != 0)) {
+            return true;
+        }
+
+        // 2. Superficie
+        if (dto.getSuperficie() != null) {
+            if (annonce.getSuperficie() == null || Math.abs(dto.getSuperficie() - annonce.getSuperficie()) > 0.0001) {
+                return true;
+            }
+        }
+
+        // 3. Type de bien
+        if (dto.getType() != null && dto.getType() != annonce.getType()) {
+            return true;
+        }
+
+        // 4. Mode de transaction
+        if (dto.getModeTransaction() != null && dto.getModeTransaction() != annonce.getModeTransaction()) {
+            return true;
+        }
+
+        // 5. Quartier (normalisation sans espaces superflus, insensible à la casse)
+        if (dto.getQuartier() != null) {
+            String oldQuartier = annonce.getQuartier() != null ? annonce.getQuartier().trim() : "";
+            String newQuartier = dto.getQuartier().trim();
+            if (!oldQuartier.equalsIgnoreCase(newQuartier)) {
+                return true;
+            }
+        }
+
+        // 6. Latitude
+        if (dto.getLatitude() != null) {
+            if (annonce.getLatitude() == null || Math.abs(dto.getLatitude() - annonce.getLatitude()) > 0.000001) {
+                return true;
+            }
+        }
+
+        // 7. Longitude
+        if (dto.getLongitude() != null) {
+            if (annonce.getLongitude() == null || Math.abs(dto.getLongitude() - annonce.getLongitude()) > 0.000001) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     @Transactional

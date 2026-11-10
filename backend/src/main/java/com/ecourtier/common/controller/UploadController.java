@@ -12,8 +12,11 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
+import java.io.IOException;
 import java.net.MalformedURLException;
+import java.nio.file.Files;
 import java.nio.file.InvalidPathException;
+import java.nio.file.LinkOption;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 
@@ -24,6 +27,14 @@ public class UploadController {
 
     private final Path fileStorageLocation = Paths.get("uploads").toAbsolutePath().normalize();
     private final Path annoncesStorageLocation = fileStorageLocation.resolve("annonces").normalize();
+
+    public UploadController() {
+        try {
+            if (!Files.exists(annoncesStorageLocation)) {
+                Files.createDirectories(annoncesStorageLocation);
+            }
+        } catch (IOException ignored) {}
+    }
 
     @GetMapping("/annonces/{id}/{filename:.+}")
     @Operation(summary = "Consulter une photo d'annonce téléversée", description = "Servir une photo d'annonce publique.")
@@ -46,7 +57,34 @@ public class UploadController {
                 return ResponseEntity.badRequest().build();
             }
 
-            Resource resource = new UrlResource(filePath.toUri());
+            // Vérification anti-liens symboliques explicite
+            if (Files.isSymbolicLink(filePath) || Files.isSymbolicLink(annonceDir)) {
+                return ResponseEntity.badRequest().build();
+            }
+
+            if (!Files.exists(filePath, LinkOption.NOFOLLOW_LINKS)) {
+                return ResponseEntity.notFound().build();
+            }
+
+            // Vérification du chemin réel canonique (toRealPath)
+            Path realFilePath;
+            Path realRootLocation;
+            try {
+                realFilePath = filePath.toRealPath();
+                realRootLocation = annoncesStorageLocation.toRealPath();
+            } catch (IOException ioEx) {
+                return ResponseEntity.notFound().build();
+            }
+
+            if (!realFilePath.startsWith(realRootLocation)) {
+                return ResponseEntity.badRequest().build();
+            }
+
+            if (!Files.isRegularFile(realFilePath, LinkOption.NOFOLLOW_LINKS) || !Files.isReadable(realFilePath)) {
+                return ResponseEntity.notFound().build();
+            }
+
+            Resource resource = new UrlResource(realFilePath.toUri());
 
             if (resource.exists() && resource.isReadable()) {
                 String contentType = getContentType(filename);
@@ -69,6 +107,7 @@ public class UploadController {
         return !segment.contains("..")
                 && !segment.contains("/")
                 && !segment.contains("\\")
+                && !segment.contains(":")
                 && segment.indexOf('\0') < 0;
     }
 

@@ -14,6 +14,7 @@ import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Component;
 
 import java.util.Comparator;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 import java.util.UUID;
@@ -72,8 +73,8 @@ public class AnnonceMapper {
                 .auteurRole(entity.getUtilisateur() != null ? entity.getUtilisateur().getRole() : null)
                 .auteur(utilisateurMapper.toResponseDTO(entity.getUtilisateur()))
                 .photos(photos)
-                .equipements(entity.getEquipements())
-                .proximites(entity.getProximites())
+                .equipements(entity.getEquipements() == null ? Set.of() : new HashSet<>(entity.getEquipements()))
+                .proximites(entity.getProximites() == null ? Set.of() : new HashSet<>(entity.getProximites()))
                 .documentsVerification(docs)
                 .build();
     }

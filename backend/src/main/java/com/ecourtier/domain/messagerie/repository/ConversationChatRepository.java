@@ -1,6 +1,7 @@
 package com.ecourtier.domain.messagerie.repository;
 
 import com.ecourtier.domain.messagerie.entity.ConversationChatEntity;
+import org.springframework.data.jpa.repository.EntityGraph;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
@@ -13,8 +14,14 @@ import java.util.UUID;
 @Repository
 public interface ConversationChatRepository extends JpaRepository<ConversationChatEntity, UUID> {
 
+    @EntityGraph(attributePaths = {"annonce", "locataire", "proprietaire"})
     Optional<ConversationChatEntity> findByAnnonceIdAndLocataireId(UUID annonceId, UUID locataireId);
 
+    @Override
+    @EntityGraph(attributePaths = {"annonce", "locataire", "proprietaire"})
+    Optional<ConversationChatEntity> findById(UUID id);
+
+    @EntityGraph(attributePaths = {"annonce", "locataire", "proprietaire"})
     @Query("SELECT c FROM ConversationChatEntity c WHERE c.locataire.id = :userId OR c.proprietaire.id = :userId ORDER BY c.dateCreation DESC")
     List<ConversationChatEntity> findAllByUserId(@Param("userId") UUID userId);
 

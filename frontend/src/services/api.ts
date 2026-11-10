@@ -1,7 +1,9 @@
 import { useAuthStore } from '../store/useAuthStore';
 import { HealthCheckResponse } from '../types';
 
-export const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080';
+export const API_BASE_URL = import.meta.env.VITE_API_BASE_URL !== undefined
+  ? import.meta.env.VITE_API_BASE_URL
+  : (typeof window !== 'undefined' && window.location.port === '5173' ? 'http://localhost:5173' : 'http://localhost:8080');
 
 let isRefreshing = false;
 let failedQueue: Array<{

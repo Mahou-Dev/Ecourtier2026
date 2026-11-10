@@ -4,6 +4,7 @@ import org.flywaydb.core.Flyway;
 import org.flywaydb.core.api.MigrationInfo;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.condition.EnabledIf;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.test.annotation.DirtiesContext;
@@ -27,23 +28,42 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 })
 @ActiveProfiles("test")
 @DirtiesContext
+@EnabledIf("isDatabaseReachable")
 public class FlywayFreshMigrationIntegrationTest {
+
+    static boolean isDatabaseReachable() {
+        String host = System.getenv("DB_HOST");
+        if (host == null || host.isBlank()) {
+            host = System.getProperty("DB_HOST", "ecourtier-db");
+        }
+        int port = 5432;
+        try {
+            port = Integer.parseInt(System.getenv().getOrDefault("DB_PORT", System.getProperty("DB_PORT", "5432")));
+        } catch (NumberFormatException ignored) {}
+
+        try (java.net.Socket socket = new java.net.Socket()) {
+            socket.connect(new java.net.InetSocketAddress(host, port), 400);
+            return true;
+        } catch (Exception e) {
+            return false;
+        }
+    }
 
     @Autowired(required = false)
     private Flyway flyway;
 
     @Test
-    @DisplayName("Vérifie l'exécution sans erreur de toutes les migrations Flyway (V1 à V14) sur une base PostgreSQL vierge")
+    @DisplayName("Vérifie l'exécution sans erreur de toutes les migrations Flyway (V1 à V15) sur une base PostgreSQL vierge")
     void testFlywayMigrationsOnFreshDatabase() {
         assertNotNull(flyway, "Flyway bean doit être disponible");
         MigrationInfo current = flyway.info().current();
         assertNotNull(current, "Une version courante de migration doit être enregistrée");
-        assertEquals("14", current.getVersion().getVersion(), "La dernière migration appliquée doit être la V14");
-        assertTrue(current.getState().isApplied(), "La migration V14 doit être appliquée avec succès");
+        assertEquals("15", current.getVersion().getVersion(), "La dernière migration appliquée doit être la V15");
+        assertTrue(current.getState().isApplied(), "La migration V15 doit être appliquée avec succès");
 
         MigrationInfo[] applied = flyway.info().applied();
-        assertEquals(14, applied.length, "Toutes les migrations V1 à V14 doivent être appliquées");
-        for (int v = 1; v <= 14; v++) {
+        assertEquals(15, applied.length, "Toutes les migrations V1 à V15 doivent être appliquées");
+        for (int v = 1; v <= 15; v++) {
             MigrationInfo migration = applied[v - 1];
             assertEquals(String.valueOf(v), migration.getVersion().getVersion(),
                     "La migration V" + v + " doit être présente dans l'ordre");

@@ -75,6 +75,21 @@ public class IAService {
 
         verifierAccesConversation(conv, userEmail);
 
+        if (request == null || request.getMessage() == null || request.getMessage().isBlank()) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Le message ne peut pas être vide");
+        }
+        if (request.getMessage().length() > 500) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Le message ne doit pas dépasser 500 caractères");
+        }
+
+        long messageCount = messageIARepository.countByConversationId(conversationId);
+        if (messageCount >= 60) {
+            throw new ResponseStatusException(
+                    HttpStatus.BAD_REQUEST,
+                    "Cette conversation a atteint la limite maximale de messages. Veuillez démarrer une nouvelle conversation."
+            );
+        }
+
         // 1. Extraire les critères du message actuel
         CriteresExtraitsDTO criteres = llmExtractionService.extractCriteria(request.getMessage());
 

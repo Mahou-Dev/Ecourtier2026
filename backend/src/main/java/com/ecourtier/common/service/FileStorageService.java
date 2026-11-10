@@ -72,10 +72,27 @@ public class FileStorageService {
         }
         try {
             String cleanPath = relativeUrl.replace("/api/v1/uploads/", "");
+            if (cleanPath.contains("..") || cleanPath.contains("\\") || cleanPath.contains(":")) {
+                return false;
+            }
             Path baseDir = Paths.get(UPLOAD_ROOT_DIR).toAbsolutePath().normalize();
             Path filePath = Paths.get(UPLOAD_ROOT_DIR, cleanPath).toAbsolutePath().normalize();
 
             if (!filePath.startsWith(baseDir)) {
+                return false;
+            }
+
+            if (Files.isSymbolicLink(filePath)) {
+                return false;
+            }
+
+            if (!Files.exists(filePath, java.nio.file.LinkOption.NOFOLLOW_LINKS)) {
+                return false;
+            }
+
+            Path realFilePath = filePath.toRealPath();
+            Path realBaseDir = baseDir.toRealPath();
+            if (!realFilePath.startsWith(realBaseDir)) {
                 return false;
             }
 
@@ -88,6 +105,9 @@ public class FileStorageService {
     public org.springframework.core.io.Resource loadFileAsResource(String relativeUrl) {
         try {
             String cleanPath = relativeUrl.replace("/api/v1/uploads/", "");
+            if (cleanPath.contains("..") || cleanPath.contains("\\") || cleanPath.contains(":")) {
+                throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Accès refusé : tentative de path traversal");
+            }
             Path baseDir = Paths.get(UPLOAD_ROOT_DIR).toAbsolutePath().normalize();
             Path filePath = Paths.get(UPLOAD_ROOT_DIR, cleanPath).toAbsolutePath().normalize();
 
@@ -95,7 +115,28 @@ public class FileStorageService {
                 throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Accès refusé : tentative de path traversal");
             }
 
-            org.springframework.core.io.Resource resource = new org.springframework.core.io.UrlResource(filePath.toUri());
+            if (Files.isSymbolicLink(filePath)) {
+                throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Accès refusé : les liens symboliques sont interdits");
+            }
+
+            if (!Files.exists(filePath, java.nio.file.LinkOption.NOFOLLOW_LINKS)) {
+                throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Fichier physique introuvable");
+            }
+
+            Path realFilePath;
+            Path realBaseDir;
+            try {
+                realFilePath = filePath.toRealPath();
+                realBaseDir = baseDir.toRealPath();
+            } catch (IOException e) {
+                throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Fichier physique introuvable");
+            }
+
+            if (!realFilePath.startsWith(realBaseDir)) {
+                throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Accès refusé : tentative de traversée");
+            }
+
+            org.springframework.core.io.Resource resource = new org.springframework.core.io.UrlResource(realFilePath.toUri());
 
             if (resource.exists() && resource.isReadable()) {
                 return resource;
