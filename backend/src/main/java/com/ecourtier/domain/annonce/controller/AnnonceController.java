@@ -79,7 +79,7 @@ public class AnnonceController {
     @Operation(summary = "Modifier une annonce", description = "Réservé à l'auteur de l'annonce ou à un administrateur.")
     public ResponseEntity<AnnonceResponseDTO> modifierAnnonce(
             @PathVariable UUID id,
-            @RequestBody AnnonceUpdateDTO request
+            @Valid @RequestBody AnnonceUpdateDTO request
     ) {
         AnnonceResponseDTO response = annonceService.modifierAnnonce(id, request);
         return ResponseEntity.ok(response);

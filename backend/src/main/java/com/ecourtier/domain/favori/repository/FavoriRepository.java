@@ -3,6 +3,7 @@ package com.ecourtier.domain.favori.repository;
 import com.ecourtier.domain.favori.entity.FavoriEntity;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
+import org.springframework.data.jpa.repository.EntityGraph;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
@@ -19,6 +20,7 @@ public interface FavoriRepository extends JpaRepository<FavoriEntity, UUID> {
 
     Optional<FavoriEntity> findByUtilisateurIdAndAnnonceId(UUID utilisateurId, UUID annonceId);
 
+    @EntityGraph(attributePaths = {"annonce", "annonce.utilisateur"})
     Page<FavoriEntity> findByUtilisateurIdOrderByDateAjoutDesc(UUID utilisateurId, Pageable pageable);
 
     @Query("SELECT f.annonce.id FROM FavoriEntity f WHERE f.utilisateur.id = :utilisateurId")

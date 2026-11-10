@@ -1,6 +1,6 @@
 import React from 'react';
 import { Link, useLocation } from 'react-router-dom';
-import { LayoutDashboard, ShieldCheck, Flag, Users } from 'lucide-react';
+import { LayoutDashboard, ShieldCheck, Flag, Users, CreditCard } from 'lucide-react';
 
 export const AdminNavTabs: React.FC = () => {
   const location = useLocation();
@@ -10,6 +10,12 @@ export const AdminNavTabs: React.FC = () => {
       to: '/admin/dashboard',
       label: "Vue d'ensemble",
       icon: LayoutDashboard,
+      iconColor: 'text-terracotta-600',
+    },
+    {
+      to: '/admin/transactions',
+      label: 'Séquestres & Wave',
+      icon: CreditCard,
       iconColor: 'text-terracotta-600',
     },
     {

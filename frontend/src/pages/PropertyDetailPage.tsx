@@ -30,27 +30,84 @@ import {
   ConversationChatDTO
 } from '../types';
 import { useAuthStore } from '../store/useAuthStore';
-import { LeafletMap } from '../components/map/LeafletMap';
 import { Button } from '../components/ui/Button';
 import { Badge } from '../components/ui/Badge';
 import { Card, CardBody } from '../components/ui/Card';
 import { Modal } from '../components/ui/Modal';
-import { ChatDrawer } from '../components/messagerie/ChatDrawer';
 import { Avatar } from '../components/ui/Avatar';
 import { Skeleton } from '../components/ui/Skeleton';
-import Lightbox from 'yet-another-react-lightbox';
-import 'yet-another-react-lightbox/styles.css';
 import { toast } from 'sonner';
-import { TransactionDetailsModal } from '../components/transaction/TransactionDetailsModal';
-import { SignalementModal } from '../components/ui/SignalementModal';
 import { FavoriteButton } from '../components/ui/FavoriteButton';
+
+// Lazy-loaded heavy components (loaded on-demand / interaction only)
+const LazyLeafletMap = React.lazy(() => import('../components/map/LeafletMap').then((m) => ({ default: m.LeafletMap })));
+const LazyLightbox = React.lazy(() => {
+  import('yet-another-react-lightbox/styles.css');
+  return import('yet-another-react-lightbox');
+});
+const LazyTransactionDetailsModal = React.lazy(() => import('../components/transaction/TransactionDetailsModal').then((m) => ({ default: m.TransactionDetailsModal })));
+const LazySignalementModal = React.lazy(() => import('../components/ui/SignalementModal').then((m) => ({ default: m.SignalementModal })));
+const LazyChatDrawer = React.lazy(() => import('../components/messagerie/ChatDrawer').then((m) => ({ default: m.ChatDrawer })));
+
+// Deferred Map: loads Leaflet and tile resources strictly when scrolled into view
+const DeferredMap: React.FC<{ property: AnnonceDTO }> = ({ property }) => {
+  const [shouldLoad, setShouldLoad] = useState(false);
+  const containerRef = React.useRef<HTMLDivElement>(null);
+
+  React.useEffect(() => {
+    if (!containerRef.current) return;
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries[0].isIntersecting) {
+          setShouldLoad(true);
+          observer.disconnect();
+        }
+      },
+      { rootMargin: '250px' }
+    );
+    observer.observe(containerRef.current);
+    return () => observer.disconnect();
+  }, []);
+
+  return (
+    <div ref={containerRef} className="h-72 rounded-2xl overflow-hidden border border-argile-200 shadow-sm bg-sand-200 relative">
+      {shouldLoad ? (
+        <React.Suspense
+          fallback={
+            <div className="w-full h-full flex items-center justify-center bg-sand-100 text-charcoal-500 text-xs font-semibold gap-2">
+              <MapPin className="w-5 h-5 text-terracotta-500 animate-pulse" />
+              <span>Chargement de la carte...</span>
+            </div>
+          }
+        >
+          <LazyLeafletMap
+            properties={[property]}
+            selectedPropertyId={property.id}
+            center={[property.latitude, property.longitude]}
+            zoom={14}
+          />
+        </React.Suspense>
+      ) : (
+        <div
+          className="w-full h-full flex flex-col items-center justify-center bg-sand-100/90 text-charcoal-500 text-xs font-semibold gap-1.5 p-4 text-center cursor-pointer hover:bg-sand-200 transition-colors"
+          onClick={() => setShouldLoad(true)}
+        >
+          <MapPin className="w-6 h-6 text-terracotta-500" />
+          <span>{property.quartier}, {property.ville}</span>
+          <span className="text-[11px] text-charcoal-400 font-normal">Cliquer pour charger la carte interactive</span>
+        </div>
+      )}
+    </div>
+  );
+};
 
 export const PropertyDetailPage: React.FC = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const location = useLocation();
   const queryClient = useQueryClient();
-  const { utilisateur } = useAuthStore();
+  const { utilisateur, accessToken } = useAuthStore();
+  const wasPrefetchedRef = React.useRef(false);
 
   const [isLightboxOpen, setIsLightboxOpen] = useState(false);
   const [selectedPhotoIndex, setSelectedPhotoIndex] = useState(0);
@@ -127,11 +184,58 @@ export const PropertyDetailPage: React.FC = () => {
   };
 
   // Fetch listing details
-  const { data: property, isLoading, isError } = useQuery<AnnonceDTO>({
+  const { data: property, isLoading, isError, refetch: refetchProperty } = useQuery<AnnonceDTO>({
     queryKey: ['annonce', id],
-    queryFn: () => apiFetch<AnnonceDTO>(`/api/v1/annonces/${id}`),
+    queryFn: async () => {
+      const win = typeof window !== 'undefined' ? (window as any) : null;
+      if (win && win.__PREFETCHED_ANNONCE_ID__ === id && win.__PREFETCHED_ANNONCE_PROMISE__) {
+        const prefetched = win.__PREFETCHED_ANNONCE_PROMISE__;
+        win.__PREFETCHED_ANNONCE_PROMISE__ = null;
+        try {
+          const res = await prefetched;
+          if (res) {
+            // Case 1: Prefetch succeeded with valid listing data
+            if (res.ok && res.data && res.data.id === id) {
+              wasPrefetchedRef.current = true;
+              return res.data as AnnonceDTO;
+            }
+            // Case 2: Listing is definitively 404 (Not Found) - throw immediately to avoid duplicate request
+            if (res.status === 404) {
+              const notFoundErr: any = new Error("Annonce introuvable ou supprimée");
+              notFoundErr.status = 404;
+              throw notFoundErr;
+            }
+            // Case 3: Other definitive client errors (403, 410)
+            if (res.status === 403 || res.status === 410) {
+              const clientErr: any = new Error(`Erreur ${res.status}`);
+              clientErr.status = res.status;
+              throw clientErr;
+            }
+          }
+        } catch (err: any) {
+          if (err && (err.status === 404 || err.status === 403 || err.status === 410)) {
+            throw err;
+          }
+        }
+      }
+      return apiFetch<AnnonceDTO>(`/api/v1/annonces/${id}`);
+    },
     enabled: !!id,
+    retry: (failureCount, error: any) => {
+      if (error?.status === 404 || error?.status === 401 || error?.status === 403 || error?.status === 410) {
+        return false;
+      }
+      return failureCount < 1;
+    },
   });
+
+  // Reconcile favorite status for authenticated session after initial anonymous prefetch
+  React.useEffect(() => {
+    if (accessToken && property && wasPrefetchedRef.current) {
+      wasPrefetchedRef.current = false;
+      refetchProperty();
+    }
+  }, [accessToken, property, refetchProperty]);
 
   // Fetch listing reviews
   const { data: avisSummary, refetch: refetchAvis } = useQuery<AvisSummaryDTO>({
@@ -255,14 +359,37 @@ export const PropertyDetailPage: React.FC = () => {
 
   if (isLoading) {
     return (
-      <div className="max-w-7xl mx-auto px-4 py-8 space-y-6">
-        <Skeleton variant="rect" className="w-full h-80 rounded-3xl" />
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-          <div className="lg:col-span-2 space-y-4">
-            <Skeleton variant="text" className="w-1/2 h-8" />
-            <Skeleton variant="text" className="w-full h-24" />
+      <div className="max-w-7xl mx-auto px-4 py-6 space-y-8">
+        {/* NAVIGATION BAR SKELETON */}
+        <div className="flex items-center justify-between">
+          <Skeleton variant="text" className="w-36 h-5" />
+          <div className="flex items-center gap-2">
+            <Skeleton variant="text" className="w-28 h-7 rounded-xl" />
+            <Skeleton variant="text" className="w-16 h-6 rounded-lg" />
           </div>
-          <Skeleton variant="card" className="h-64" />
+        </div>
+
+        {/* HEADER TITLE & BADGES SKELETON */}
+        <div className="space-y-3">
+          <div className="flex flex-wrap items-center gap-2">
+            <Skeleton variant="text" className="w-20 h-6 rounded-full" />
+            <Skeleton variant="text" className="w-24 h-6 rounded-full" />
+            <Skeleton variant="text" className="w-40 h-6 rounded-full" />
+          </div>
+          <Skeleton variant="text" className="w-3/4 max-w-xl h-10" />
+          <Skeleton variant="text" className="w-48 h-4" />
+        </div>
+
+        {/* GALLERY GRID SKELETON */}
+        <Skeleton variant="rect" className="w-full h-[380px] rounded-3xl" />
+
+        {/* DETAILS SECTION SKELETON */}
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+          <div className="lg:col-span-2 space-y-6">
+            <Skeleton variant="rect" className="w-full h-24 rounded-2xl" />
+            <Skeleton variant="rect" className="w-full h-48 rounded-2xl" />
+          </div>
+          <Skeleton variant="card" className="h-80" />
         </div>
       </div>
     );
@@ -382,16 +509,33 @@ export const PropertyDetailPage: React.FC = () => {
         </div>
       </div>
 
-      {/* GALLERY GRID WITH LAZY LOADING */}
+      {/* GALLERY GRID WITH LAZY LOADING & FIXED DIMENSIONS */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-3 h-[380px] rounded-3xl overflow-hidden shadow-warm-card">
-        <div className="md:col-span-2 h-full cursor-pointer relative group" onClick={() => { setSelectedPhotoIndex(0); setIsLightboxOpen(true); }}>
-          <img src={photosList[0]} alt="Principal" loading="eager" className="w-full h-full object-cover group-hover:scale-102 transition-transform duration-300" />
+        <div className="md:col-span-2 h-full cursor-pointer relative group bg-sand-200" onClick={() => { setSelectedPhotoIndex(0); setIsLightboxOpen(true); }}>
+          <img
+            src={photosList[0]}
+            alt={property.titre}
+            loading="eager"
+            fetchPriority="high"
+            decoding="async"
+            width={760}
+            height={380}
+            className="w-full h-full object-cover group-hover:scale-102 transition-transform duration-300"
+          />
         </div>
         <div className="hidden md:grid grid-cols-1 gap-3 h-full col-span-2">
           <div className="grid grid-cols-2 gap-3 h-full">
             {photosList.slice(1, 5).map((photo, idx) => (
-              <div key={idx} className="h-full cursor-pointer overflow-hidden relative group" onClick={() => { setSelectedPhotoIndex(idx + 1); setIsLightboxOpen(true); }}>
-                <img src={photo} alt={`Photo ${idx + 2}`} loading="lazy" className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" />
+              <div key={idx} className="h-full cursor-pointer overflow-hidden relative group bg-sand-200" onClick={() => { setSelectedPhotoIndex(idx + 1); setIsLightboxOpen(true); }}>
+                <img
+                  src={photo}
+                  alt={`Photo ${idx + 2} - ${property.titre}`}
+                  loading="lazy"
+                  decoding="async"
+                  width={360}
+                  height={185}
+                  className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                />
               </div>
             ))}
           </div>
@@ -466,14 +610,7 @@ export const PropertyDetailPage: React.FC = () => {
           {property.latitude && property.longitude && (
             <div className="space-y-3 border-t border-argile-200 pt-6">
               <h3 className="font-display font-bold text-lg text-charcoal-900">Emplacement & Carte</h3>
-              <div className="h-72 rounded-2xl overflow-hidden border border-argile-200 shadow-sm">
-                <LeafletMap
-                  properties={[property]}
-                  selectedPropertyId={property.id}
-                  center={[property.latitude, property.longitude]}
-                  zoom={14}
-                />
-              </div>
+              <DeferredMap property={property} />
             </div>
           )}
 
@@ -934,37 +1071,53 @@ export const PropertyDetailPage: React.FC = () => {
       )}
 
       {/* MODAL: SIGNALEMENT */}
-      <SignalementModal
-        annonceId={property.id}
-        annonceTitre={property.titre}
-        isOpen={isSignalementModalOpen}
-        onClose={() => setIsSignalementModalOpen(false)}
-      />
+      {isSignalementModalOpen && (
+        <React.Suspense fallback={null}>
+          <LazySignalementModal
+            annonceId={property.id}
+            annonceTitre={property.titre}
+            isOpen={isSignalementModalOpen}
+            onClose={() => setIsSignalementModalOpen(false)}
+          />
+        </React.Suspense>
+      )}
 
       {/* MODAL: TRANSACTION DETAILS & LEASE SIGNATURE */}
-      <TransactionDetailsModal
-        isOpen={isTxModalOpen}
-        onClose={() => setIsTxModalOpen(false)}
-        transaction={selectedTx}
-        onRefresh={() => {
-          queryClient.invalidateQueries({ queryKey: ['my-transactions'] });
-        }}
-      />
+      {isTxModalOpen && (
+        <React.Suspense fallback={null}>
+          <LazyTransactionDetailsModal
+            isOpen={isTxModalOpen}
+            onClose={() => setIsTxModalOpen(false)}
+            transaction={selectedTx}
+            onRefresh={() => {
+              queryClient.invalidateQueries({ queryKey: ['my-transactions'] });
+            }}
+          />
+        </React.Suspense>
+      )}
 
       {/* LIGHTBOX */}
-      <Lightbox
-        open={isLightboxOpen}
-        close={() => setIsLightboxOpen(false)}
-        index={selectedPhotoIndex}
-        slides={photosList.map((src) => ({ src }))}
-      />
+      {isLightboxOpen && (
+        <React.Suspense fallback={null}>
+          <LazyLightbox
+            open={isLightboxOpen}
+            close={() => setIsLightboxOpen(false)}
+            index={selectedPhotoIndex}
+            slides={photosList.map((src) => ({ src }))}
+          />
+        </React.Suspense>
+      )}
 
       {/* CHAT DRAWER */}
-      <ChatDrawer
-        isOpen={isChatOpen}
-        onClose={() => setIsChatOpen(false)}
-        conversation={activeConversation}
-      />
+      {isChatOpen && (
+        <React.Suspense fallback={null}>
+          <LazyChatDrawer
+            isOpen={isChatOpen}
+            onClose={() => setIsChatOpen(false)}
+            conversation={activeConversation}
+          />
+        </React.Suspense>
+      )}
 
     </div>
   );

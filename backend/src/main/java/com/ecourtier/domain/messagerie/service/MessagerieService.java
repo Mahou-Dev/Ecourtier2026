@@ -22,7 +22,9 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
 
 import java.time.LocalDateTime;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 import java.util.regex.Pattern;
@@ -126,8 +128,14 @@ public class MessagerieService {
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Utilisateur non trouvé"));
 
         List<ConversationChatEntity> conversations = conversationChatRepository.findAllByUserId(user.getId());
+        if (conversations.isEmpty()) {
+            return List.of();
+        }
+
+        Map<UUID, Long> unreadCounts = chargerComptesNonLusParConversation(user.getId());
+
         return conversations.stream()
-                .map(c -> mapToConversationDTO(c, user.getId()))
+                .map(c -> mapToConversationDTO(c, unreadCounts.getOrDefault(c.getId(), 0L)))
                 .toList();
     }
 
@@ -188,9 +196,24 @@ public class MessagerieService {
         return mapToConversationDTO(conversation, user.getId());
     }
 
+    private Map<UUID, Long> chargerComptesNonLusParConversation(UUID userId) {
+        List<Object[]> rows = messageChatRepository.countUnreadMessagesGroupedByConversation(userId);
+        Map<UUID, Long> counts = new HashMap<>();
+        for (Object[] row : rows) {
+            UUID convId = (UUID) row[0];
+            Long count = ((Number) row[1]).longValue();
+            counts.put(convId, count);
+        }
+        return counts;
+    }
+
     private ConversationResponseDTO mapToConversationDTO(ConversationChatEntity c, UUID currentUserId) {
-        MessageChatEntity dernierMessage = messageChatRepository.findFirstByConversationIdOrderByDateEnvoiDesc(c.getId()).orElse(null);
         long unreadCount = messageChatRepository.countUnreadMessagesForUserInConversation(c.getId(), currentUserId);
+        return mapToConversationDTO(c, unreadCount);
+    }
+
+    private ConversationResponseDTO mapToConversationDTO(ConversationChatEntity c, long unreadCount) {
+        MessageChatEntity dernierMessage = messageChatRepository.findFirstByConversationIdOrderByDateEnvoiDesc(c.getId()).orElse(null);
         return messagerieMapper.toConversationResponseDTO(c, dernierMessage, unreadCount);
     }
 }

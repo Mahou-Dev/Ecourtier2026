@@ -5,6 +5,7 @@ import {
   AdminStatistiquesDTO,
   ChangerMotDePasseInput,
   PageResponse,
+  TransactionResponseDTO,
   UtilisateurDTO,
 } from '../types';
 
@@ -63,6 +64,27 @@ export const adminService = {
     return apiFetch<{ message: string }>('/api/v1/utilisateurs/moi/mot-de-passe', {
       method: 'PUT',
       body: JSON.stringify(payload),
+    });
+  },
+
+  getTransactions: async (params?: {
+    page?: number;
+    size?: number;
+    statut?: string;
+  }): Promise<PageResponse<TransactionResponseDTO>> => {
+    const query = new URLSearchParams();
+    query.set('page', String(params?.page ?? 0));
+    query.set('size', String(params?.size ?? 15));
+    if (params?.statut && params.statut !== 'TOUS') {
+      query.set('statut', params.statut);
+    }
+    return apiFetch<PageResponse<TransactionResponseDTO>>(`/api/v1/admin/transactions?${query.toString()}`);
+  },
+
+  rembourserTransaction: async (id: string, motif?: string): Promise<TransactionResponseDTO> => {
+    return apiFetch<TransactionResponseDTO>(`/api/v1/transactions/${id}/rembourser`, {
+      method: 'POST',
+      body: JSON.stringify({ motif: motif?.trim() || 'Remboursement de séquestre autorisé par l\'administrateur' }),
     });
   },
 };

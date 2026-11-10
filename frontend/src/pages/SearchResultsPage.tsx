@@ -15,8 +15,9 @@ import { useQuery } from '@tanstack/react-query';
 import { motion, useReducedMotion } from 'framer-motion';
 import { apiFetch, getPhotoUrl } from '../services/api';
 import { AnnonceDTO, PageResponse } from '../types';
-import { LeafletMap } from '../components/map/LeafletMap';
 import { Button } from '../components/ui/Button';
+
+const LazyLeafletMap = React.lazy(() => import('../components/map/LeafletMap').then((m) => ({ default: m.LeafletMap })));
 import { Slider } from '../components/ui/Slider';
 import { Drawer } from '../components/ui/Drawer';
 import { Skeleton } from '../components/ui/Skeleton';
@@ -548,9 +549,10 @@ export const SearchResultsPage: React.FC = () => {
                 animate={{ opacity: 1 }}
                 transition={{ duration: 0.3 }}
               >
-                {properties.map((prop) => {
+                {properties.map((prop, idx) => {
                   const isSelected = selectedPropertyId === prop.id;
                   const photoUrl = prop.photos?.[0] ? getPhotoUrl(prop.photos[0].url) : '/placeholder.jpg';
+                  const isFirst = idx === 0;
 
                   return (
                     <motion.div
@@ -564,11 +566,15 @@ export const SearchResultsPage: React.FC = () => {
                       whileHover={shouldReduceMotion ? undefined : { y: -2 }}
                     >
                       {/* Photo Thumbnail */}
-                      <div className="relative w-full sm:w-48 h-44 sm:h-36 shrink-0 rounded-xl overflow-hidden bg-sand-200">
+                      <div className="relative w-full sm:w-48 h-44 sm:h-36 shrink-0 rounded-xl overflow-hidden bg-sand-200 aspect-[4/3]">
                         <img
                           src={photoUrl}
                           alt={prop.titre}
-                          loading="lazy"
+                          loading={isFirst ? 'eager' : 'lazy'}
+                          fetchPriority={isFirst ? 'high' : undefined}
+                          decoding="async"
+                          width={192}
+                          height={144}
                           className="w-full h-full object-cover"
                         />
                         <div className="absolute top-2 left-2 flex flex-col gap-1">
@@ -680,11 +686,20 @@ export const SearchResultsPage: React.FC = () => {
 
       {/* RIGHT COLUMN: SYNCHRONIZED LEAFLET MAP */}
       <div className="w-full md:w-5/12 lg:w-1/2 h-64 md:h-full relative shrink-0">
-        <LeafletMap
-          properties={properties}
-          selectedPropertyId={selectedPropertyId}
-          onSelectProperty={(id) => setSelectedPropertyId(id)}
-        />
+        <React.Suspense
+          fallback={
+            <div className="w-full h-full flex flex-col items-center justify-center bg-sand-100 text-charcoal-400">
+              <span className="text-2xl mb-1">🗺️</span>
+              <span className="text-xs font-medium">Chargement de la carte...</span>
+            </div>
+          }
+        >
+          <LazyLeafletMap
+            properties={properties}
+            selectedPropertyId={selectedPropertyId}
+            onSelectProperty={(id) => setSelectedPropertyId(id)}
+          />
+        </React.Suspense>
       </div>
 
       {/* ADVANCED FILTERS DRAWER */}

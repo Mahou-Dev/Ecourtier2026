@@ -10,6 +10,7 @@ import com.ecourtier.domain.annonce.dto.PhotoResponseDTO;
 import com.ecourtier.domain.annonce.dto.VerificationDecisionDTO;
 import com.ecourtier.domain.annonce.entity.AnnonceEntity;
 import com.ecourtier.domain.annonce.entity.DocumentVerificationEntity;
+import com.ecourtier.domain.annonce.entity.Equipement;
 import com.ecourtier.domain.annonce.entity.ModeTransaction;
 import com.ecourtier.domain.annonce.entity.PhotoAnnonceEntity;
 import com.ecourtier.domain.annonce.entity.ProximiteTag;
@@ -45,6 +46,7 @@ import org.springframework.web.multipart.MultipartFile;
 import org.springframework.web.server.ResponseStatusException;
 
 import java.math.BigDecimal;
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
 import java.util.Set;
@@ -52,6 +54,7 @@ import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
@@ -378,5 +381,290 @@ public class AnnonceServiceTest {
         List<String> quartiers = annonceService.obtenirQuartiersDisponibles();
         assertEquals(3, quartiers.size());
         assertEquals("Almadies", quartiers.get(0));
+    }
+
+    // =========================================================================
+    // ANO-08 : Tests unitaires de validation et d'invalidation substantielle
+    // =========================================================================
+
+    private AnnonceEntity creerAnnonceVerifiee() {
+        return AnnonceEntity.builder()
+                .id(UUID.randomUUID())
+                .titre("Villa de Luxe Almadies")
+                .description("Superbe villa vue mer")
+                .type(TypeBien.VILLA)
+                .modeTransaction(ModeTransaction.LOCATION)
+                .prix(BigDecimal.valueOf(1500000))
+                .superficie(350.0)
+                .nombrePieces(6)
+                .etage(0)
+                .quartier("Almadies")
+                .ville("Dakar")
+                .latitude(14.745)
+                .longitude(-17.518)
+                .meuble(true)
+                .animauxAcceptes(true)
+                .statutVerification(StatutVerification.VERIFIEE)
+                .dateVerification(LocalDateTime.of(2026, 10, 15, 10, 0))
+                .statutPublication(StatutPublication.DISPONIBLE)
+                .supprime(false)
+                .utilisateur(proprio)
+                .build();
+    }
+
+    @Test
+    @DisplayName("ANO-08 #1: Annonce VERIFIEE dont le prix change -> passe à EN_ATTENTE et dateVerification purgée")
+    void testModifierAnnonceVerifieeChangementPrixInvalideBadge() {
+        AnnonceEntity v = creerAnnonceVerifiee();
+        when(annonceRepository.findByIdAndSupprimeFalse(v.getId())).thenReturn(Optional.of(v));
+        when(annonceRepository.save(v)).thenReturn(v);
+        when(annonceMapper.toResponseDTO(v)).thenReturn(new AnnonceResponseDTO());
+
+        AnnonceUpdateDTO dto = AnnonceUpdateDTO.builder()
+                .prix(BigDecimal.valueOf(1800000))
+                .build();
+
+        annonceService.modifierAnnonce(v.getId(), dto);
+
+        assertEquals(StatutVerification.EN_ATTENTE, v.getStatutVerification());
+        assertNull(v.getDateVerification());
+        assertEquals(BigDecimal.valueOf(1800000), v.getPrix());
+    }
+
+    @Test
+    @DisplayName("ANO-08 #2: Annonce VERIFIEE dont la superficie change -> passe à EN_ATTENTE")
+    void testModifierAnnonceVerifieeChangementSuperficieInvalideBadge() {
+        AnnonceEntity v = creerAnnonceVerifiee();
+        when(annonceRepository.findByIdAndSupprimeFalse(v.getId())).thenReturn(Optional.of(v));
+        when(annonceRepository.save(v)).thenReturn(v);
+        when(annonceMapper.toResponseDTO(v)).thenReturn(new AnnonceResponseDTO());
+
+        AnnonceUpdateDTO dto = AnnonceUpdateDTO.builder()
+                .superficie(400.0)
+                .build();
+
+        annonceService.modifierAnnonce(v.getId(), dto);
+
+        assertEquals(StatutVerification.EN_ATTENTE, v.getStatutVerification());
+        assertNull(v.getDateVerification());
+        assertEquals(400.0, v.getSuperficie());
+    }
+
+    @Test
+    @DisplayName("ANO-08 #3: Annonce VERIFIEE dont le type change -> passe à EN_ATTENTE")
+    void testModifierAnnonceVerifieeChangementTypeInvalideBadge() {
+        AnnonceEntity v = creerAnnonceVerifiee();
+        when(annonceRepository.findByIdAndSupprimeFalse(v.getId())).thenReturn(Optional.of(v));
+        when(annonceRepository.save(v)).thenReturn(v);
+        when(annonceMapper.toResponseDTO(v)).thenReturn(new AnnonceResponseDTO());
+
+        AnnonceUpdateDTO dto = AnnonceUpdateDTO.builder()
+                .type(TypeBien.APPARTEMENT)
+                .build();
+
+        annonceService.modifierAnnonce(v.getId(), dto);
+
+        assertEquals(StatutVerification.EN_ATTENTE, v.getStatutVerification());
+        assertNull(v.getDateVerification());
+        assertEquals(TypeBien.APPARTEMENT, v.getType());
+    }
+
+    @Test
+    @DisplayName("ANO-08 #4: Annonce VERIFIEE dont le mode de transaction change -> passe à EN_ATTENTE")
+    void testModifierAnnonceVerifieeChangementModeTransactionInvalideBadge() {
+        AnnonceEntity v = creerAnnonceVerifiee();
+        when(annonceRepository.findByIdAndSupprimeFalse(v.getId())).thenReturn(Optional.of(v));
+        when(annonceRepository.save(v)).thenReturn(v);
+        when(annonceMapper.toResponseDTO(v)).thenReturn(new AnnonceResponseDTO());
+
+        AnnonceUpdateDTO dto = AnnonceUpdateDTO.builder()
+                .modeTransaction(ModeTransaction.VENTE)
+                .build();
+
+        annonceService.modifierAnnonce(v.getId(), dto);
+
+        assertEquals(StatutVerification.EN_ATTENTE, v.getStatutVerification());
+        assertNull(v.getDateVerification());
+        assertEquals(ModeTransaction.VENTE, v.getModeTransaction());
+    }
+
+    @Test
+    @DisplayName("ANO-08 #5: Annonce VERIFIEE dont le quartier change -> passe à EN_ATTENTE")
+    void testModifierAnnonceVerifieeChangementQuartierInvalideBadge() {
+        AnnonceEntity v = creerAnnonceVerifiee();
+        when(annonceRepository.findByIdAndSupprimeFalse(v.getId())).thenReturn(Optional.of(v));
+        when(annonceRepository.save(v)).thenReturn(v);
+        when(annonceMapper.toResponseDTO(v)).thenReturn(new AnnonceResponseDTO());
+
+        AnnonceUpdateDTO dto = AnnonceUpdateDTO.builder()
+                .quartier("Mermoz")
+                .build();
+
+        annonceService.modifierAnnonce(v.getId(), dto);
+
+        assertEquals(StatutVerification.EN_ATTENTE, v.getStatutVerification());
+        assertNull(v.getDateVerification());
+        assertEquals("Mermoz", v.getQuartier());
+    }
+
+    @Test
+    @DisplayName("ANO-08 #6: Annonce VERIFIEE dont la latitude change -> passe à EN_ATTENTE")
+    void testModifierAnnonceVerifieeChangementLatitudeInvalideBadge() {
+        AnnonceEntity v = creerAnnonceVerifiee();
+        when(annonceRepository.findByIdAndSupprimeFalse(v.getId())).thenReturn(Optional.of(v));
+        when(annonceRepository.save(v)).thenReturn(v);
+        when(annonceMapper.toResponseDTO(v)).thenReturn(new AnnonceResponseDTO());
+
+        AnnonceUpdateDTO dto = AnnonceUpdateDTO.builder()
+                .latitude(14.720)
+                .build();
+
+        annonceService.modifierAnnonce(v.getId(), dto);
+
+        assertEquals(StatutVerification.EN_ATTENTE, v.getStatutVerification());
+        assertNull(v.getDateVerification());
+        assertEquals(14.720, v.getLatitude());
+    }
+
+    @Test
+    @DisplayName("ANO-08 #7: Annonce VERIFIEE dont la longitude change -> passe à EN_ATTENTE")
+    void testModifierAnnonceVerifieeChangementLongitudeInvalideBadge() {
+        AnnonceEntity v = creerAnnonceVerifiee();
+        when(annonceRepository.findByIdAndSupprimeFalse(v.getId())).thenReturn(Optional.of(v));
+        when(annonceRepository.save(v)).thenReturn(v);
+        when(annonceMapper.toResponseDTO(v)).thenReturn(new AnnonceResponseDTO());
+
+        AnnonceUpdateDTO dto = AnnonceUpdateDTO.builder()
+                .longitude(-17.480)
+                .build();
+
+        annonceService.modifierAnnonce(v.getId(), dto);
+
+        assertEquals(StatutVerification.EN_ATTENTE, v.getStatutVerification());
+        assertNull(v.getDateVerification());
+        assertEquals(-17.480, v.getLongitude());
+    }
+
+    @Test
+    @DisplayName("ANO-08 #8: Annonce VERIFIEE avec modifications éditoriales seules -> conserve VERIFIEE")
+    void testModifierAnnonceVerifieeChampsEditoriauxSeulsPreserventBadge() {
+        AnnonceEntity v = creerAnnonceVerifiee();
+        LocalDateTime dateInitiale = v.getDateVerification();
+        when(annonceRepository.findByIdAndSupprimeFalse(v.getId())).thenReturn(Optional.of(v));
+        when(annonceRepository.save(v)).thenReturn(v);
+        when(annonceMapper.toResponseDTO(v)).thenReturn(new AnnonceResponseDTO());
+
+        AnnonceUpdateDTO dto = AnnonceUpdateDTO.builder()
+                .titre("Nouveau titre Almadies")
+                .description("Nouvelle description détaillée")
+                .lienVisite360("https://matterport.com/discover/space/test")
+                .confirmationAutomatique(false)
+                .meuble(false)
+                .animauxAcceptes(false)
+                .equipements(Set.of(Equipement.CLIMATISATION, Equipement.PISCINE))
+                .build();
+
+        annonceService.modifierAnnonce(v.getId(), dto);
+
+        assertEquals(StatutVerification.VERIFIEE, v.getStatutVerification());
+        assertEquals(dateInitiale, v.getDateVerification());
+        assertEquals("Nouveau titre Almadies", v.getTitre());
+        assertEquals("Nouvelle description détaillée", v.getDescription());
+    }
+
+    @Test
+    @DisplayName("ANO-08 #9: Annonce VERIFIEE renvoyée avec valeurs identiques -> conserve VERIFIEE")
+    void testModifierAnnonceVerifieeValeursIdentiquesPreserventBadge() {
+        AnnonceEntity v = creerAnnonceVerifiee();
+        LocalDateTime dateInitiale = v.getDateVerification();
+        when(annonceRepository.findByIdAndSupprimeFalse(v.getId())).thenReturn(Optional.of(v));
+        when(annonceRepository.save(v)).thenReturn(v);
+        when(annonceMapper.toResponseDTO(v)).thenReturn(new AnnonceResponseDTO());
+
+        AnnonceUpdateDTO dto = AnnonceUpdateDTO.builder()
+                .prix(new BigDecimal("1500000.00")) // Échelle différente mais même valeur mathématique
+                .superficie(350.0000)
+                .type(TypeBien.VILLA)
+                .modeTransaction(ModeTransaction.LOCATION)
+                .quartier("  almadies  ") // Espaces et casse
+                .latitude(14.7450000)
+                .longitude(-17.5180000)
+                .build();
+
+        annonceService.modifierAnnonce(v.getId(), dto);
+
+        assertEquals(StatutVerification.VERIFIEE, v.getStatutVerification());
+        assertEquals(dateInitiale, v.getDateVerification());
+    }
+
+    @Test
+    @DisplayName("ANO-08 #10: Annonce déjà EN_ATTENTE conserve un état cohérent après mise à jour")
+    void testModifierAnnonceEnAttenteConserveEtatCoherent() {
+        AnnonceEntity enAttente = AnnonceEntity.builder()
+                .id(UUID.randomUUID())
+                .titre("Appartement Plateau")
+                .type(TypeBien.APPARTEMENT)
+                .modeTransaction(ModeTransaction.LOCATION)
+                .prix(BigDecimal.valueOf(500000))
+                .superficie(90.0)
+                .quartier("Plateau")
+                .latitude(14.67)
+                .longitude(-17.43)
+                .statutVerification(StatutVerification.EN_ATTENTE)
+                .dateVerification(null)
+                .build();
+
+        when(annonceRepository.findByIdAndSupprimeFalse(enAttente.getId())).thenReturn(Optional.of(enAttente));
+        when(annonceRepository.save(enAttente)).thenReturn(enAttente);
+        when(annonceMapper.toResponseDTO(enAttente)).thenReturn(new AnnonceResponseDTO());
+
+        AnnonceUpdateDTO dto = AnnonceUpdateDTO.builder()
+                .prix(BigDecimal.valueOf(550000))
+                .build();
+
+        annonceService.modifierAnnonce(enAttente.getId(), dto);
+
+        assertEquals(StatutVerification.EN_ATTENTE, enAttente.getStatutVerification());
+        assertNull(enAttente.getDateVerification());
+        assertEquals(BigDecimal.valueOf(550000), enAttente.getPrix());
+    }
+
+    @Test
+    @DisplayName("ANO-08 #11: Modification substantielle remet effectivement dateVerification à null")
+    void testModifierAnnonceInvalideRemetDateVerificationNull() {
+        AnnonceEntity v = creerAnnonceVerifiee();
+        assertNotNull(v.getDateVerification());
+
+        when(annonceRepository.findByIdAndSupprimeFalse(v.getId())).thenReturn(Optional.of(v));
+        when(annonceRepository.save(v)).thenReturn(v);
+        when(annonceMapper.toResponseDTO(v)).thenReturn(new AnnonceResponseDTO());
+
+        AnnonceUpdateDTO dto = AnnonceUpdateDTO.builder()
+                .quartier("Ngor")
+                .build();
+
+        annonceService.modifierAnnonce(v.getId(), dto);
+
+        assertEquals(StatutVerification.EN_ATTENTE, v.getStatutVerification());
+        assertNull(v.getDateVerification(), "dateVerification doit être purgée lors de l'invalidation");
+    }
+
+    @Test
+    @DisplayName("ANO-08 #12: Gestion des valeurs nulles et champs facultatifs sans déclencher d'erreur")
+    void testModifierAnnonceValeursNullesEtChampsFacultatifs() {
+        AnnonceEntity v = creerAnnonceVerifiee();
+        LocalDateTime dateInitiale = v.getDateVerification();
+
+        when(annonceRepository.findByIdAndSupprimeFalse(v.getId())).thenReturn(Optional.of(v));
+        when(annonceRepository.save(v)).thenReturn(v);
+        when(annonceMapper.toResponseDTO(v)).thenReturn(new AnnonceResponseDTO());
+
+        // DTO vide : tous les champs sont null
+        AnnonceUpdateDTO dto = new AnnonceUpdateDTO();
+
+        annonceService.modifierAnnonce(v.getId(), dto);
+
+        assertEquals(StatutVerification.VERIFIEE, v.getStatutVerification());
+        assertEquals(dateInitiale, v.getDateVerification());
     }
 }

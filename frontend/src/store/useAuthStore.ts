@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
 import { UtilisateurDTO, AuthResponseDTO } from '../types';
+import { queryClient } from '../lib/queryClient';
 
 interface AuthState {
   utilisateur: UtilisateurDTO | null;
@@ -35,6 +36,11 @@ export const useAuthStore = create<AuthState>()(
               caches.delete(name);
             });
           });
+        }
+        try {
+          queryClient.clear();
+        } catch (err) {
+          console.error('Erreur lors de la réinitialisation du cache QueryClient:', err);
         }
         set({
           utilisateur: null,

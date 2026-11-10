@@ -4,6 +4,7 @@ import { Button } from '../ui/Button';
 import { Badge } from '../ui/Badge';
 import { TransactionResponseDTO } from '../../types';
 import { apiFetch, downloadPdfBail } from '../../services/api';
+import { adminService } from '../../services/admin.service';
 import { toast } from 'sonner';
 import { 
   FileCheck, 
@@ -13,7 +14,8 @@ import {
   Clock, 
   AlertCircle,
   Building,
-  UserCheck
+  UserCheck,
+  RotateCcw
 } from 'lucide-react';
 import { useAuthStore } from '../../store/useAuthStore';
 
@@ -27,19 +29,58 @@ interface TransactionDetailsModalProps {
 export const TransactionDetailsModal: React.FC<TransactionDetailsModalProps> = ({
   isOpen,
   onClose,
-  transaction,
+  transaction: transactionProp,
   onRefresh,
 }) => {
   const { utilisateur } = useAuthStore();
+  const [internalTx, setInternalTx] = useState<TransactionResponseDTO | null>(transactionProp);
+
+  React.useEffect(() => {
+    if (transactionProp) {
+      setInternalTx((prev) => {
+        if (prev?.statutSequestre === 'REMBOURSE' && transactionProp.statutSequestre !== 'REMBOURSE') {
+          return { ...transactionProp, ...prev };
+        }
+        return transactionProp;
+      });
+    }
+  }, [transactionProp]);
+
+  const transaction = internalTx || transactionProp;
+
   const [isPaying, setIsPaying] = useState(false);
   const [isSigning, setIsSigning] = useState(false);
   const [isDownloadingPdf, setIsDownloadingPdf] = useState(false);
+  const [isRefunding, setIsRefunding] = useState(false);
+  const [showRefundConfirm, setShowRefundConfirm] = useState(false);
+  const [motifRemboursementInput, setMotifRemboursementInput] = useState('');
 
   if (!transaction) return null;
 
   const isVente = transaction.modeTransaction === 'VENTE';
   const isLocataire = utilisateur?.id === transaction.locataireId;
   const isProprietaire = utilisateur?.id === transaction.proprietaireId;
+  const isAdmin = utilisateur?.role === 'ADMIN';
+
+  const handleRembourser = async () => {
+    if (!motifRemboursementInput.trim()) {
+      toast.error('Veuillez renseigner un motif de remboursement.');
+      return;
+    }
+    setIsRefunding(true);
+    try {
+      const res = await adminService.rembourserTransaction(transaction.id, motifRemboursementInput.trim());
+      toast.success(`Séquestre remboursé avec succès ! Réf Wave : ${res.referenceRemboursementWave || 'Enregistré'}`);
+      setShowRefundConfirm(false);
+      setMotifRemboursementInput('');
+      setInternalTx((prev) => ({ ...(prev || transaction), ...res }));
+      onRefresh();
+    } catch (err: any) {
+      toast.error(err.message || 'Échec du remboursement du séquestre.');
+    } finally {
+      setIsRefunding(false);
+    }
+  };
 
   // Caution Payment handler
   const handlePaiementCaution = async () => {
@@ -252,6 +293,94 @@ export const TransactionDetailsModal: React.FC<TransactionDetailsModalProps> = (
                 <p className="text-xs text-sahel-600 italic">
                   En attente du paiement du séquestre par {isVente ? "l'acheteur" : "le locataire"} ({transaction.locataireNomComplet}).
                 </p>
+              )}
+            </div>
+          )}
+
+          {transaction.statutSequestre === 'REMBOURSE' && (
+            <div className="p-3.5 rounded-xl bg-sand-100 border border-sand-300 text-xs text-sahel-900 space-y-1.5">
+              <div className="flex items-center gap-1.5 font-bold text-sahel-900">
+                <RotateCcw className="w-4 h-4 text-terracotta-600" />
+                <span>Séquestre Remboursé</span>
+              </div>
+              {transaction.referenceRemboursementWave ? (
+                <div className="space-y-1">
+                  <p>Référence Wave de remboursement : <strong>{transaction.referenceRemboursementWave}</strong></p>
+                  <p>Montant remboursé : <strong>{(transaction.montantRembourse || transaction.montantTotalSequestre).toLocaleString('fr-FR')} FCFA</strong></p>
+                  {transaction.dateRemboursement && (
+                    <p className="text-sahel-600">Date : {new Date(transaction.dateRemboursement).toLocaleString('fr-FR')}</p>
+                  )}
+                  {transaction.motifRemboursement && (
+                    <p className="italic text-sahel-600">Motif : {transaction.motifRemboursement}</p>
+                  )}
+                </div>
+              ) : (
+                <div className="space-y-1 text-sahel-700">
+                  <p className="font-semibold">Clôture administrative / régularisation</p>
+                  {transaction.motifRemboursement && (
+                    <p className="italic">{transaction.motifRemboursement}</p>
+                  )}
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Admin Refund Trigger Panel */}
+          {isAdmin && transaction.statutSequestre === 'BLOQUE' && transaction.statutBail !== 'SIGNE_COMPLET' && (
+            <div className="p-4 rounded-xl border border-terracotta-200 bg-terracotta-50/40 space-y-3">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-bold text-terracotta-800 flex items-center gap-1.5">
+                  <RotateCcw className="w-3.5 h-3.5 text-terracotta-600" /> Action Administrateur : Rembourser le séquestre
+                </span>
+                {!showRefundConfirm && (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="border-terracotta-400 text-terracotta-700 hover:bg-terracotta-100 text-xs"
+                    onClick={() => {
+                      setMotifRemboursementInput('Annulation du dossier et restitution intégrale des fonds');
+                      setShowRefundConfirm(true);
+                    }}
+                  >
+                    Initier le remboursement
+                  </Button>
+                )}
+              </div>
+
+              {showRefundConfirm && (
+                <div className="space-y-2 pt-2 border-t border-terracotta-200">
+                  <label className="text-[11px] font-semibold text-sahel-800">
+                    Motif obligatoire du remboursement :
+                  </label>
+                  <input
+                    type="text"
+                    value={motifRemboursementInput}
+                    onChange={(e) => setMotifRemboursementInput(e.target.value)}
+                    placeholder="Ex: Désistement d'un commun accord..."
+                    className="w-full text-xs px-3 py-2 rounded-lg border border-sand-300 focus:outline-none focus:ring-1 focus:ring-terracotta-500 bg-white"
+                    maxLength={500}
+                    disabled={isRefunding}
+                  />
+                  <div className="flex items-center justify-end gap-2 pt-1">
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => setShowRefundConfirm(false)}
+                      disabled={isRefunding}
+                    >
+                      Annuler
+                    </Button>
+                    <Button
+                      variant="primary"
+                      size="sm"
+                      className="bg-terracotta-600 hover:bg-terracotta-700 text-white"
+                      isLoading={isRefunding}
+                      onClick={handleRembourser}
+                    >
+                      Confirmer le remboursement Wave ({(transaction.montantTotalSequestre || 0).toLocaleString('fr-FR')} FCFA)
+                    </Button>
+                  </div>
+                </div>
               )}
             </div>
           )}

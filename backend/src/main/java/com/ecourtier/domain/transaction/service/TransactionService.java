@@ -25,6 +25,8 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -479,5 +481,16 @@ public class TransactionService {
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Utilisateur introuvable"));
         java.util.List<TransactionEntity> transactions = transactionRepository.findByLocataireIdOrProprietaireIdOrderByDateCreationDesc(user.getId(), user.getId());
         return transactions.stream().map(transactionMapper::toResponseDTO).toList();
+    }
+
+    @Transactional(readOnly = true)
+    public Page<TransactionResponseDTO> listerToutesLesTransactions(StatutSequestre statut, Pageable pageable) {
+        Page<TransactionEntity> page;
+        if (statut != null) {
+            page = transactionRepository.findByStatutSequestre(statut, pageable);
+        } else {
+            page = transactionRepository.findAll(pageable);
+        }
+        return page.map(transactionMapper::toResponseDTO);
     }
 }

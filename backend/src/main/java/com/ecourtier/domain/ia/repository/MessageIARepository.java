@@ -10,4 +10,5 @@ import java.util.UUID;
 @Repository
 public interface MessageIARepository extends JpaRepository<MessageIAEntity, UUID> {
     List<MessageIAEntity> findByConversationIdOrderByDateEnvoiAsc(UUID conversationId);
+    long countByConversationId(UUID conversationId);
 }
