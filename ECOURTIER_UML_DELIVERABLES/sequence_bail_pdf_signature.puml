@@ -1,0 +1,119 @@
+@startuml sequence_bail_pdf_signature
+!theme plain
+skinparam backgroundColor #FFFFFF
+skinparam defaultFontName "Inter, Arial, sans-serif"
+skinparam sequenceMessageAlign center
+skinparam roundCorner 8
+skinparam boxPadding 10
+skinparam participantPadding 10
+
+skinparam sequence {
+    ArrowColor #059669
+    ActorBorderColor #C85A32
+    ActorBackgroundColor #FEF2F2
+    LifeLineBorderColor #64748B
+    LifeLineBackgroundColor #F8FAFC
+    ParticipantBorderColor #334155
+    ParticipantBackgroundColor #FFFFFF
+}
+
+title E-COURTIER SÉNÉGAL — DIAGRAMME DE SÉQUENCE : GÉNÉRATION SÉCURISÉE & REPRISE DU BAIL PDF
+
+actor "Utilisateur\n(Locataire / Propriétaire)" as User
+participant "TransactionController" as Controller #F1F5F9
+participant "TransactionService" as TxService #F1F5F9
+participant "PdfBailGeneratorService" as PdfService #DCFCE7
+participant "BailPdfRecoveryScheduler" as Scheduler #FEF3C7
+participant "SchedulerLockService" as LockService #E0F2FE
+database "PostgreSQL 16" as DB #EDE9FE
+entity "Système de Fichiers\n(/uploads/baux/)" as FS #F1F5F9
+
+== 1. Déclenchement de la Génération après Double Signature ==
+
+TxService -> PdfService : genererDocumentBail(transactionId)
+activate PdfService
+
+PdfService -> DB : SELECT t, a, loc, prop FROM transactions t JOIN ... WHERE t.id = ?
+DB --> PdfService : Données complètes de la transaction, du bien et des deux parties
+
+PdfService -> PdfService : Construction du document OpenPDF :\n- Entête République du Sénégal & E-Courtier\n- Clauses juridiques du contrat de bail\n- Horodatages certifiés Dakar (ZoneId "Africa/Dakar")\n- Empreintes SHA-256 des signatures électroniques
+
+PdfService -> FS : Création fichier temporaire atomique :\n/uploads/baux/bail_<id>.pdf.tmp
+activate FS
+FS --> PdfService : Fichier temporaire ouvert
+PdfService -> FS : Écriture flux binaire PDF sécurisé
+FS --> PdfService : Écriture terminée
+
+PdfService -> FS : Déplacement atomique (Atomic Move / Rename) :\nbail_<id>.pdf.tmp -> bail_<id>.pdf
+FS --> PdfService : Fichier final en place
+deactivate FS
+
+PdfService -> DB : UPDATE transactions SET\n  url_document_bail = '/uploads/baux/bail_<id>.pdf',\n  statut_document_bail = 'GENERE',\n  pdf_bail_tentatives = 1\nWHERE id = ?
+DB --> PdfService : OK
+PdfService --> TxService : Document PDF généré avec succès
+deactivate PdfService
+
+== 2. Cas d'Anomalie I/O & Passage en Statut EN_ERREUR ==
+
+note over PdfService #FEE2E2
+  En cas de panne temporaire disque ou coupure I/O :
+  1. Le fichier temporaire .tmp est nettoyé
+  2. Le statut bascule en 'EN_ERREUR'
+  3. Le compteur 'pdf_bail_tentatives' est incrémenté
+end note
+
+PdfService -> DB : UPDATE transactions SET\n  statut_document_bail = 'EN_ERREUR',\n  pdf_bail_tentatives = pdf_bail_tentatives + 1\nWHERE id = ?
+
+== 3. Tâche de Fond : Reprise Automatique par Scheduler Verrouillé ==
+
+Scheduler -> LockService : executeWithLock("BAIL_PDF_RECOVERY_LOCK", Duration.ofMinutes(5))
+activate Scheduler
+activate LockService
+
+LockService -> DB : tryAcquireLock("BAIL_PDF_RECOVERY_LOCK", now() + 5 min)
+DB --> LockService : Verrou exclusif accordé (PostgreSQL Lock)
+
+LockService --> Scheduler : Verrou actif, exécution autorisée
+
+Scheduler -> TxService : recupererPdfsBailEnErreur()
+activate TxService
+
+TxService -> DB : SELECT * FROM transactions\nWHERE statut_document_bail = 'EN_ERREUR'\nAND pdf_bail_tentatives < 5
+DB --> TxService : Liste des transactions en échec de génération
+
+loop Pour chaque transaction éligible
+    TxService -> PdfService : genererDocumentBail(transaction.id)
+    activate PdfService
+    PdfService -> FS : Génération atomique réussie
+    PdfService -> DB : statut_document_bail = 'GENERE'
+    PdfService --> TxService : Succès
+    deactivate PdfService
+end
+
+TxService --> Scheduler : Reprise terminée (N baux régénérés)
+deactivate TxService
+
+Scheduler -> LockService : Libération du verrou
+LockService -> DB : UPDATE scheduler_locks SET locked_until = now()
+deactivate LockService
+deactivate Scheduler
+
+== 4. Téléchargement Sécurisé du Bail ==
+
+User -> Controller : GET /api/v1/transactions/<id>/bail/pdf
+activate Controller
+
+Controller -> TxService : telechargerBailPdf(id, utilisateurConnecte)
+activate TxService
+
+TxService -> DB : Vérifie que l'utilisateur est bien le Locataire,\nle Propriétaire du bien, ou un Administrateur
+TxService -> FS : Lecture flux binaire /uploads/baux/bail_<id>.pdf
+FS --> TxService : InputStream Resource
+
+TxService --> Controller : Resource binaire PDF
+deactivate TxService
+
+Controller --> User : HTTP 200 OK\nContent-Type: application/pdf\nContent-Disposition: attachment; filename="bail_<id>.pdf"
+deactivate Controller
+
+@enduml

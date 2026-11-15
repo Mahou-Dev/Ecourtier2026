@@ -1,0 +1,84 @@
+@startuml state_machine_annonces_transactions
+!theme plain
+skinparam backgroundColor #FFFFFF
+skinparam defaultFontName "Inter, Arial, sans-serif"
+skinparam roundCorner 8
+skinparam state {
+    BackgroundColor #F8FAFC
+    BorderColor #334155
+    FontColor #0F172A
+    ArrowColor #2563EB
+}
+
+title E-COURTIER SÉNÉGAL — DIAGRAMME D'ÉTATS : ANNONCES ET SÉQUESTRE / CONTRATS
+
+state "CYCLE DE VIE D'UNE ANNONCE IMMOBILIÈRE" as CycleAnnonce #EFF6FF {
+    [*] --> BROUILLON : Création initiale par Propriétaire
+
+    BROUILLON --> EN_ATTENTE_VERIFICATION : Soumission documents\n(Titre foncier / Bail / Facture)
+    BROUILLON --> DISPONIBLE : Publication directe sans badge\n(statutVerification = NON_VERIFIEE)
+
+    EN_ATTENTE_VERIFICATION --> DISPONIBLE : Validation Admin\n(badgeVerifie = true, statutVerification = VERIFIEE)
+    EN_ATTENTE_VERIFICATION --> REJETEE : Refus Admin avec motif\n(badgeVerifie = false, statutVerification = REJETEE)
+
+    REJETEE --> EN_ATTENTE_VERIFICATION : Nouvelle soumission documents corrigés
+
+    state DISPONIBLE #DCFCE7 {
+        note "Visible en recherche publique\nÉligible aux RDV & Transactions" as NoteDispo
+    }
+
+    DISPONIBLE --> SUSPENDUE : Action Admin (CA3-004)\nou signalement d'abus justifié
+    SUSPENDUE --> DISPONIBLE : Réactivation par Admin après régularisation
+
+    DISPONIBLE --> LOUEE : Transaction de location finalisée\n(Bail signé complet + Séquestre bloqué)
+    DISPONIBLE --> VENDUE : Transaction de vente conclue
+
+    DISPONIBLE --> SUPPRIMEE_LOGIQUE : Suppression par propriétaire\n(si aucune transaction active)
+    SUSPENDUE --> SUPPRIMEE_LOGIQUE : Suppression par admin
+    BROUILLON --> SUPPRIMEE_LOGIQUE : Abandon de l'annonce
+
+    state SUPPRIMEE_LOGIQUE #FEE2E2 {
+        note "supprime = true\nExclue des recherches et de l'API" as NoteSuppr
+    }
+
+    LOUEE --> [*]
+    VENDUE --> [*]
+    SUPPRIMEE_LOGIQUE --> [*]
+}
+
+state "CYCLE DE VIE D'UNE TRANSACTION & SÉQUESTRE" as CycleTransaction #FFFBEB {
+    [*] --> INITIALISE : Initiation par Locataire\n(Calcul caution + 1er loyer + 5000 FCFA)
+
+    INITIALISE --> ANNULE : Annulation par Locataire\nou expiration du délai de 48h (Scheduler)
+
+    INITIALISE --> SEQUESTRE_BLOQUE : Paiement confirmé via Wave Sandbox\n(Fonds consignés sur compte séquestre)
+
+    state SEQUESTRE_BLOQUE #FEF3C7 {
+        note "Fonds bloqués en tiers de confiance.\nDéblocage de l'action de signature." as NoteBloque
+        
+        state "Signature du Bail" as SousEtatBail {
+            [*] --> BAIL_NON_SIGNE
+            BAIL_NON_SIGNE --> BAIL_SIGNE_LOCATAIRE : Signature Locataire (Dakar)
+            BAIL_SIGNE_LOCATAIRE --> BAIL_SIGNE_COMPLET : Signature Propriétaire (Dakar)
+        }
+    }
+
+    SEQUESTRE_BLOQUE --> LIBERE : Double signature confirmée (SIGNE_COMPLET)\n=> Libération automatique :\n   * Caution + loyer reversés au Propriétaire\n   * 5 000 FCFA conservés par la plateforme\n   * Annonce passe en LOUEE\n   * Document PDF généré
+    
+    SEQUESTRE_BLOQUE --> LITIGE : Déclaration de litige avant remise des clés
+    
+    LITIGE --> REMBOURSE : Résolution administrative en faveur du locataire\n(Remboursement Wave exécuté)
+    LITIGE --> LIBERE : Résolution administrative en faveur du propriétaire
+
+    SEQUESTRE_BLOQUE --> REMBOURSE : Rétractation légale ou désistement validé
+
+    state LIBERE #DCFCE7
+    state REMBOURSE #F1F5F9
+    state ANNULE #FEE2E2
+
+    LIBERE --> [*]
+    REMBOURSE --> [*]
+    ANNULE --> [*]
+}
+
+@enduml

@@ -1,0 +1,125 @@
+@startuml use_cases_ecourtier
+!theme plain
+skinparam backgroundColor #FFFFFF
+skinparam handwritten false
+skinparam defaultFontName "Inter, Arial, sans-serif"
+skinparam defaultFontSize 12
+
+skinparam packageStyle rectangle
+skinparam roundCorner 10
+skinparam actor {
+    BackgroundColor #FEF2F2
+    BorderColor #C85A32
+    FontColor #1E293B
+}
+skinparam usecase {
+    BackgroundColor #F8FAFC
+    BorderColor #0284C7
+    FontColor #0F172A
+    ArrowColor #64748B
+}
+
+title E-COURTIER SÉNÉGAL — DIAGRAMME DES CAS D'UTILISATION (PAR RÔLE)
+
+actor "Visiteur Anonyme" as Visiteur #E2E8F0
+actor "Locataire" as Locataire #DBEAFE
+actor "Propriétaire / Agent" as Proprietaire #FEF3C7
+actor "Administrateur" as Admin #FEE2E2
+
+Locataire -up-|> Visiteur
+Proprietaire -up-|> Visiteur
+
+rectangle "Plateforme E-Courtier Sénégal" {
+
+    package "1. Découverte & Recherche" {
+        usecase "Rechercher des annonces\n(Filtres quartier, budget, type)" as UC_Search
+        usecase "Explorer la carte interactive\n(Leaflet & géolocalisation)" as UC_Map
+        usecase "Consulter le détail d'un bien" as UC_Detail
+        usecase "Dialoguer avec l'Assistant IA Samba\n(Recommandations & critères)" as UC_AI
+        usecase "Consulter les avis certifiés" as UC_ViewReviews
+    }
+
+    package "2. Compte & Sécurité" {
+        usecase "Créer un compte\n(Locataire ou Propriétaire)" as UC_Register
+        usecase "S'authentifier\n(JWT & Refresh Token)" as UC_Login
+        usecase "Gérer son profil &\nchanger de mot de passe" as UC_Profile
+        usecase "Se déconnecter\n(Révocation immédiate token_version)" as UC_Logout
+    }
+
+    package "3. Parcours Locataire" {
+        usecase "Ajouter des biens en Favoris" as UC_Favorites
+        usecase "Prendre un RDV de visite\n(Notification & Rappel SMS)" as UC_BookRDV
+        usecase "Initier une transaction de location" as UC_InitTx
+        usecase "Payer le séquestre sécurisé\n(Caution + 1er loyer + frais)" as UC_PayEscrow
+        usecase "Signer numériquement le bail PDF\n(Horodatage Dakar)" as UC_SignTenant
+        usecase "Échanger par messagerie STOMP\navec le propriétaire" as UC_ChatTenant
+        usecase "Publier un avis ou signaler une arnaque" as UC_Review
+    }
+
+    package "4. Parcours Propriétaire & Agent" {
+        usecase "Déposer une annonce immobilière\n(Photos & Titre foncier/bail)" as UC_CreateListing
+        usecase "Modifier une annonce\n(Contrôle de concurrence optimiste @Version)" as UC_EditListing
+        usecase "Soumettre documents de vérification\n(Obtention badge vérifié)" as UC_SubmitDocs
+        usecase "Gérer les demandes de RDV\n(Confirmer / Annuler)" as UC_ManageRDV
+        usecase "Suivre le dossier séquestre" as UC_TrackEscrow
+        usecase "Signer le bail officiel" as UC_SignOwner
+        usecase "Recevoir les fonds libérés\n(Après double signature)" as UC_Payout
+    }
+
+    package "5. Administration & Contrôle" {
+        usecase "Auditer les documents &\nAttribuer le badge VÉRIFIÉ" as UC_AdminVerify
+        usecase "Suspendre / Réactiver une annonce" as UC_AdminListingStatus
+        usecase "Modérer les utilisateurs &\nActiver/Désactiver des comptes" as UC_AdminUsers
+        usecase "Traiter les signalements d'abus" as UC_AdminReports
+        usecase "Consulter le tableau de bord financier\n(KPIs volume séquestre & frais)" as UC_AdminStats
+        usecase "Forcer la régénération d'un bail PDF" as UC_AdminRegenPdf
+    }
+}
+
+' Relations Visiteur
+Visiteur --> UC_Search
+Visiteur --> UC_Map
+Visiteur --> UC_Detail
+Visiteur --> UC_AI
+Visiteur --> UC_ViewReviews
+Visiteur --> UC_Register
+Visiteur --> UC_Login
+
+' Relations Locataire
+Locataire --> UC_Profile
+Locataire --> UC_Logout
+Locataire --> UC_Favorites
+Locataire --> UC_BookRDV
+Locataire --> UC_InitTx
+Locataire --> UC_PayEscrow
+Locataire --> UC_SignTenant
+Locataire --> UC_ChatTenant
+Locataire --> UC_Review
+
+' Relations Proprietaire
+Proprietaire --> UC_Profile
+Proprietaire --> UC_Logout
+Proprietaire --> UC_CreateListing
+Proprietaire --> UC_EditListing
+Proprietaire --> UC_SubmitDocs
+Proprietaire --> UC_ManageRDV
+Proprietaire --> UC_TrackEscrow
+Proprietaire --> UC_SignOwner
+Proprietaire --> UC_Payout
+
+' Relations Admin
+Admin --> UC_AdminVerify
+Admin --> UC_AdminListingStatus
+Admin --> UC_AdminUsers
+Admin --> UC_AdminReports
+Admin --> UC_AdminStats
+Admin --> UC_AdminRegenPdf
+
+' Inclusions et Extensions
+UC_PayEscrow ..> UC_InitTx : <<include>>
+UC_SignTenant ..> UC_PayEscrow : <<extend>> (condition: séquestre bloqué)
+UC_SignOwner ..> UC_SignTenant : <<extend>>
+UC_Payout ..> UC_SignOwner : <<include>> (libération automatique)
+UC_AdminVerify ..> UC_SubmitDocs : <<include>>
+
+@enduml

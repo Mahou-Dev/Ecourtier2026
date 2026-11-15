@@ -1,0 +1,151 @@
+@startuml component_architecture
+!theme plain
+skinparam backgroundColor #FFFFFF
+skinparam defaultFontName "Inter, Arial, sans-serif"
+skinparam componentStyle uml2
+skinparam roundCorner 8
+skinparam packageStyle rectangle
+
+skinparam component {
+    BackgroundColor #F8FAFC
+    BorderColor #334155
+    FontColor #0F172A
+}
+skinparam interface {
+    BackgroundColor #F1F5F9
+    BorderColor #2563EB
+}
+skinparam database {
+    BackgroundColor #EDE9FE
+    BorderColor #7C3AED
+}
+
+title E-COURTIER SÉNÉGAL — ARCHITECTURE LOGICIELLE DES COMPOSANTS
+
+package "Frontend Client (SPA React 19 + TypeScript + Vite 6)" #EFF6FF {
+    component [React Router DOM\n(Navigation & Guards)] as Router
+    component [Zustand Auth Store\n(Session & Token Memory)] as AuthStore
+    component [TanStack React Query\n(Cache & Optimistic UI)] as QueryClient
+    component [Lucide Icons & Tailwind CSS\n(Design System E-Courtier)] as UITheme
+    component [Leaflet & OpenStreetMap\n(Cartographie & GPS)] as GeoMap
+    component [STOMP.js & SockJS\n(Messagerie WebSocket)] as WSClient
+    component [Workbox Service Worker\n(Cache PWA & Mode Offline)] as PWAWorker
+    component [Axios / Fetch API Client\n(Intercepteur JWT & 401)] as APIClient
+
+    Router ..> AuthStore
+    Router ..> QueryClient
+    QueryClient ..> APIClient
+    WSClient ..> AuthStore
+}
+
+package "Backend Spring Boot 3.4 (Java 21 LTS)" #F8FAFC {
+
+    package "Couche Sécurité & Filtres" #FEF2F2 {
+        component [JwtAuthenticationFilter\n(Validation token_version)] as JwtFilter
+        component [LoginRateLimiterFilter\n(Anti-Brute-Force Bounded)] as RateLimiter
+        component [SecurityFilterChain\n(RBAC & Statut Actif)] as SecChain
+        component [WebSocketAuthInterceptor\n(Contrôle STOMP CONNECT/SEND)] as WSAuth
+    }
+
+    package "Couche Contrôleurs REST & WebSocket" #F1F5F9 {
+        component [AuthController] as C_Auth
+        component [AnnonceController\n& AdminAnnonceController] as C_Annonce
+        component [TransactionController\n(Séquestre & Bail)] as C_Tx
+        component [RendezVousController] as C_Rdv
+        component [IAController\n(Assistant Samba)] as C_IA
+        component [MessagerieRestController\n& MessagerieStompController] as C_Msg
+        component [UploadController\n& FileStorage] as C_Upload
+        component [AdminStatistiquesController] as C_Admin
+    }
+
+    package "Couche Services Métier" #ECFDF5 {
+        component [AuthService\n(Familles Refresh Tokens)] as S_Auth
+        component [AnnonceService\n(Verrou @Version & Audit)] as S_Annonce
+        component [AnnonceStatutStateMachine\n(Transitions strictes)] as S_State
+        component [TransactionService\n(Calcul séquestre & Libération)] as S_Tx
+        component [RendezVousService\n(Conflits & Rappels)] as S_Rdv
+        component [IAService & LlmExtraction\n(Shortlist & Hybride)] as S_IA
+        component [MessagerieService\n(Isolation conversations)] as S_Msg
+        component [PdfBailGeneratorService\n(OpenPDF & Horodatage)] as S_Pdf
+        component [SchedulerLockService\n(Multi-instances PG Lock)] as S_Lock
+    }
+
+    package "Couche Persistance (Spring Data JPA / Hibernate 6)" #F3F4F6 {
+        component [UtilisateurRepository\n& RefreshTokenRepository] as R_User
+        component [AnnonceRepository\n& AnnonceSpecification] as R_Annonce
+        component [TransactionRepository] as R_Tx
+        component [RendezVousRepository] as R_Rdv
+        component [MessagerieRepository] as R_Msg
+        component [SchedulerLockRepository] as R_Lock
+    }
+}
+
+package "Infrastructure & Services Externes" #FFFBEB {
+    database "PostgreSQL 16.15\n(Base de données relationnelle)" as Postgres {
+        [Flyway Migrations V1..V20]
+        [Schéma public E-Courtier]
+    }
+    node "Fournisseur LLM IA" as GroqCloud #FEF3C7 {
+        [Groq API Cloud\n(Modèle Llama-3.3-70b)]
+    }
+    node "Passerelle Mobile Money" as WaveSandbox #FEF3C7 {
+        [Wave Client Sandbox\n(Paiement séquestre simulé)]
+    }
+    node "Stockage Fichiers Local" as LocalDisk #F1F5F9 {
+        [/app/uploads/photos/]
+        [/app/uploads/documents/]
+        [/app/uploads/baux/]
+    }
+}
+
+' Flux Frontend -> Backend
+APIClient --> JwtFilter : HTTP/REST (Port 8080/18080)
+WSClient --> WSAuth : WebSocket STOMP (Endpoint /ws-ecourtier)
+
+' Filtres -> Contrôleurs
+JwtFilter --> SecChain
+SecChain --> C_Auth
+SecChain --> C_Annonce
+SecChain --> C_Tx
+SecChain --> C_Rdv
+SecChain --> C_IA
+SecChain --> C_Upload
+SecChain --> C_Admin
+WSAuth --> C_Msg
+
+' Contrôleurs -> Services
+C_Auth --> S_Auth
+C_Annonce --> S_Annonce
+C_Tx --> S_Tx
+C_Rdv --> S_Rdv
+C_IA --> S_IA
+C_Msg --> S_Msg
+C_Upload --> LocalDisk
+C_Admin --> S_Annonce
+C_Admin --> S_Tx
+
+' Services Internes
+S_Annonce --> S_State
+S_Tx --> S_State
+S_Tx --> S_Pdf
+S_Tx ..> WaveSandbox : Intégration Séquestre
+S_IA ..> GroqCloud : Extraction critères & Synthèse
+S_Pdf --> LocalDisk : Écriture atomique baux PDF
+S_Lock --> R_Lock
+
+' Services -> Repositories
+S_Auth --> R_User
+S_Annonce --> R_Annonce
+S_Tx --> R_Tx
+S_Rdv --> R_Rdv
+S_Msg --> R_Msg
+
+' Repositories -> Base de données
+R_User --> Postgres
+R_Annonce --> Postgres
+R_Tx --> Postgres
+R_Rdv --> Postgres
+R_Msg --> Postgres
+R_Lock --> Postgres
+
+@enduml

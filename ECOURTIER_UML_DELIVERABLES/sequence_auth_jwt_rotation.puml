@@ -1,0 +1,170 @@
+@startuml sequence_auth_jwt_rotation
+!theme plain
+skinparam backgroundColor #FFFFFF
+skinparam defaultFontName "Inter, Arial, sans-serif"
+skinparam sequenceMessageAlign center
+skinparam roundCorner 8
+skinparam boxPadding 10
+skinparam participantPadding 10
+
+skinparam sequence {
+    ArrowColor #2563EB
+    ActorBorderColor #C85A32
+    ActorBackgroundColor #FEF2F2
+    LifeLineBorderColor #64748B
+    LifeLineBackgroundColor #F8FAFC
+    ParticipantBorderColor #334155
+    ParticipantBackgroundColor #FFFFFF
+}
+
+title E-COURTIER SÉNÉGAL — DIAGRAMME DE SÉQUENCE : AUTHENTIFICATION, ROTATION ET RÉVOCATION JWT
+
+actor "Client\n(Navigateur / SPA)" as Client
+participant "AuthController" as Controller #F1F5F9
+participant "LoginRateLimiter" as RateLimiter #FEF3C7
+participant "AuthService" as AuthService #F1F5F9
+participant "JwtService" as JwtService #E0F2FE
+participant "UtilisateurRepository" as UserRepo #DCFCE7
+participant "RefreshTokenRepository" as TokenRepo #DCFCE7
+database "PostgreSQL 16" as DB #EDE9FE
+
+== 1. Connexion Initiale (Login) ==
+
+Client -> Controller : POST /api/v1/auth/connexion\n{ email, motDePasse }
+activate Controller
+
+Controller -> RateLimiter : checkRateLimit(clientIp)
+activate RateLimiter
+RateLimiter --> Controller : OK (Tentatives < 5)
+deactivate RateLimiter
+
+Controller -> AuthService : connecter(email, motDePasse)
+activate AuthService
+
+AuthService -> UserRepo : findByEmailAndActifTrue(email)
+activate UserRepo
+UserRepo -> DB : SELECT * FROM utilisateurs WHERE email = ? AND actif = true
+DB --> UserRepo : UtilisateurEntity (tokenVersion = 1)
+UserRepo --> AuthService : utilisateur
+deactivate UserRepo
+
+AuthService -> AuthService : passwordEncoder.matches(mdp, hash)
+
+AuthService -> JwtService : generateAccessToken(utilisateur, tokenVersion=1)
+activate JwtService
+JwtService --> AuthService : accessToken (JWT avec claim "tv": 1, exp: 15 min)
+deactivate JwtService
+
+AuthService -> AuthService : generateSecureRandomToken()
+note right of AuthService : Génération Refresh Token opaque 256 bits\nHash SHA-256 stocké en base
+
+AuthService -> TokenRepo : save(RefreshTokenEntity{\n  tokenHash, familleId=UUID,\n  sequence=1, tokenVersion=1,\n  exp: 7 jours\n})
+activate TokenRepo
+TokenRepo -> DB : INSERT INTO refresh_tokens (...)
+DB --> TokenRepo : Enregistré
+TokenRepo --> AuthService : savedRefreshToken
+deactivate TokenRepo
+
+AuthService --> Controller : AuthResponseDTO{\n  accessToken, refreshToken,\n  utilisateur\n}
+deactivate AuthService
+
+Controller --> Client : HTTP 200 OK + Payload Auth
+deactivate Controller
+
+== 2. Rotation Normale du Refresh Token ==
+
+Client -> Controller : POST /api/v1/auth/rafraichir-token\n{ refreshToken: RT1 }
+activate Controller
+
+Controller -> AuthService : rafraichirToken(RT1)
+activate AuthService
+
+AuthService -> TokenRepo : findByTokenHashForUpdate(hash(RT1))
+activate TokenRepo
+TokenRepo -> DB : SELECT * FROM refresh_tokens WHERE token_hash = ? FOR UPDATE
+DB --> TokenRepo : RT1 (consomme=false, revoque=false, seq=1)
+TokenRepo --> AuthService : RT1
+deactivate TokenRepo
+
+AuthService -> RT1 : consommer()
+AuthService -> TokenRepo : save(RT1)
+
+AuthService -> TokenRepo : save(RefreshTokenEntity{\n  familleId=RT1.familleId,\n  sequence=2,\n  exp: 7 jours\n})
+activate TokenRepo
+TokenRepo -> DB : INSERT INTO refresh_tokens (RT2, seq=2)
+DB --> TokenRepo : Enregistré
+TokenRepo --> AuthService : RT2
+deactivate TokenRepo
+
+AuthService -> JwtService : generateAccessToken(user, tokenVersion=1)
+activate JwtService
+JwtService --> AuthService : nouveau accessToken (JWT avec "tv": 1)
+deactivate JwtService
+
+AuthService --> Controller : AuthResponseDTO{ accessToken, refreshToken: RT2 }
+deactivate AuthService
+
+Controller --> Client : HTTP 200 OK + Nouveaux Tokens
+deactivate Controller
+
+== 3. Tentative d'Attaque par Rejeu (Replay Attack) & Révocation Totale ==
+
+Client -> Controller : Attaquant rejoue RT1 périmé/consommé !\nPOST /api/v1/auth/rafraichir-token\n{ refreshToken: RT1 }
+activate Controller
+
+Controller -> AuthService : rafraichirToken(RT1)
+activate AuthService
+
+AuthService -> TokenRepo : findByTokenHashForUpdate(hash(RT1))
+activate TokenRepo
+TokenRepo -> DB : SELECT * ... FOR UPDATE
+DB --> TokenRepo : RT1 (consomme=TRUE)
+TokenRepo --> AuthService : RT1
+deactivate TokenRepo
+
+note over AuthService #FEE2E2
+  **ALERTE INTRUSION DÉTECTÉE !**
+  RT1 a déjà été consommé.
+  Déclenchement de la révocation de toute la famille de jetons !
+end note
+
+AuthService -> TokenRepo : revoquerFamille(RT1.familleId)
+activate TokenRepo
+TokenRepo -> DB : UPDATE refresh_tokens SET revoque = true WHERE famille_id = ?
+DB --> TokenRepo : Famille entière invalidée
+deactivate TokenRepo
+
+AuthService -> UserRepo : incrementerTokenVersion(userId)
+activate UserRepo
+UserRepo -> DB : UPDATE utilisateurs SET token_version = token_version + 1 WHERE id = ?
+DB --> UserRepo : token_version devient 2
+deactivate UserRepo
+
+AuthService --> Controller : throw SecurityException("Tentative de rejeu détectée")
+deactivate AuthService
+
+Controller --> Client : HTTP 401 Unauthorized\n{"error": "Session compromise et révoquée"}
+deactivate Controller
+
+== 4. Invalidation Immédiate de l'Ancien Access Token ==
+
+Client -> Controller : Requête avec ancien JWT (portant "tv": 1)\nGET /api/v1/utilisateurs/moi
+activate Controller
+
+Controller -> JwtService : extractTokenVersion(jwt)
+activate JwtService
+JwtService --> Controller : claim "tv" = 1
+deactivate JwtService
+
+Controller -> UserRepo : findTokenVersionById(userId)
+activate UserRepo
+UserRepo -> DB : SELECT token_version FROM utilisateurs WHERE id = ?
+DB --> UserRepo : 2 (Incrémenté lors du rejeu)
+UserRepo --> Controller : 2
+deactivate UserRepo
+
+Controller -> Controller : 1 != 2 -> REJET IMMÉDIAT
+Controller --> Client : HTTP 401 Unauthorized\n{"error": "Jeton d'accès révoqué"}
+deactivate Controller
+
+@enduml

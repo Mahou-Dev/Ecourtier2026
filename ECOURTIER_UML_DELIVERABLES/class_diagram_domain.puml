@@ -1,0 +1,347 @@
+@startuml class_diagram_domain
+!theme plain
+skinparam backgroundColor #FFFFFF
+skinparam handwritten false
+skinparam defaultFontName "Inter, Arial, sans-serif"
+skinparam defaultFontSize 11
+skinparam classFontSize 11
+skinparam packageStyle frame
+skinparam linetype ortho
+
+skinparam class {
+    BackgroundColor #FFFFFF
+    BorderColor #334155
+    HeaderBackgroundColor #F1F5F9
+}
+skinparam enum {
+    BackgroundColor #FEF3C7
+    BorderColor #D97706
+    HeaderBackgroundColor #FDE68A
+}
+
+title E-COURTIER SÉNÉGAL — DIAGRAMME DE CLASSES MÉTIER (JPA DOMAIN MODEL)
+
+package "com.ecourtier.domain.utilisateur" {
+    class UtilisateurEntity << (E,#A5B4FC) Entity >> {
+        - id : UUID
+        - email : String
+        - motDePasse : String
+        - nom : String
+        - prenom : String
+        - telephone : String
+        - role : RoleUtilisateur
+        - actif : boolean
+        - dateCreation : Instant
+        - dateModification : Instant
+        - tokenVersion : long
+        --
+        + isActif() : boolean
+        + incrementerTokenVersion() : void
+    }
+
+    class RefreshTokenEntity << (E,#A5B4FC) Entity >> {
+        - id : UUID
+        - tokenHash : String
+        - familleId : UUID
+        - sequence : long
+        - consomme : boolean
+        - revoque : boolean
+        - dateExpiration : Instant
+        - dateCreation : Instant
+        --
+        + estValide(now : Instant) : boolean
+        + revoquer() : void
+        + consommer() : void
+    }
+
+    enum RoleUtilisateur {
+        ADMIN
+        AGENT
+        PROPRIETAIRE
+        LOCATAIRE
+    }
+
+    UtilisateurEntity "1" *-- "0..*" RefreshTokenEntity : detient >
+    UtilisateurEntity --> RoleUtilisateur : possede >
+}
+
+package "com.ecourtier.domain.annonce" {
+    class AnnonceEntity << (E,#A5B4FC) Entity >> {
+        - id : UUID
+        - titre : String
+        - description : String
+        - typeBien : TypeBien
+        - modeTransaction : ModeTransaction
+        - statutPublication : StatutPublication
+        - statutVerification : StatutVerification
+        - prix : BigDecimal
+        - chargesComprises : boolean
+        - montantCharges : BigDecimal
+        - montantCaution : BigDecimal
+        - superficie : Double
+        - nombrePieces : Integer
+        - adresse : String
+        - quartier : String
+        - ville : String
+        - latitude : Double
+        - longitude : Double
+        - meuble : boolean
+        - animauxAcceptes : boolean
+        - disponibleImmediatement : boolean
+        - dateDisponibilite : LocalDate
+        - badgeVerifie : boolean
+        - dateVerification : Instant
+        - commentaireRefus : String
+        - supprime : boolean
+        - dateSuppression : Instant
+        - version : Long <<@Version>>
+        - dateCreation : Instant
+        - dateModification : Instant
+        --
+        + estDisponible() : boolean
+        + suspendre() : void
+        + reactiver() : void
+        + marquerSupprime() : void
+    }
+
+    class PhotoAnnonceEntity << (E,#A5B4FC) Entity >> {
+        - id : UUID
+        - url : String
+        - titre : String
+        - ordreAffichage : int
+        - principale : boolean
+        - dateCreation : Instant
+    }
+
+    class DocumentVerificationEntity << (E,#A5B4FC) Entity >> {
+        - id : UUID
+        - typeDocument : TypeDocumentVerification
+        - urlDocument : String
+        - nomFichier : String
+        - statut : StatutDocumentVerification
+        - dateSoumission : Instant
+        - dateTraitement : Instant
+        - commentaireAdmin : String
+    }
+
+    enum TypeBien {
+        APPARTEMENT
+        VILLA
+        STUDIO
+        CHAMBRE
+        BUREAU
+        LOCAL_COMMERCIAL
+        TERRAIN
+    }
+
+    enum ModeTransaction {
+        LOCATION
+        VENTE
+    }
+
+    enum StatutPublication {
+        BROUILLON
+        EN_ATTENTE_VERIFICATION
+        DISPONIBLE
+        SUSPENDUE
+        REJETEE
+        LOUEE
+        VENDUE
+    }
+
+    enum StatutVerification {
+        NON_VERIFIEE
+        EN_COURS
+        VERIFIEE
+        REJETEE
+    }
+
+    enum TypeDocumentVerification {
+        TITRE_FONCIER
+        BAIL_EN_COURS
+        PIECE_IDENTITE
+        MANDAT_GESTION
+        FACTURE_SENELEC_ORANGE
+    }
+
+    AnnonceEntity "1" *-- "0..*" PhotoAnnonceEntity : photos >
+    AnnonceEntity "1" *-- "0..*" DocumentVerificationEntity : documents >
+    AnnonceEntity --> TypeBien
+    AnnonceEntity --> ModeTransaction
+    AnnonceEntity --> StatutPublication
+    AnnonceEntity --> StatutVerification
+    UtilisateurEntity "1" -- "0..*" AnnonceEntity : publie >
+}
+
+package "com.ecourtier.domain.favori" {
+    class FavoriEntity << (E,#A5B4FC) Entity >> {
+        - id : UUID
+        - dateAjout : Instant
+    }
+
+    UtilisateurEntity "1" -- "0..*" FavoriEntity : sauvegarde >
+    FavoriEntity "0..*" -- "1" AnnonceEntity : cible >
+}
+
+package "com.ecourtier.domain.rendezvous" {
+    class RendezVousEntity << (E,#A5B4FC) Entity >> {
+        - id : UUID
+        - dateHeure : LocalDateTime
+        - statut : StatutRendezVous
+        - noteDemandeur : String
+        - motifRefus : String
+        - rappelSmsEnvoye : boolean
+        - dateCreation : Instant
+        - dateModification : Instant
+        --
+        + confirmer() : void
+        + refuser(motif : String) : void
+        + annuler() : void
+    }
+
+    enum StatutRendezVous {
+        EN_ATTENTE
+        CONFIRME
+        REFUSE
+        ANNULE
+        EFFECTUE
+    }
+
+    RendezVousEntity --> StatutRendezVous
+    UtilisateurEntity "1" -- "0..*" RendezVousEntity : demande (Locataire) >
+    AnnonceEntity "1" -- "0..*" RendezVousEntity : concerne >
+}
+
+package "com.ecourtier.domain.transaction" {
+    class TransactionEntity << (E,#A5B4FC) Entity >> {
+        - id : UUID
+        - montantLoyer : BigDecimal
+        - montantCaution : BigDecimal
+        - montantFraisPlateforme : BigDecimal
+        - montantTotalSequestre : BigDecimal
+        - statutSequestre : StatutSequestre
+        - statutBail : StatutBail
+        - statutDocumentBail : StatutDocumentBail
+        - datePaiementSequestre : Instant
+        - dateLiberationSequestre : Instant
+        - dateRemboursementSequestre : Instant
+        - dateSignatureLocataire : Instant
+        - dateSignatureProprietaire : Instant
+        - urlDocumentBail : String
+        - pdfBailTentatives : int
+        - referencePaiementWave : String
+        - referenceRemboursementWave : String
+        - dateExpiration : Instant
+        - dateCreation : Instant
+        - dateModification : Instant
+        --
+        + estPretePourLiberation() : boolean
+        + libererFonds(now : Instant) : void
+        + signerLocataire(now : Instant) : void
+        + signerProprietaire(now : Instant) : void
+    }
+
+    enum StatutSequestre {
+        INITIALISE
+        BLOQUE
+        LIBERE
+        REMBOURSE
+        LITIGE
+        ANNULE
+    }
+
+    enum StatutBail {
+        NON_SIGNE
+        SIGNE_LOCATAIRE
+        SIGNE_PROPRIETAIRE
+        SIGNE_COMPLET
+    }
+
+    enum StatutDocumentBail {
+        NON_GENERE
+        GENERE
+        EN_ERREUR
+    }
+
+    TransactionEntity --> StatutSequestre
+    TransactionEntity --> StatutBail
+    TransactionEntity --> StatutDocumentBail
+    UtilisateurEntity "1" -- "0..*" TransactionEntity : locataire >
+    UtilisateurEntity "1" -- "0..*" TransactionEntity : proprietaire >
+    AnnonceEntity "1" -- "0..*" TransactionEntity : dossier >
+}
+
+package "com.ecourtier.domain.messagerie" {
+    class ConversationEntity << (E,#A5B4FC) Entity >> {
+        - id : UUID
+        - dateCreation : Instant
+        - dateDernierMessage : Instant
+    }
+
+    class MessageEntity << (E,#A5B4FC) Entity >> {
+        - id : UUID
+        - contenu : String
+        - lu : boolean
+        - dateEnvoi : Instant
+    }
+
+    ConversationEntity "1" *-- "0..*" MessageEntity : messages >
+    UtilisateurEntity "1" -- "0..*" ConversationEntity : initiateur (Locataire) >
+    UtilisateurEntity "1" -- "0..*" ConversationEntity : destinataire (Proprietaire) >
+    MessageEntity "0..*" --> "1" UtilisateurEntity : expediteur >
+    ConversationEntity "0..*" --> "1" AnnonceEntity : concerne >
+}
+
+package "com.ecourtier.domain.avis" {
+    class AvisEntity << (E,#A5B4FC) Entity >> {
+        - id : UUID
+        - note : int
+        - commentaire : String
+        - modere : boolean
+        - dateCreation : Instant
+    }
+
+    class SignalementEntity << (E,#A5B4FC) Entity >> {
+        - id : UUID
+        - motif : MotifSignalement
+        - description : String
+        - statut : StatutSignalement
+        - dateCreation : Instant
+        - dateTraitement : Instant
+        - decisionAdmin : String
+    }
+
+    enum MotifSignalement {
+        FRAUDE_SUSPECTEE
+        FAUSSES_PHOTOS
+        PRIX_ABUSIF
+        DISCRIMINATION
+        AUTRE
+    }
+
+    enum StatutSignalement {
+        EN_ATTENTE
+        TRAITE
+        REJETE
+    }
+
+    UtilisateurEntity "1" -- "0..*" AvisEntity : redacteur >
+    AnnonceEntity "1" -- "0..*" AvisEntity : recoit >
+    SignalementEntity --> MotifSignalement
+    SignalementEntity --> StatutSignalement
+    UtilisateurEntity "1" -- "0..*" SignalementEntity : signaleur >
+    AnnonceEntity "1" -- "0..*" SignalementEntity : visee >
+}
+
+package "com.ecourtier.common.scheduler" {
+    class SchedulerLockEntity << (E,#A5B4FC) Entity >> {
+        - lockName : String <<PK>>
+        - lockedBy : String
+        - lockedUntil : Instant
+        - dateAcquisition : Instant
+        --
+        + isLocked(now : Instant) : boolean
+    }
+}
+
+@enduml

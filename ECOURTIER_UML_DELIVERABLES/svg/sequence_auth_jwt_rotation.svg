@@ -1,0 +1,107 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1050 780" width="100%" height="100%" style="background:#ffffff; font-family:'Inter', Arial, sans-serif;">
+  <rect x="20" y="20" width="1010" height="740" rx="12" fill="#F8FAFC" stroke="#CBD5E1" stroke-width="2"/>
+  <text x="525" y="55" text-anchor="middle" font-size="20" font-weight="700" fill="#0F172A">SÉQUENCE : AUTHENTIFICATION, ROTATION STRICTE &amp; DÉTECTION DE REJEU</text>
+  <text x="525" y="80" text-anchor="middle" font-size="12" fill="#64748B">Flux sécurisé avec validation du claim 'tv' (token_version) et révocation immédiate</text>
+
+  <!-- Colonnes / Participants -->
+  <g transform="translate(80, 110)">
+    <rect width="100" height="36" rx="6" fill="#EFF6FF" stroke="#2563EB"/>
+    <text x="50" y="22" text-anchor="middle" font-size="12" font-weight="600" fill="#1E40AF">Client SPA</text>
+    <line x1="50" y1="36" x2="50" y2="600" stroke="#94A3B8" stroke-dasharray="4"/>
+  </g>
+
+  <g transform="translate(260, 110)">
+    <rect width="110" height="36" rx="6" fill="#F1F5F9" stroke="#475569"/>
+    <text x="55" y="22" text-anchor="middle" font-size="12" font-weight="600" fill="#0F172A">AuthController</text>
+    <line x1="55" y1="36" x2="55" y2="600" stroke="#94A3B8" stroke-dasharray="4"/>
+  </g>
+
+  <g transform="translate(460, 110)">
+    <rect width="100" height="36" rx="6" fill="#F1F5F9" stroke="#475569"/>
+    <text x="50" y="22" text-anchor="middle" font-size="12" font-weight="600" fill="#0F172A">AuthService</text>
+    <line x1="50" y1="36" x2="50" y2="600" stroke="#94A3B8" stroke-dasharray="4"/>
+  </g>
+
+  <g transform="translate(640, 110)">
+    <rect width="100" height="36" rx="6" fill="#ECFDF5" stroke="#059669"/>
+    <text x="50" y="22" text-anchor="middle" font-size="12" font-weight="600" fill="#065F46">JwtService</text>
+    <line x1="50" y1="36" x2="50" y2="600" stroke="#94A3B8" stroke-dasharray="4"/>
+  </g>
+
+  <g transform="translate(820, 110)">
+    <rect width="120" height="36" rx="6" fill="#EDE9FE" stroke="#7C3AED"/>
+    <text x="60" y="22" text-anchor="middle" font-size="12" font-weight="600" fill="#5B21B6">PostgreSQL 16</text>
+    <line x1="60" y1="36" x2="60" y2="600" stroke="#94A3B8" stroke-dasharray="4"/>
+  </g>
+
+  <!-- Phase 1 : Login -->
+  <rect x="50" y="165" width="950" height="24" fill="#DBEAFE" opacity="0.5"/>
+  <text x="60" y="181" font-size="11" font-weight="700" fill="#1E40AF">1. CONNEXION INITIALE (POST /api/v1/auth/connexion)</text>
+
+  <line x1="130" y1="205" x2="315" y2="205" stroke="#2563EB" stroke-width="2"/>
+  <polygon points="315,201 325,205 315,209" fill="#2563EB"/>
+  <text x="220" y="198" text-anchor="middle" font-size="11" fill="#1E293B">email, motDePasse</text>
+
+  <line x1="315" y1="225" x2="510" y2="225" stroke="#2563EB" stroke-width="1.5"/>
+  <text x="410" y="220" text-anchor="middle" font-size="11" fill="#1E293B">connecter(email, pass)</text>
+
+  <line x1="510" y1="245" x2="880" y2="245" stroke="#7C3AED" stroke-width="1.5"/>
+  <text x="700" y="240" text-anchor="middle" font-size="11" fill="#5B21B6">SELECT user &amp; token_version (1)</text>
+
+  <line x1="510" y1="265" x2="690" y2="265" stroke="#059669" stroke-width="1.5"/>
+  <text x="600" y="260" text-anchor="middle" font-size="11" fill="#065F46">generateAccessToken(tv=1)</text>
+
+  <line x1="510" y1="285" x2="880" y2="285" stroke="#7C3AED" stroke-width="1.5"/>
+  <text x="700" y="280" text-anchor="middle" font-size="11" fill="#5B21B6">INSERT refresh_token (seq=1, fam=F1)</text>
+
+  <line x1="315" y1="310" x2="130" y2="310" stroke="#059669" stroke-width="1.5" stroke-dasharray="4"/>
+  <text x="220" y="305" text-anchor="middle" font-size="11" fill="#065F46">200 OK { JWT (tv:1), RT1 }</text>
+
+  <!-- Phase 2 : Refresh -->
+  <rect x="50" y="335" width="950" height="24" fill="#FEF3C7" opacity="0.5"/>
+  <text x="60" y="351" font-size="11" font-weight="700" fill="#92400E">2. ROTATION STRICTE DU REFRESH TOKEN (POST /api/v1/auth/rafraichir-token)</text>
+
+  <line x1="130" y1="375" x2="315" y2="375" stroke="#2563EB" stroke-width="2"/>
+  <text x="220" y="370" text-anchor="middle" font-size="11" fill="#1E293B">rafraichir(RT1)</text>
+
+  <line x1="510" y1="395" x2="880" y2="395" stroke="#7C3AED" stroke-width="1.5"/>
+  <text x="700" y="390" text-anchor="middle" font-size="11" fill="#5B21B6">SELECT ... FOR UPDATE (consomme=F)</text>
+
+  <line x1="510" y1="415" x2="880" y2="415" stroke="#7C3AED" stroke-width="1.5"/>
+  <text x="700" y="410" text-anchor="middle" font-size="11" fill="#5B21B6">UPDATE RT1 (consomme=T) + INSERT RT2 (seq=2)</text>
+
+  <line x1="315" y1="440" x2="130" y2="440" stroke="#059669" stroke-width="1.5" stroke-dasharray="4"/>
+  <text x="220" y="435" text-anchor="middle" font-size="11" fill="#065F46">200 OK { JWT (tv:1), RT2 }</text>
+
+  <!-- Phase 3 : Replay Attack -->
+  <rect x="50" y="465" width="950" height="24" fill="#FEE2E2" opacity="0.7"/>
+  <text x="60" y="481" font-size="11" font-weight="700" fill="#991B1B">3. DÉTECTION ATTAQUE PAR REJEU &amp; RÉVOCATION IMMÉDIATE DE LA FAMILLE ET DU TOKEN_VERSION</text>
+
+  <line x1="130" y1="510" x2="315" y2="510" stroke="#DC2626" stroke-width="2"/>
+  <text x="220" y="505" text-anchor="middle" font-size="11" font-weight="600" fill="#DC2626">Attaquant rejoue RT1 !</text>
+
+  <line x1="510" y1="530" x2="880" y2="530" stroke="#DC2626" stroke-width="1.5"/>
+  <text x="700" y="525" text-anchor="middle" font-size="11" fill="#DC2626">SELECT ... RT1 (consomme=TRUE !) -&gt; ALERTE REJEU</text>
+
+  <line x1="510" y1="555" x2="880" y2="555" stroke="#DC2626" stroke-width="2"/>
+  <text x="700" y="550" text-anchor="middle" font-size="11" font-weight="700" fill="#991B1B">UPDATE refresh_tokens SET revoque=true WHERE famille_id='F1'</text>
+
+  <line x1="510" y1="580" x2="880" y2="580" stroke="#DC2626" stroke-width="2"/>
+  <text x="700" y="575" text-anchor="middle" font-size="11" font-weight="700" fill="#991B1B">UPDATE utilisateurs SET token_version = token_version + 1 (1 -&gt; 2)</text>
+
+  <line x1="315" y1="610" x2="130" y2="610" stroke="#DC2626" stroke-width="1.5" stroke-dasharray="4"/>
+  <text x="220" y="605" text-anchor="middle" font-size="11" font-weight="600" fill="#DC2626">401 Unauthorized (Session compromise révoquée)</text>
+
+  <!-- Phase 4 : Access Token Rejet -->
+  <rect x="50" y="635" width="950" height="24" fill="#F1F5F9"/>
+  <text x="60" y="651" font-size="11" font-weight="700" fill="#334155">4. TOUT ANCIEN JWT (tv=1) EST IMMÉDIATEMENT REJETÉ SUR LE FILTRE</text>
+
+  <line x1="130" y1="680" x2="315" y2="680" stroke="#334155" stroke-width="1.5"/>
+  <text x="220" y="675" text-anchor="middle" font-size="11" fill="#334155">GET /api/v1/utilisateurs/moi (Bearer JWT avec tv=1)</text>
+
+  <line x1="315" y1="700" x2="880" y2="700" stroke="#334155" stroke-width="1.5"/>
+  <text x="600" y="695" text-anchor="middle" font-size="11" fill="#334155">Filtre compare claim tv (1) avec DB token_version (2) -&gt; 1 != 2</text>
+
+  <line x1="315" y1="725" x2="130" y2="725" stroke="#DC2626" stroke-width="2" stroke-dasharray="4"/>
+  <text x="220" y="720" text-anchor="middle" font-size="11" font-weight="700" fill="#DC2626">HTTP 401 Unauthorized (Accès révoqué sans délai de grâce)</text>
+</svg>

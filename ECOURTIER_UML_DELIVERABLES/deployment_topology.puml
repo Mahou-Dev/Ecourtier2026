@@ -1,0 +1,103 @@
+@startuml deployment_topology
+!theme plain
+skinparam backgroundColor #FFFFFF
+skinparam defaultFontName "Inter, Arial, sans-serif"
+skinparam roundCorner 8
+skinparam node {
+    BackgroundColor #F8FAFC
+    BorderColor #334155
+}
+skinparam database {
+    BackgroundColor #EDE9FE
+    BorderColor #7C3AED
+}
+
+title E-COURTIER SÉNÉGAL — TOPOLOGIE DE DÉPLOIEMENT (DOCKER & PRODUCTION HARDENED)
+
+actor "Utilisateur Web / Mobile\n(Navigateur / PWA)" as User
+
+node "Réseau Public Internet" as Internet {
+    cloud "Fournisseur LLM IA" as GroqCloud {
+        [api.groq.com:443\n(Modèle Llama-3.3-70b)]
+    }
+}
+
+node "Hôte de Déploiement Sécurisé (Serveur Linux / Cloud Render)" as Host #F1F5F9 {
+
+    node "Front-End Ingress / Reverse Proxy" as Ingress #EFF6FF {
+        component "Conteneur ecourtier-frontend-prod\n(Nginx 1.27 Alpine Unprivileged)" as NginxContainer {
+            port 8080 as PortNginx
+            [Serveur Web Nginx Non-Root\n(UID 101, Port interne 8080)] as NginxProc
+            [Artefacts Statiques SPA (/usr/share/nginx/html)] as StaticFiles
+            [Configuration Nginx Sécurisée\n- HSTS & Headers CSP\n- Gzip & Cache Assets\n- Reverse-Proxy /api/v1 vers backend:8080] as NginxConf
+        }
+    }
+
+    node "Réseau Docker Isolé Interne (bridge ecourtier-net / interne-securise)" as DockerNet #F8FAFC {
+
+        node "Conteneur ecourtier-backend-prod\n(Eclipse Temurin 21 JRE Alpine)" as BackendContainer #ECFDF5 {
+            port 8080 as PortBackend
+            [JVM Java 21 LTS\n(Utilisateur non-root ecourtier, UID 1000)] as JavaProc
+            [Application Spring Boot 3.4\n- Profil actif: prod\n- Validation stricte configuration\n- Flyway DB Migrator\n- Moteur OpenPDF Horodaté] as SpringApp
+            folder "/app/uploads" as UploadsVol {
+                [Photos d'annonces]
+                [Documents d'identité & Titres fonciers]
+                [Contrats de baux PDF certifiés]
+            }
+        }
+
+        database "Conteneur ecourtier-postgres-prod\n(PostgreSQL 16.15 Bullseye/Alpine)" as DBContainer #EDE9FE {
+            port 5432 as PortPG
+            [Moteur PostgreSQL 16.15\n(Isolation stricte des schémas)\n- Contraintes d'intégrité & Index partiels\n- Verrouillage multi-instances scheduler] as PGServer
+            folder "/var/lib/postgresql/data" as PGData
+        }
+    }
+
+    folder "Volumes Persistants Docker Hôte" as HostVolumes #FFFBEB {
+        storage "postgres_prod_data\n(Volume Chiffré Données)" as VolPG
+        storage "backend_prod_uploads\n(Volume Persistant Documents)" as VolUploads
+    }
+}
+
+' Connexions Utilisateur
+User --> PortNginx : HTTPS / TLS 1.3 (Port public 443 / 80)
+PortNginx --> NginxProc
+NginxProc --> StaticFiles : Fichiers statiques (HTML/JS/CSS/PWA)
+NginxProc --> PortBackend : Proxy Pass /api/v1 & /ws-ecourtier (ecourtier-net)
+
+' Connexions Backend
+PortBackend --> JavaProc
+JavaProc --> SpringApp
+SpringApp --> PortPG : JDBC HikariPool (Port 5432 sur ecourtier-net privé)
+PortPG --> PGServer
+PGServer --> PGData
+PGData ..> VolPG : Montage Volume
+
+SpringApp --> UploadsVol : Écriture atomique & Lecture
+UploadsVol ..> VolUploads : Montage Volume
+
+' Flux Externe Sortant
+SpringApp --> GroqCloud : Requêtes HTTPS sortantes\n(Extraction critères IA Samba, port 443)
+
+note bottom of NginxContainer
+  **Sécurité Conteneur Frontend :**
+  - Image sans privilège root (UID 101)
+  - Droits réduits (read-only filesystem sauf cache)
+  - Pas d'accès direct au conteneur PostgreSQL
+end note
+
+note bottom of BackendContainer
+  **Sécurité Conteneur Backend :**
+  - Utilisateur système dédié `ecourtier` (UID 1000)
+  - Validation démarrage : secrets d'entropie >= 32 car.
+  - Healthcheck HTTP sur /api/v1/health toutes les 30s
+end note
+
+note bottom of DBContainer
+  **Sécurité Conteneur Base de données :**
+  - Port 5432 NON exposé sur l'hôte en production
+  - Accessible uniquement depuis le réseau bridge privé
+  - Données isolées dans le volume dédié chiffré
+end note
+
+@enduml

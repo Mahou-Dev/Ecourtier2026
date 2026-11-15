@@ -1,0 +1,82 @@
+@startuml cicd_pipeline_architecture
+!theme plain
+skinparam backgroundColor #FFFFFF
+skinparam defaultFontName "Inter, Arial, sans-serif"
+skinparam roundCorner 8
+skinparam activity {
+    BackgroundColor #F8FAFC
+    BorderColor #334155
+    FontColor #0F172A
+    ArrowColor #2563EB
+}
+
+title E-COURTIER SÉNÉGAL — ARCHITECTURE DE LA CHAÎNE D'INTÉGRATION ET LIVRAISON CONTINUES (CI/CD)
+
+|Événements Déclencheurs|
+start
+:Push sur branche principale (main)\nou Pull Request / Workflow Dispatch;
+
+|Étape 1 : Précontrôles & Sécurité|
+fork
+    :Vérification de la structure du dépôt\n(Présence des pom.xml, Dockerfile, etc.);
+    :Contrôle d'unicité et nomenclature Flyway\n(Aucun doublon sur les versions V1 à V20);
+    :Scan anti-fuite de secrets\n(Vérification git ls-files, pas de .env / .key suivis);
+end fork
+
+|Étape 2 : Validation Backend (Java 21)|
+fork
+    :Compilation Maven & Résolution dépendances\n(Temurin JDK 21 LTS);
+    :Exécution des 395 tests unitaires et intégration\n(Surefire JUnit 5, H2 mode PostgreSQL);
+    :Contrôle de couverture de code JaCoCo\n(Vérification stricte : Couverture Lignes >= 60%);
+    note right #DCFCE7 : Mesuré en Lot 5 :\n86.85% de couverture réelle
+end fork
+
+|Étape 3 : Persistance Réelle (PostgreSQL 16)|
+fork
+    :Démarrage conteneur PostgreSQL 16.15 isolé\n(Moteur Testcontainers natif);
+    :Exécution séquentielle Flyway V1 à V20\n(Vérification contraintes, FK, triggers);
+    :Validation index partiels & verrous optimistes\n(uq_transactions_annonce_active & @Version);
+    :Test de robustesse reprise PDF bail\n(BailPdfRecoveryScheduler sous PG Lock);
+end fork
+
+|Étape 4 : Qualité & Build Frontend (Node 20)|
+fork
+    :Vérification syntaxique ESLint strict\n(Paramètre bloquant --max-warnings 0);
+    :Contrôle de typage statique TypeScript\n(tsc --noEmit sans erreur admise);
+    :Build de production Vite 6 & Rollup\n(Code splitting, minification CSS/JS);
+    :Génération du Service Worker PWA\n(Workbox 61 entrées pré-cachées hors-ligne);
+end fork
+
+|Étape 5 : Tests de Bout en Bout E2E (Playwright)|
+fork
+    :Démarrage instance Spring Boot réelle sur port 18080\n(Profil test avec compte administrateur bootstappé);
+    :Démarrage serveur prévisualisation Vite sur port 4173\n(Pointant vers le backend 18080);
+    :Attente disponibilité des sondes HTTP /api/v1/health;
+    :Exécution de la suite Playwright Chromium headless\n- 4 tests sécurité UI (phase2-security-ui)\n- 6 tests full-stack réels (phase3-real-backend);
+    :Arrêt propre des démons et capture des traces/vidéos;
+end fork
+
+|Étape 6 : Validation Docker & Conteneurs|
+fork
+    :Validation syntaxique Docker Compose\n(docker compose config sur dev et prod);
+    :Build de l'image de production Backend\n(Image Alpine JRE non-root UID 1000);
+    :Build multi-stage de l'image Frontend\n(Nginx 1.27 unprivileged non-root UID 101);
+end fork
+
+|Livrables & Déploiement Staging (CD Release)|
+:Publication des artefacts certifiés :
+- JAR exécutable Spring Boot signé
+- Bundle statique SPA Nginx
+- Spécification OpenAPI 3.0.1 synchronisée
+- Matrice de traçabilité des tests;
+
+if (Branche = main & Tous les contrôles au vert ?) then (Oui)
+    :Barrière de validation manuelle Staging\n(Environnement isolé de pré-production);
+    :Déploiement automatique sur Cloud Staging\n(Variables d'environnement & Secrets injectés);
+    stop
+else (Échec ou branche de test)
+    :Notification d'alerte & Archivage des logs de diagnostic;
+    end
+endif
+
+@enduml

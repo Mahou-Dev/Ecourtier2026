@@ -1,0 +1,128 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1150 820" width="100%" height="100%" style="background:#ffffff; font-family:'Inter', Arial, sans-serif;">
+  <rect x="20" y="20" width="1110" height="780" rx="12" fill="#F8FAFC" stroke="#CBD5E1" stroke-width="2"/>
+  <text x="575" y="55" text-anchor="middle" font-size="20" font-weight="700" fill="#0F172A">ARCHITECTURE LOGICIELLE COMPLÈTE DES COMPOSANTS (C4 LEVEL 2)</text>
+  <text x="575" y="80" text-anchor="middle" font-size="12" fill="#64748B">Découplage Frontend SPA React 19, Backend Spring Boot 3.4 modulaire et Persistance</text>
+
+  <!-- Frontend Container -->
+  <g transform="translate(50, 110)">
+    <rect width="320" height="650" rx="10" fill="#EFF6FF" stroke="#2563EB" stroke-width="1.5"/>
+    <text x="160" y="30" text-anchor="middle" font-size="14" font-weight="700" fill="#1E40AF">Frontend Client SPA (React 19 / Vite 6)</text>
+
+    <rect x="20" y="50" width="280" height="60" rx="6" fill="#FFFFFF" stroke="#93C5FD"/>
+    <text x="35" y="75" font-size="12" font-weight="600" fill="#1E3A8A">React Router &amp; Route Guards</text>
+    <text x="35" y="95" font-size="10" fill="#64748B">Routage public, locataire, bailleur, admin</text>
+
+    <rect x="20" y="125" width="280" height="60" rx="6" fill="#FFFFFF" stroke="#93C5FD"/>
+    <text x="35" y="150" font-size="12" font-weight="600" fill="#1E3A8A">Zustand Auth Store (useAuthStore)</text>
+    <text x="35" y="170" font-size="10" fill="#64748B">Gestion JWT, token_version, session sécurisée</text>
+
+    <rect x="20" y="200" width="280" height="60" rx="6" fill="#FFFFFF" stroke="#93C5FD"/>
+    <text x="35" y="225" font-size="12" font-weight="600" fill="#1E3A8A">TanStack React Query Cache</text>
+    <text x="35" y="245" font-size="10" fill="#64748B">Mise en cache requêtes, optimistic locking UI</text>
+
+    <rect x="20" y="275" width="280" height="60" rx="6" fill="#FFFFFF" stroke="#93C5FD"/>
+    <text x="35" y="300" font-size="12" font-weight="600" fill="#1E3A8A">Leaflet &amp; OpenStreetMap</text>
+    <text x="35" y="320" font-size="10" fill="#64748B">Cartographie Dakar, géolocalisation &amp; pins</text>
+
+    <rect x="20" y="350" width="280" height="60" rx="6" fill="#FFFFFF" stroke="#93C5FD"/>
+    <text x="35" y="375" font-size="12" font-weight="600" fill="#1E3A8A">STOMP.js &amp; SockJS WebSocket</text>
+    <text x="35" y="395" font-size="10" fill="#64748B">Messagerie temps réel propriétaire-locataire</text>
+
+    <rect x="20" y="425" width="280" height="60" rx="6" fill="#FFFFFF" stroke="#93C5FD"/>
+    <text x="35" y="450" font-size="12" font-weight="600" fill="#1E3A8A">Service Worker PWA (Workbox)</text>
+    <text x="35" y="470" font-size="10" fill="#64748B">Mode hors-ligne, 61 assets pré-cachés</text>
+
+    <rect x="20" y="500" width="280" height="120" rx="6" fill="#FFFFFF" stroke="#93C5FD"/>
+    <text x="35" y="525" font-size="12" font-weight="600" fill="#1E3A8A">Modules UI Spécialisés</text>
+    <text x="35" y="545" font-size="10" fill="#64748B">• AiAssistantWidget (Chat IA Samba)</text>
+    <text x="35" y="565" font-size="10" fill="#64748B">• TransactionDetailsModal (Séquestre)</text>
+    <text x="35" y="585" font-size="10" fill="#64748B">• AdminVerificationPage (Audit annonces)</text>
+    <text x="35" y="605" font-size="10" fill="#64748B">• CreateAnnonceModal &amp; EditAnnonceModal</text>
+  </g>
+
+  <!-- Backend Container -->
+  <g transform="translate(420, 110)">
+    <rect width="400" height="650" rx="10" fill="#F8FAFC" stroke="#059669" stroke-width="1.5"/>
+    <text x="200" y="30" text-anchor="middle" font-size="14" font-weight="700" fill="#065F46">Backend Service (Spring Boot 3.4 / Java 21)</text>
+
+    <!-- Sécurité -->
+    <rect x="20" y="45" width="360" height="70" rx="6" fill="#FEF2F2" stroke="#DC2626"/>
+    <text x="35" y="68" font-size="12" font-weight="700" fill="#991B1B">Filtres Sécurité &amp; Rate Limiting</text>
+    <text x="35" y="86" font-size="10" fill="#7F1D1D">• JwtAuthenticationFilter (contrôle strict claim 'tv')</text>
+    <text x="35" y="102" font-size="10" fill="#7F1D1D">• LoginRateLimiter (BoundedRateLimiter anti-DDoS)</text>
+
+    <!-- Contrôleurs -->
+    <rect x="20" y="130" width="360" height="110" rx="6" fill="#FFFFFF" stroke="#CBD5E1"/>
+    <text x="35" y="152" font-size="12" font-weight="700" fill="#0F172A">Contrôleurs REST &amp; WebSocket (20 contrôleurs)</text>
+    <text x="35" y="172" font-size="10" fill="#334155">• AuthController / UtilisateurCompteController</text>
+    <text x="35" y="190" font-size="10" fill="#334155">• AnnonceController / AdminAnnonceController</text>
+    <text x="35" y="208" font-size="10" fill="#334155">• TransactionController / IAController / Messagerie</text>
+    <text x="35" y="226" font-size="10" fill="#334155">• AdminStatistiquesController / UploadController</text>
+
+    <!-- Services Métier -->
+    <rect x="20" y="255" width="360" height="190" rx="6" fill="#ECFDF5" stroke="#059669"/>
+    <text x="35" y="278" font-size="12" font-weight="700" fill="#065F46">Services Métier Découplés</text>
+    <text x="35" y="298" font-size="10" fill="#064E3B">• AuthService (rotation refresh tokens, révocation famille)</text>
+    <text x="35" y="316" font-size="10" fill="#064E3B">• AnnonceService &amp; AnnonceStatutStateMachine</text>
+    <text x="35" y="334" font-size="10" fill="#064E3B">• TransactionService (séquestre, baux, libération)</text>
+    <text x="35" y="352" font-size="10" fill="#064E3B">• RendezVousService (gestion conflits &amp; SMS)</text>
+    <text x="35" y="370" font-size="10" fill="#064E3B">• IAService &amp; LlmExtractionService (hybride)</text>
+    <text x="35" y="388" font-size="10" fill="#064E3B">• PdfBailGeneratorService (OpenPDF horodaté Dakar)</text>
+    <text x="35" y="406" font-size="10" fill="#064E3B">• BailPdfRecoveryScheduler (reprise automatique)</text>
+    <text x="35" y="424" font-size="10" fill="#064E3B">• SchedulerLockService (verrou multi-instances PG)</text>
+
+    <!-- Repositories JPA -->
+    <rect x="20" y="460" width="360" height="160" rx="6" fill="#F1F5F9" stroke="#94A3B8"/>
+    <text x="35" y="485" font-size="12" font-weight="700" fill="#0F172A">Couche Persistance Spring Data JPA</text>
+    <text x="35" y="508" font-size="10" fill="#334155">• UtilisateurRepository &amp; RefreshTokenRepository</text>
+    <text x="35" y="528" font-size="10" fill="#334155">• AnnonceRepository &amp; AnnonceSpecification (requêtes)</text>
+    <text x="35" y="548" font-size="10" fill="#334155">• TransactionRepository (recherche index partiel actif)</text>
+    <text x="35" y="568" font-size="10" fill="#334155">• RendezVousRepository &amp; MessagerieRepository</text>
+    <text x="35" y="588" font-size="10" fill="#334155">• SchedulerLockRepository &amp; StatistiquesRepository</text>
+  </g>
+
+  <!-- Infrastructure & Externes -->
+  <g transform="translate(865, 110)">
+    <rect width="235" height="650" rx="10" fill="#FFFBEB" stroke="#D97706" stroke-width="1.5"/>
+    <text x="117" y="30" text-anchor="middle" font-size="14" font-weight="700" fill="#92400E">Infrastructure &amp; Tiers</text>
+
+    <!-- PostgreSQL -->
+    <rect x="15" y="50" width="205" height="160" rx="6" fill="#EDE9FE" stroke="#7C3AED"/>
+    <text x="30" y="75" font-size="12" font-weight="700" fill="#5B21B6">PostgreSQL 16.15</text>
+    <text x="30" y="95" font-size="10" fill="#4C1D95">• 20 migrations Flyway V1..V20</text>
+    <text x="30" y="113" font-size="10" fill="#4C1D95">• Contraintes FK ON DELETE</text>
+    <text x="30" y="131" font-size="10" fill="#4C1D95">• Index uq_transactions_active</text>
+    <text x="30" y="149" font-size="10" fill="#4C1D95">• Verrou scheduler_locks</text>
+    <text x="30" y="167" font-size="10" fill="#4C1D95">• Schéma public isolé</text>
+    <text x="30" y="185" font-size="10" fill="#4C1D95">• Volume docker_postgres_data</text>
+
+    <!-- Groq -->
+    <rect x="15" y="235" width="205" height="110" rx="6" fill="#FEF3C7" stroke="#D97706"/>
+    <text x="30" y="260" font-size="12" font-weight="700" fill="#92400E">Groq Cloud AI</text>
+    <text x="30" y="280" font-size="10" fill="#78350F">• API REST HTTPS /v1/chat</text>
+    <text x="30" y="298" font-size="10" fill="#78350F">• Llama-3.3-70b-versatile</text>
+    <text x="30" y="316" font-size="10" fill="#78350F">• Fallback heuristique local</text>
+
+    <!-- Disque local -->
+    <rect x="15" y="370" width="205" height="130" rx="6" fill="#FFFFFF" stroke="#94A3B8"/>
+    <text x="30" y="395" font-size="12" font-weight="700" fill="#0F172A">Stockage Fichiers</text>
+    <text x="30" y="415" font-size="10" fill="#334155">• /app/uploads/photos/</text>
+    <text x="30" y="433" font-size="10" fill="#334155">• /app/uploads/documents/</text>
+    <text x="30" y="451" font-size="10" fill="#334155">• /app/uploads/baux/ (PDF)</text>
+    <text x="30" y="469" font-size="10" fill="#334155">• Téléchargement protégé</text>
+
+    <!-- Wave Sandbox -->
+    <rect x="15" y="525" width="205" height="100" rx="6" fill="#F1F5F9" stroke="#64748B"/>
+    <text x="30" y="550" font-size="12" font-weight="700" fill="#334155">Wave Client (Sandbox)</text>
+    <text x="30" y="570" font-size="10" fill="#64748B">• Simulation séquestre</text>
+    <text x="30" y="588" font-size="10" fill="#64748B">• Caution + loyer + 5000</text>
+    <text x="30" y="606" font-size="10" fill="#64748B">• Exclusion production</text>
+  </g>
+
+  <!-- Connecteurs -->
+  <line x1="370" y1="200" x2="420" y2="200" stroke="#2563EB" stroke-width="2"/>
+  <polygon points="415,196 425,200 415,204" fill="#2563EB"/>
+
+  <line x1="820" y1="350" x2="865" y2="350" stroke="#059669" stroke-width="2"/>
+  <polygon points="860,346 870,350 860,354" fill="#059669"/>
+</svg>

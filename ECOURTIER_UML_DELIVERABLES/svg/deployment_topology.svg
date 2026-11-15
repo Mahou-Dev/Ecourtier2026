@@ -1,0 +1,115 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1150 800" width="100%" height="100%" style="background:#ffffff; font-family:'Inter', Arial, sans-serif;">
+  <rect x="20" y="20" width="1110" height="760" rx="12" fill="#F8FAFC" stroke="#CBD5E1" stroke-width="2"/>
+  <text x="575" y="55" text-anchor="middle" font-size="20" font-weight="700" fill="#0F172A">TOPOLOGIE DE DÉPLOIEMENT EN PRODUCTION HARDENED &amp; CONTENEURS</text>
+  <text x="575" y="80" text-anchor="middle" font-size="12" fill="#64748B">Isolation réseau Docker, utilisateurs sans privilèges (non-root) et gestion des secrets</text>
+
+  <!-- Utilisateur -->
+  <g transform="translate(60, 240)">
+    <circle cx="40" cy="30" r="18" fill="#DBEAFE" stroke="#2563EB" stroke-width="2"/>
+    <line x1="40" y1="48" x2="40" y2="90" stroke="#2563EB" stroke-width="2"/>
+    <line x1="15" y1="65" x2="65" y2="65" stroke="#2563EB" stroke-width="2"/>
+    <line x1="40" y1="90" x2="20" y2="125" stroke="#2563EB" stroke-width="2"/>
+    <line x1="40" y1="90" x2="60" y2="125" stroke="#2563EB" stroke-width="2"/>
+    <text x="40" y="145" text-anchor="middle" font-size="12" font-weight="600" fill="#1E40AF">Client Web / PWA</text>
+    <text x="40" y="160" text-anchor="middle" font-size="10" fill="#64748B">(Navigateur mobile/desktop)</text>
+  </g>
+
+  <!-- Hôte / Cloud -->
+  <rect x="220" y="110" width="870" height="630" rx="10" fill="#FFFFFF" stroke="#334155" stroke-width="2"/>
+  <text x="240" y="135" font-size="14" font-weight="700" fill="#0F172A">Hôte Linux Dédié / Cluster Cloud Render (docker-compose.prod.yml)</text>
+
+  <!-- Conteneur Nginx Frontend -->
+  <g transform="translate(250, 160)">
+    <rect width="240" height="380" rx="8" fill="#EFF6FF" stroke="#2563EB" stroke-width="1.5"/>
+    <text x="120" y="25" text-anchor="middle" font-size="12" font-weight="700" fill="#1E40AF">ecourtier-frontend-prod</text>
+    <text x="120" y="42" text-anchor="middle" font-size="10" fill="#64748B">Nginx 1.27 Alpine Unprivileged</text>
+
+    <rect x="15" y="60" width="210" height="45" rx="4" fill="#FFFFFF" stroke="#93C5FD"/>
+    <text x="25" y="80" font-size="11" font-weight="600" fill="#1E3A8A">Port Écoute : 8080</text>
+    <text x="25" y="95" font-size="9" fill="#64748B">Mapping hôte 80/443 -&gt; 8080</text>
+
+    <rect x="15" y="120" width="210" height="70" rx="4" fill="#FFFFFF" stroke="#93C5FD"/>
+    <text x="25" y="140" font-size="11" font-weight="600" fill="#1E3A8A">Sécurité Conteneur</text>
+    <text x="25" y="156" font-size="9" fill="#1E293B">• Exécution non-root (UID 101)</text>
+    <text x="25" y="170" font-size="9" fill="#1E293B">• Read-only rootfs (tmpfs /tmp)</text>
+    <text x="25" y="184" font-size="9" fill="#1E293B">• Headers CSP, HSTS, X-Frame</text>
+
+    <rect x="15" y="205" width="210" height="75" rx="4" fill="#FFFFFF" stroke="#93C5FD"/>
+    <text x="25" y="225" font-size="11" font-weight="600" fill="#1E3A8A">Proxy Reverse Nginx</text>
+    <text x="25" y="242" font-size="9" fill="#1E293B">• /api/v1 -&gt; backend:8080</text>
+    <text x="25" y="256" font-size="9" fill="#1E293B">• /ws-ecourtier -&gt; backend:8080</text>
+    <text x="25" y="270" font-size="9" fill="#1E293B">• Compression Gzip &amp; Cache PWA</text>
+
+    <rect x="15" y="295" width="210" height="65" rx="4" fill="#ECFDF5" stroke="#059669"/>
+    <text x="25" y="315" font-size="11" font-weight="600" fill="#065F46">Healthcheck Conteneur</text>
+    <text x="25" y="332" font-size="9" fill="#047857">• curl -f http://127.0.0.1:8080/</text>
+    <text x="25" y="348" font-size="9" fill="#047857">• Interval: 30s, Retries: 3</text>
+  </g>
+
+  <!-- Réseau Privé Interne -->
+  <rect x="530" y="160" width="530" height="540" rx="8" fill="#F8FAFC" stroke="#059669" stroke-width="1.5" stroke-dasharray="4"/>
+  <text x="550" y="185" font-size="12" font-weight="700" fill="#065F46">Réseau Privé Interne Isolé (ecourtier-net-prod / bridge)</text>
+
+  <!-- Conteneur Backend -->
+  <g transform="translate(550, 205)">
+    <rect width="235" height="340" rx="8" fill="#FFFFFF" stroke="#059669" stroke-width="1.5"/>
+    <text x="117" y="25" text-anchor="middle" font-size="12" font-weight="700" fill="#065F46">ecourtier-backend-prod</text>
+    <text x="117" y="42" text-anchor="middle" font-size="10" fill="#64748B">Temurin 21 JRE Alpine</text>
+
+    <rect x="15" y="60" width="205" height="65" rx="4" fill="#ECFDF5" stroke="#059669"/>
+    <text x="25" y="80" font-size="11" font-weight="600" fill="#065F46">Sécurité Runtime</text>
+    <text x="25" y="96" font-size="9" fill="#047857">• Utilisateur ecourtier (UID 1000)</text>
+    <text x="25" y="110" font-size="9" fill="#047857">• Profil Spring 'prod' validé</text>
+
+    <rect x="15" y="135" width="205" height="75" rx="4" fill="#ECFDF5" stroke="#059669"/>
+    <text x="25" y="155" font-size="11" font-weight="600" fill="#065F46">Secrets Injectés (Env)</text>
+    <text x="25" y="171" font-size="9" fill="#047857">• JWT_SECRET (&gt;= 32 car.)</text>
+    <text x="25" y="185" font-size="9" fill="#047857">• POSTGRES_PASSWORD</text>
+    <text x="25" y="199" font-size="9" fill="#047857">• GROQ_API_KEY (chiffré)</text>
+
+    <rect x="15" y="220" width="205" height="100" rx="4" fill="#FFFFFF" stroke="#CBD5E1"/>
+    <text x="25" y="240" font-size="11" font-weight="600" fill="#0F172A">Volumes &amp; Healthcheck</text>
+    <text x="25" y="256" font-size="9" fill="#334155">• Volume /app/uploads monté</text>
+    <text x="25" y="270" font-size="9" fill="#334155">• Chown UID 1000 au démarrage</text>
+    <text x="25" y="284" font-size="9" fill="#334155">• Healthcheck /api/v1/health (200)</text>
+    <text x="25" y="298" font-size="9" fill="#334155">• Flyway migre auto au start</text>
+  </g>
+
+  <!-- Conteneur PostgreSQL -->
+  <g transform="translate(815, 205)">
+    <rect width="220" height="340" rx="8" fill="#EDE9FE" stroke="#7C3AED" stroke-width="1.5"/>
+    <text x="110" y="25" text-anchor="middle" font-size="12" font-weight="700" fill="#5B21B6">ecourtier-postgres-prod</text>
+    <text x="110" y="42" text-anchor="middle" font-size="10" fill="#64748B">PostgreSQL 16.15 Bullseye</text>
+
+    <rect x="15" y="60" width="190" height="70" rx="4" fill="#FFFFFF" stroke="#C4B5FD"/>
+    <text x="25" y="80" font-size="11" font-weight="600" fill="#4C1D95">Isolation Totale</text>
+    <text x="25" y="96" font-size="9" fill="#334155">• Port 5432 NON publié sur hôte</text>
+    <text x="25" y="110" font-size="9" fill="#334155">• Accessible SEULEMENT par backend</text>
+    <text x="25" y="124" font-size="9" fill="#334155">• Aucune IP externe routée</text>
+
+    <rect x="15" y="140" width="190" height="85" rx="4" fill="#FFFFFF" stroke="#C4B5FD"/>
+    <text x="25" y="160" font-size="11" font-weight="600" fill="#4C1D95">Persistance des Données</text>
+    <text x="25" y="176" font-size="9" fill="#334155">• Volume : postgres_prod_data</text>
+    <text x="25" y="190" font-size="9" fill="#334155">• Montage sur /var/lib/postgresql/data</text>
+    <text x="25" y="204" font-size="9" fill="#334155">• Données résilientes aux reboots</text>
+
+    <rect x="15" y="235" width="190" height="85" rx="4" fill="#FFFFFF" stroke="#C4B5FD"/>
+    <text x="25" y="255" font-size="11" font-weight="600" fill="#4C1D95">Healthcheck Natif</text>
+    <text x="25" y="271" font-size="9" fill="#334155">• pg_isready -U ecourtier</text>
+    <text x="25" y="285" font-size="9" fill="#334155">• Démarrage backend conditionné :</text>
+    <text x="25" y="299" font-size="9" font-weight="600" fill="#059669">  service_healthy obligatoire</text>
+  </g>
+
+  <!-- Flèches -->
+  <line x1="140" y1="310" x2="250" y2="310" stroke="#2563EB" stroke-width="2"/>
+  <polygon points="245,306 255,310 245,314" fill="#2563EB"/>
+  <text x="195" y="300" text-anchor="middle" font-size="10" font-weight="600" fill="#1E40AF">HTTPS 443</text>
+
+  <line x1="490" y1="340" x2="550" y2="340" stroke="#2563EB" stroke-width="2"/>
+  <polygon points="545,336 555,340 545,344" fill="#2563EB"/>
+  <text x="520" y="330" text-anchor="middle" font-size="10" font-weight="600" fill="#2563EB">Proxy :8080</text>
+
+  <line x1="785" y1="340" x2="815" y2="340" stroke="#7C3AED" stroke-width="2"/>
+  <polygon points="810,336 820,340 810,344" fill="#7C3AED"/>
+  <text x="800" y="330" text-anchor="middle" font-size="10" font-weight="600" fill="#7C3AED">JDBC :5432</text>
+</svg>

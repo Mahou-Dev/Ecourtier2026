@@ -1,0 +1,124 @@
+@startuml sequence_escrow_lifecycle
+!theme plain
+skinparam backgroundColor #FFFFFF
+skinparam defaultFontName "Inter, Arial, sans-serif"
+skinparam sequenceMessageAlign center
+skinparam roundCorner 8
+skinparam boxPadding 10
+skinparam participantPadding 10
+
+skinparam sequence {
+    ArrowColor #0284C7
+    ActorBorderColor #C85A32
+    ActorBackgroundColor #FEF2F2
+    LifeLineBorderColor #64748B
+    LifeLineBackgroundColor #F8FAFC
+    ParticipantBorderColor #334155
+    ParticipantBackgroundColor #FFFFFF
+}
+
+title E-COURTIER SÉNÉGAL — DIAGRAMME DE SÉQUENCE : SÉQUESTRE IMMOBILIER ET LIBÉRATION DES FONDS
+
+actor "Locataire" as Locataire #DBEAFE
+actor "Propriétaire" as Proprietaire #FEF3C7
+participant "TransactionController" as Controller #F1F5F9
+participant "TransactionService" as TxService #F1F5F9
+participant "WaveClientMock\n(Sandbox Wave)" as WaveClient #FEF3C7
+participant "AnnonceStateMachine" as StateMachine #E0F2FE
+participant "PdfBailGenerator" as PdfService #DCFCE7
+database "PostgreSQL 16" as DB #EDE9FE
+
+== 1. Initiation de la Transaction ==
+
+Locataire -> Controller : POST /api/v1/transactions\n{ annonceId, montantLoyer: 250 000 }
+activate Controller
+
+Controller -> TxService : initierTransaction(annonceId, locataireId)
+activate TxService
+
+TxService -> DB : Vérifie absence de transaction active\n(Index partiel uq_transactions_annonce_active)
+TxService -> TxService : Calcul des montants réglementaires :\n- Loyer: 250 000 FCFA\n- Caution: 250 000 FCFA\n- Frais plateforme: 5 000 FCFA\n- TOTAL SÉQUESTRE: 505 000 FCFA
+
+TxService -> DB : INSERT INTO transactions (..., statut_sequestre='INITIALISE',\nstatut_bail='NON_SIGNE', date_expiration = now + 48h)
+DB --> TxService : Transaction créée (ID: tx-01)
+
+TxService --> Controller : TransactionResponseDTO (INITIALISE, 505 000 FCFA)
+deactivate TxService
+Controller --> Locataire : HTTP 201 Created
+deactivate Controller
+
+== 2. Paiement et Blocage du Séquestre ==
+
+Locataire -> Controller : POST /api/v1/transactions/tx-01/payer-sequestre
+activate Controller
+
+Controller -> TxService : payerSequestre(tx-01, locataireId)
+activate TxService
+
+TxService -> DB : SELECT * FROM transactions WHERE id = 'tx-01' FOR UPDATE
+DB --> TxService : Transaction (statut=INITIALISE)
+
+TxService -> WaveClient : executerPaiementSandbox(505 000 FCFA, clientTel)
+activate WaveClient
+WaveClient --> TxService : WavePaymentResponse{\n  reference: "WAVE-SANDBOX-PAID001",\n  statut: "CONFIRMED",\n  montant: 505000\n}
+deactivate WaveClient
+
+TxService -> TxService : Validation stricte référence & montant
+TxService -> DB : UPDATE transactions SET\n  statut_sequestre = 'BLOQUE',\n  reference_wave = 'WAVE-SANDBOX-PAID001',\n  date_paiement = now()\nWHERE id = 'tx-01'
+
+TxService --> Controller : TransactionResponseDTO (statutSequestre: BLOQUE)
+deactivate TxService
+Controller --> Locataire : HTTP 200 OK (Séquestre sécurisé)
+deactivate Controller
+
+== 3. Double Signature du Bail Numérique ==
+
+Locataire -> Controller : POST /api/v1/transactions/tx-01/signer-bail
+activate Controller
+Controller -> TxService : signerBail(tx-01, locataireId)
+activate TxService
+TxService -> DB : UPDATE transactions SET\n  date_signature_locataire = now(),\n  statut_bail = 'SIGNE_LOCATAIRE'\nWHERE id = 'tx-01'
+TxService --> Controller : statutBail: SIGNE_LOCATAIRE
+deactivate TxService
+Controller --> Locataire : HTTP 200 OK
+deactivate Controller
+
+... Le propriétaire est notifié de la signature du locataire ...
+
+Proprietaire -> Controller : POST /api/v1/transactions/tx-01/signer-bail
+activate Controller
+Controller -> TxService : signerBail(tx-01, proprietaireId)
+activate TxService
+
+TxService -> DB : SELECT * FROM transactions WHERE id = 'tx-01' FOR UPDATE
+DB --> TxService : tx-01 (statutSequestre=BLOQUE, statutBail=SIGNE_LOCATAIRE)
+
+TxService -> DB : UPDATE transactions SET\n  date_signature_proprietaire = now(),\n  statut_bail = 'SIGNE_COMPLET'\nWHERE id = 'tx-01'
+
+== 4. Déclenchement Automatique de Libération des Fonds & Génération PDF ==
+
+note over TxService #DCFCE7
+  **CONDITION DE DÉBLOCAGE SATISFAITE :**
+  statutSequestre == BLOQUE && statutBail == SIGNE_COMPLET
+end note
+
+TxService -> TxService : libererFondsAutomatique(tx-01)
+TxService -> DB : UPDATE transactions SET\n  statut_sequestre = 'LIBERE',\n  date_liberation_sequestre = now()\nWHERE id = 'tx-01'
+note right of TxService : 500 000 FCFA reversés au Propriétaire\n5 000 FCFA conservés par E-Courtier
+
+TxService -> StateMachine : transitionnerStatutAnnonce(annonceId, LOUEE)
+activate StateMachine
+StateMachine -> DB : UPDATE annonces SET statut_publication = 'LOUEE' WHERE id = ?
+deactivate StateMachine
+
+TxService -> PdfService : genererBailPdf(tx-01)
+activate PdfService
+PdfService -> DB : Enregistre url_document_bail et statut_document_bail='GENERE'
+deactivate PdfService
+
+TxService --> Controller : TransactionResponseDTO (statutSequestre: LIBERE, statutBail: SIGNE_COMPLET)
+deactivate TxService
+Controller --> Proprietaire : HTTP 200 OK (Fonds libérés & Bail validé)
+deactivate Controller
+
+@enduml

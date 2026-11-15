@@ -1,0 +1,144 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 880" width="100%" height="100%" style="background:#ffffff; font-family:'Inter', Arial, sans-serif;">
+  <rect x="20" y="20" width="1160" height="840" rx="12" fill="#F8FAFC" stroke="#CBD5E1" stroke-width="2"/>
+  <text x="600" y="55" text-anchor="middle" font-size="20" font-weight="700" fill="#0F172A">E-COURTIER SÉNÉGAL — DIAGRAMME DE CLASSES MÉTIER (JPA DOMAIN MODEL)</text>
+  <text x="600" y="80" text-anchor="middle" font-size="12" fill="#64748B">Entités JPA 3, Attributs, Enums, Clés Étrangères et Contrôle de Concurrence @Version</text>
+
+  <!-- UtilisateurEntity -->
+  <g transform="translate(50, 110)">
+    <rect width="250" height="240" rx="8" fill="#FFFFFF" stroke="#475569" stroke-width="1.5"/>
+    <rect width="250" height="32" rx="8" fill="#F1F5F9" stroke="#475569" stroke-width="1.5"/>
+    <text x="125" y="22" text-anchor="middle" font-size="13" font-weight="700" fill="#0F172A">&lt;&lt;Entity&gt;&gt; UtilisateurEntity</text>
+    <text x="12" y="52" font-size="11" fill="#334155">- id : UUID &lt;&lt;PK&gt;&gt;</text>
+    <text x="12" y="70" font-size="11" fill="#334155">- email : String &lt;&lt;Unique&gt;&gt;</text>
+    <text x="12" y="88" font-size="11" fill="#334155">- motDePasse : String (BCrypt)</text>
+    <text x="12" y="106" font-size="11" fill="#334155">- nom, prenom, telephone : String</text>
+    <text x="12" y="124" font-size="11" fill="#334155">- role : RoleUtilisateur</text>
+    <text x="12" y="142" font-size="11" fill="#334155">- actif : boolean</text>
+    <text x="12" y="160" font-size="11" font-weight="600" fill="#DC2626">- tokenVersion : long (Révoc. JWT)</text>
+    <text x="12" y="178" font-size="11" fill="#334155">- dateCreation : Instant</text>
+    <line x1="0" y1="190" x2="250" y2="190" stroke="#CBD5E1"/>
+    <text x="12" y="210" font-size="11" fill="#0369A1">+ isActif() : boolean</text>
+    <text x="12" y="228" font-size="11" fill="#0369A1">+ incrementerTokenVersion() : void</text>
+  </g>
+
+  <!-- RefreshTokenEntity -->
+  <g transform="translate(50, 390)">
+    <rect width="250" height="180" rx="8" fill="#FFFFFF" stroke="#475569" stroke-width="1.5"/>
+    <rect width="250" height="32" rx="8" fill="#F1F5F9" stroke="#475569" stroke-width="1.5"/>
+    <text x="125" y="22" text-anchor="middle" font-size="13" font-weight="700" fill="#0F172A">&lt;&lt;Entity&gt;&gt; RefreshTokenEntity</text>
+    <text x="12" y="52" font-size="11" fill="#334155">- id : UUID &lt;&lt;PK&gt;&gt;</text>
+    <text x="12" y="70" font-size="11" fill="#334155">- tokenHash : String &lt;&lt;SHA-256&gt;&gt;</text>
+    <text x="12" y="88" font-size="11" fill="#334155">- familleId : UUID</text>
+    <text x="12" y="106" font-size="11" fill="#334155">- sequence : long</text>
+    <text x="12" y="124" font-size="11" fill="#334155">- consomme, revoque : boolean</text>
+    <text x="12" y="142" font-size="11" fill="#334155">- dateExpiration : Instant</text>
+    <line x1="0" y1="150" x2="250" y2="150" stroke="#CBD5E1"/>
+    <text x="12" y="168" font-size="11" fill="#0369A1">+ estValide(now) / revoquer()</text>
+  </g>
+
+  <!-- AnnonceEntity -->
+  <g transform="translate(360, 110)">
+    <rect width="280" height="360" rx="8" fill="#FFFFFF" stroke="#475569" stroke-width="1.5"/>
+    <rect width="280" height="32" rx="8" fill="#F1F5F9" stroke="#475569" stroke-width="1.5"/>
+    <text x="140" y="22" text-anchor="middle" font-size="13" font-weight="700" fill="#0F172A">&lt;&lt;Entity&gt;&gt; AnnonceEntity</text>
+    <text x="12" y="52" font-size="11" fill="#334155">- id : UUID &lt;&lt;PK&gt;&gt;</text>
+    <text x="12" y="70" font-size="11" fill="#334155">- titre, description : String</text>
+    <text x="12" y="88" font-size="11" fill="#334155">- typeBien : TypeBien (APPART, VILLA...)</text>
+    <text x="12" y="106" font-size="11" fill="#334155">- modeTransaction : ModeTransaction</text>
+    <text x="12" y="124" font-size="11" fill="#334155">- statutPublication : StatutPublication</text>
+    <text x="12" y="142" font-size="11" fill="#334155">- statutVerification : StatutVerification</text>
+    <text x="12" y="160" font-size="11" fill="#334155">- prix, montantCaution : BigDecimal</text>
+    <text x="12" y="178" font-size="11" fill="#334155">- superficie : Double, nombrePieces : int</text>
+    <text x="12" y="196" font-size="11" fill="#334155">- quartier, ville : String</text>
+    <text x="12" y="214" font-size="11" fill="#334155">- latitude, longitude : Double</text>
+    <text x="12" y="232" font-size="11" fill="#334155">- badgeVerifie : boolean</text>
+    <text x="12" y="250" font-size="11" fill="#334155">- supprime : boolean (Suppr. Logique)</text>
+    <text x="12" y="268" font-size="11" font-weight="600" fill="#D97706">- version : Long &lt;&lt;@Version Optimistic&gt;&gt;</text>
+    <text x="12" y="286" font-size="11" fill="#334155">- proprietaire : UtilisateurEntity &lt;&lt;FK&gt;&gt;</text>
+    <line x1="0" y1="298" x2="280" y2="298" stroke="#CBD5E1"/>
+    <text x="12" y="318" font-size="11" fill="#0369A1">+ estDisponible() : boolean</text>
+    <text x="12" y="336" font-size="11" fill="#0369A1">+ suspendre() / reactiver()</text>
+    <text x="12" y="352" font-size="11" fill="#0369A1">+ marquerSupprime() : void</text>
+  </g>
+
+  <!-- TransactionEntity -->
+  <g transform="translate(690, 110)">
+    <rect width="280" height="340" rx="8" fill="#FFFFFF" stroke="#475569" stroke-width="1.5"/>
+    <rect width="280" height="32" rx="8" fill="#F1F5F9" stroke="#475569" stroke-width="1.5"/>
+    <text x="140" y="22" text-anchor="middle" font-size="13" font-weight="700" fill="#0F172A">&lt;&lt;Entity&gt;&gt; TransactionEntity</text>
+    <text x="12" y="52" font-size="11" fill="#334155">- id : UUID &lt;&lt;PK&gt;&gt;</text>
+    <text x="12" y="70" font-size="11" fill="#334155">- montantLoyer : BigDecimal</text>
+    <text x="12" y="88" font-size="11" fill="#334155">- montantCaution : BigDecimal</text>
+    <text x="12" y="106" font-size="11" fill="#334155">- montantFraisPlateforme : 5000 FCFA</text>
+    <text x="12" y="124" font-size="11" font-weight="600" fill="#059669">- montantTotalSequestre : BigDecimal</text>
+    <text x="12" y="142" font-size="11" fill="#334155">- statutSequestre : StatutSequestre</text>
+    <text x="12" y="160" font-size="11" fill="#334155">- statutBail : StatutBail</text>
+    <text x="12" y="178" font-size="11" fill="#334155">- statutDocumentBail : StatutDocumentBail</text>
+    <text x="12" y="196" font-size="11" fill="#334155">- referencePaiementWave : String</text>
+    <text x="12" y="214" font-size="11" fill="#334155">- urlDocumentBail : String</text>
+    <text x="12" y="232" font-size="11" fill="#334155">- pdfBailTentatives : int</text>
+    <text x="12" y="250" font-size="11" fill="#334155">- locataire, proprietaire : Utilisateur &lt;&lt;FK&gt;&gt;</text>
+    <text x="12" y="268" font-size="11" fill="#334155">- annonce : AnnonceEntity &lt;&lt;FK Unique&gt;&gt;</text>
+    <line x1="0" y1="280" x2="280" y2="280" stroke="#CBD5E1"/>
+    <text x="12" y="300" font-size="11" fill="#0369A1">+ estPretePourLiberation() : boolean</text>
+    <text x="12" y="318" font-size="11" fill="#0369A1">+ signerLocataire() / signerProprietaire()</text>
+    <text x="12" y="334" font-size="11" fill="#0369A1">+ libererFonds(now) : void</text>
+  </g>
+
+  <!-- RendezVousEntity -->
+  <g transform="translate(360, 520)">
+    <rect width="280" height="160" rx="8" fill="#FFFFFF" stroke="#475569" stroke-width="1.5"/>
+    <rect width="280" height="32" rx="8" fill="#F1F5F9" stroke="#475569" stroke-width="1.5"/>
+    <text x="140" y="22" text-anchor="middle" font-size="13" font-weight="700" fill="#0F172A">&lt;&lt;Entity&gt;&gt; RendezVousEntity</text>
+    <text x="12" y="52" font-size="11" fill="#334155">- id : UUID &lt;&lt;PK&gt;&gt;</text>
+    <text x="12" y="70" font-size="11" fill="#334155">- dateHeure : LocalDateTime</text>
+    <text x="12" y="88" font-size="11" fill="#334155">- statut : StatutRendezVous</text>
+    <text x="12" y="106" font-size="11" fill="#334155">- rappelSmsEnvoye : boolean</text>
+    <text x="12" y="124" font-size="11" fill="#334155">- locataire, annonce : FK</text>
+    <line x1="0" y1="132" x2="280" y2="132" stroke="#CBD5E1"/>
+    <text x="12" y="150" font-size="11" fill="#0369A1">+ confirmer() / refuser() / annuler()</text>
+  </g>
+
+  <!-- SchedulerLockEntity -->
+  <g transform="translate(690, 520)">
+    <rect width="280" height="130" rx="8" fill="#FFFFFF" stroke="#475569" stroke-width="1.5"/>
+    <rect width="280" height="32" rx="8" fill="#F1F5F9" stroke="#475569" stroke-width="1.5"/>
+    <text x="140" y="22" text-anchor="middle" font-size="13" font-weight="700" fill="#0F172A">&lt;&lt;Entity&gt;&gt; SchedulerLockEntity</text>
+    <text x="12" y="52" font-size="11" fill="#334155">- lockName : String &lt;&lt;PK&gt;&gt;</text>
+    <text x="12" y="70" font-size="11" fill="#334155">- lockedBy : String</text>
+    <text x="12" y="88" font-size="11" fill="#334155">- lockedUntil : Instant</text>
+    <line x1="0" y1="96" x2="280" y2="96" stroke="#CBD5E1"/>
+    <text x="12" y="116" font-size="11" fill="#0369A1">+ isLocked(now) : boolean</text>
+  </g>
+
+  <!-- Enums -->
+  <g transform="translate(1010, 110)">
+    <rect width="140" height="150" rx="6" fill="#FEF3C7" stroke="#D97706"/>
+    <text x="70" y="22" text-anchor="middle" font-size="11" font-weight="700" fill="#92400E">&lt;&lt;Enum&gt;&gt; StatutSequestre</text>
+    <text x="10" y="44" font-size="10" fill="#78350F">• INITIALISE</text>
+    <text x="10" y="62" font-size="10" fill="#78350F">• BLOQUE</text>
+    <text x="10" y="80" font-size="10" fill="#78350F">• LIBERE</text>
+    <text x="10" y="98" font-size="10" fill="#78350F">• REMBOURSE</text>
+    <text x="10" y="116" font-size="10" fill="#78350F">• LITIGE</text>
+    <text x="10" y="134" font-size="10" fill="#78350F">• ANNULE</text>
+  </g>
+
+  <g transform="translate(1010, 280)">
+    <rect width="140" height="120" rx="6" fill="#FEF3C7" stroke="#D97706"/>
+    <text x="70" y="22" text-anchor="middle" font-size="11" font-weight="700" fill="#92400E">&lt;&lt;Enum&gt;&gt; StatutBail</text>
+    <text x="10" y="44" font-size="10" fill="#78350F">• NON_SIGNE</text>
+    <text x="10" y="62" font-size="10" fill="#78350F">• SIGNE_LOCATAIRE</text>
+    <text x="10" y="80" font-size="10" fill="#78350F">• SIGNE_PROPRIETAIRE</text>
+    <text x="10" y="98" font-size="10" fill="#78350F">• SIGNE_COMPLET</text>
+  </g>
+
+  <!-- Relations -->
+  <line x1="175" y1="350" x2="175" y2="390" stroke="#475569" stroke-width="1.5"/>
+  <text x="185" y="375" font-size="10" fill="#64748B">1..*</text>
+
+  <line x1="300" y1="200" x2="360" y2="200" stroke="#475569" stroke-width="1.5"/>
+  <text x="325" y="195" font-size="10" fill="#64748B">1..*</text>
+
+  <line x1="640" y1="220" x2="690" y2="220" stroke="#475569" stroke-width="1.5"/>
+  <text x="655" y="215" font-size="10" fill="#64748B">1..1</text>
+</svg>

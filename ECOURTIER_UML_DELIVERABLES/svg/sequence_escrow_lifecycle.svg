@@ -1,0 +1,93 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1050 780" width="100%" height="100%" style="background:#ffffff; font-family:'Inter', Arial, sans-serif;">
+  <rect x="20" y="20" width="1010" height="740" rx="12" fill="#F8FAFC" stroke="#CBD5E1" stroke-width="2"/>
+  <text x="525" y="55" text-anchor="middle" font-size="20" font-weight="700" fill="#0F172A">SÉQUENCE : CYCLE COMPLET DU SÉQUESTRE &amp; LIBÉRATION DES FONDS</text>
+  <text x="525" y="80" text-anchor="middle" font-size="12" fill="#64748B">Blocage Wave Sandbox, Double Signature Dakar et Déblocage Automatique du Propriétaire</text>
+
+  <!-- Acteurs et Composants -->
+  <g transform="translate(60, 110)">
+    <rect width="90" height="34" rx="6" fill="#DBEAFE" stroke="#2563EB"/>
+    <text x="45" y="21" text-anchor="middle" font-size="11" font-weight="600" fill="#1E40AF">Locataire</text>
+    <line x1="45" y1="34" x2="45" y2="610" stroke="#94A3B8" stroke-dasharray="4"/>
+  </g>
+
+  <g transform="translate(220, 110)">
+    <rect width="120" height="34" rx="6" fill="#F1F5F9" stroke="#475569"/>
+    <text x="60" y="21" text-anchor="middle" font-size="11" font-weight="600" fill="#0F172A">TransactionService</text>
+    <line x1="60" y1="34" x2="60" y2="610" stroke="#94A3B8" stroke-dasharray="4"/>
+  </g>
+
+  <g transform="translate(410, 110)">
+    <rect width="110" height="34" rx="6" fill="#FEF3C7" stroke="#D97706"/>
+    <text x="55" y="21" text-anchor="middle" font-size="11" font-weight="600" fill="#92400E">Wave Sandbox</text>
+    <line x1="55" y1="34" x2="55" y2="610" stroke="#94A3B8" stroke-dasharray="4"/>
+  </g>
+
+  <g transform="translate(600, 110)">
+    <rect width="90" height="34" rx="6" fill="#FEF3C7" stroke="#D97706"/>
+    <text x="45" y="21" text-anchor="middle" font-size="11" font-weight="600" fill="#B45309">Propriétaire</text>
+    <line x1="45" y1="34" x2="45" y2="610" stroke="#94A3B8" stroke-dasharray="4"/>
+  </g>
+
+  <g transform="translate(760, 110)">
+    <rect width="110" height="34" rx="6" fill="#ECFDF5" stroke="#059669"/>
+    <text x="55" y="21" text-anchor="middle" font-size="11" font-weight="600" fill="#065F46">PdfGenerator</text>
+    <line x1="55" y1="34" x2="55" y2="610" stroke="#94A3B8" stroke-dasharray="4"/>
+  </g>
+
+  <g transform="translate(930, 110)">
+    <rect width="80" height="34" rx="6" fill="#EDE9FE" stroke="#7C3AED"/>
+    <text x="40" y="21" text-anchor="middle" font-size="11" font-weight="600" fill="#5B21B6">Postgres</text>
+    <line x1="40" y1="34" x2="40" y2="610" stroke="#94A3B8" stroke-dasharray="4"/>
+  </g>
+
+  <!-- 1. Initiation -->
+  <line x1="105" y1="180" x2="280" y2="180" stroke="#2563EB" stroke-width="2"/>
+  <text x="190" y="175" text-anchor="middle" font-size="11" fill="#1E293B">initier(annonceId, 250 000 FCFA)</text>
+
+  <line x1="280" y1="205" x2="970" y2="205" stroke="#7C3AED" stroke-width="1.5"/>
+  <text x="600" y="200" text-anchor="middle" font-size="10" fill="#5B21B6">Calcul séquestre (Caution 250k + Loyer 250k + Frais 5k = 505 000 FCFA) -&gt; INSERT tx (INITIALISE)</text>
+
+  <!-- 2. Paiement Wave -->
+  <line x1="105" y1="240" x2="280" y2="240" stroke="#2563EB" stroke-width="2"/>
+  <text x="190" y="235" text-anchor="middle" font-size="11" fill="#1E293B">payerSequestre(txId)</text>
+
+  <line x1="280" y1="265" x2="465" y2="265" stroke="#D97706" stroke-width="1.5"/>
+  <text x="370" y="260" text-anchor="middle" font-size="11" fill="#92400E">executerPaiement(505 000 FCFA)</text>
+
+  <line x1="465" y1="290" x2="280" y2="290" stroke="#059669" stroke-width="1.5" stroke-dasharray="4"/>
+  <text x="370" y="285" text-anchor="middle" font-size="11" fill="#065F46">CONFIRMED (ref: WAVE-SANDBOX-001)</text>
+
+  <line x1="280" y1="315" x2="970" y2="315" stroke="#7C3AED" stroke-width="1.5"/>
+  <text x="600" y="310" text-anchor="middle" font-size="10" fill="#5B21B6">UPDATE tx SET statut_sequestre='BLOQUE' (Fonds séquestrés)</text>
+
+  <!-- 3. Signature Locataire -->
+  <line x1="105" y1="360" x2="280" y2="360" stroke="#2563EB" stroke-width="2"/>
+  <text x="190" y="355" text-anchor="middle" font-size="11" fill="#1E293B">signerBail(locataire)</text>
+
+  <line x1="280" y1="380" x2="970" y2="380" stroke="#7C3AED" stroke-width="1.5"/>
+  <text x="600" y="375" text-anchor="middle" font-size="10" fill="#5B21B6">UPDATE tx SET statut_bail='SIGNE_LOCATAIRE', date_sig_loc=now()</text>
+
+  <!-- 4. Signature Propriétaire -->
+  <line x1="645" y1="420" x2="280" y2="420" stroke="#D97706" stroke-width="2"/>
+  <text x="460" y="415" text-anchor="middle" font-size="11" fill="#92400E">signerBail(proprietaire)</text>
+
+  <line x1="280" y1="445" x2="970" y2="445" stroke="#7C3AED" stroke-width="1.5"/>
+  <text x="600" y="440" text-anchor="middle" font-size="10" fill="#5B21B6">UPDATE tx SET statut_bail='SIGNE_COMPLET', date_sig_prop=now()</text>
+
+  <!-- 5. Déclenchement Automatique Libération -->
+  <rect x="230" y="475" width="750" height="45" rx="6" fill="#ECFDF5" stroke="#059669"/>
+  <text x="600" y="495" text-anchor="middle" font-size="11" font-weight="700" fill="#065F46">CONDITION SÉQUESTRE SATISFAITE : BLOQUE + SIGNE_COMPLET</text>
+  <text x="600" y="510" text-anchor="middle" font-size="10" fill="#047857">Libération automatique : 500 000 FCFA au bailleur | 5 000 FCFA commission E-Courtier</text>
+
+  <line x1="280" y1="540" x2="970" y2="540" stroke="#7C3AED" stroke-width="1.5"/>
+  <text x="600" y="535" text-anchor="middle" font-size="10" fill="#5B21B6">UPDATE transactions SET statut_sequestre='LIBERE' &amp;&amp; UPDATE annonces SET statut='LOUEE'</text>
+
+  <line x1="280" y1="575" x2="815" y2="575" stroke="#059669" stroke-width="2"/>
+  <text x="540" y="570" text-anchor="middle" font-size="11" fill="#065F46">genererDocumentBail(txId) -&gt; Écriture atomique PDF OpenPDF</text>
+
+  <line x1="815" y1="605" x2="970" y2="605" stroke="#7C3AED" stroke-width="1.5"/>
+  <text x="890" y="600" text-anchor="middle" font-size="10" fill="#5B21B6">statut_document_bail='GENERE'</text>
+
+  <line x1="280" y1="640" x2="645" y2="640" stroke="#059669" stroke-width="2" stroke-dasharray="4"/>
+  <text x="460" y="635" text-anchor="middle" font-size="11" font-weight="600" fill="#065F46">Notification Propriétaire : Fonds débloqués + Bail PDF disponible</text>
+</svg>
