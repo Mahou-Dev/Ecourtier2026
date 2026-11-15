@@ -113,4 +113,17 @@ class IaRateLimiterTest {
         }
         assertThrows(ResponseStatusException.class, () -> rateLimiterService.checkRateLimit(request2, null));
     }
+
+    @Test
+    @DisplayName("CA3-005 : Au-delà de 5000 clés, le rate limiter IA évince la plus ancienne sans bloquer globalement les nouveaux clients")
+    void testBoundedEvictionDoesNotBlockNewClientsGlobally() {
+        for (int i = 0; i < 5_050; i++) {
+            HttpServletRequest req = Mockito.mock(HttpServletRequest.class);
+            when(req.getRemoteAddr()).thenReturn("10.0." + (i / 250) + "." + ((i % 250) + 1));
+            assertDoesNotThrow(() -> rateLimiterService.checkRateLimit(req, null));
+        }
+        HttpServletRequest freshClient = Mockito.mock(HttpServletRequest.class);
+        when(freshClient.getRemoteAddr()).thenReturn("198.51.100.42");
+        assertDoesNotThrow(() -> rateLimiterService.checkRateLimit(freshClient, null));
+    }
 }

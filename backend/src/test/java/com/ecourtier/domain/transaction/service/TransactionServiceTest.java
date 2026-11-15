@@ -5,6 +5,7 @@ import com.ecourtier.domain.annonce.entity.ModeTransaction;
 import com.ecourtier.domain.annonce.entity.StatutPublication;
 import com.ecourtier.domain.annonce.entity.StatutVerification;
 import com.ecourtier.domain.annonce.repository.AnnonceRepository;
+import com.ecourtier.domain.annonce.service.AnnonceStatutStateMachine;
 import com.ecourtier.domain.rendezvous.repository.RendezVousRepository;
 import com.ecourtier.domain.transaction.client.WaveCheckoutResponse;
 import com.ecourtier.domain.transaction.client.WaveClient;
@@ -61,6 +62,9 @@ class TransactionServiceTest {
 
     @Spy
     private TransactionMapper transactionMapper = new TransactionMapper();
+
+    @Spy
+    private AnnonceStatutStateMachine annonceStatutStateMachine = new AnnonceStatutStateMachine();
 
     @Mock
     private WaveClient waveClient;

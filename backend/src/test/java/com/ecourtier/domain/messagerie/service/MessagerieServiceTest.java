@@ -71,6 +71,7 @@ class MessagerieServiceTest {
                 .nom("Diop")
                 .prenom("Amina")
                 .role(Role.LOCATAIRE)
+                .actif(true)
                 .build();
 
         proprietaire = UtilisateurEntity.builder()
@@ -79,6 +80,7 @@ class MessagerieServiceTest {
                 .nom("Ndiaye")
                 .prenom("Ousmane")
                 .role(Role.PROPRIETAIRE)
+                .actif(true)
                 .build();
 
         tiers = UtilisateurEntity.builder()
@@ -87,6 +89,7 @@ class MessagerieServiceTest {
                 .nom("Sall")
                 .prenom("Mamadou")
                 .role(Role.LOCATAIRE)
+                .actif(true)
                 .build();
 
         annonce = AnnonceEntity.builder()
@@ -108,7 +111,7 @@ class MessagerieServiceTest {
     @DisplayName("Initier une conversation valide — création idempotent")
     void initierConversation_Success() {
         when(utilisateurRepository.findByEmail(locataire.getEmail())).thenReturn(Optional.of(locataire));
-        when(annonceRepository.findById(annonceId)).thenReturn(Optional.of(annonce));
+        when(annonceRepository.findByIdAndSupprimeFalse(annonceId)).thenReturn(Optional.of(annonce));
         when(conversationChatRepository.findByAnnonceIdAndLocataireId(annonceId, locataire.getId())).thenReturn(Optional.empty());
         when(conversationChatRepository.save(any(ConversationChatEntity.class))).thenReturn(conversation);
 
@@ -129,7 +132,7 @@ class MessagerieServiceTest {
     @DisplayName("Initier une conversation — retourne l'existant si déjà initiée")
     void initierConversation_ReturnsExisting() {
         when(utilisateurRepository.findByEmail(locataire.getEmail())).thenReturn(Optional.of(locataire));
-        when(annonceRepository.findById(annonceId)).thenReturn(Optional.of(annonce));
+        when(annonceRepository.findByIdAndSupprimeFalse(annonceId)).thenReturn(Optional.of(annonce));
         when(conversationChatRepository.findByAnnonceIdAndLocataireId(annonceId, locataire.getId())).thenReturn(Optional.of(conversation));
 
         ConversationResponseDTO expectedDto = ConversationResponseDTO.builder().id(conversationId).build();
@@ -146,7 +149,7 @@ class MessagerieServiceTest {
     @DisplayName("Initier conversation par le propriétaire lui-même — rejet 400 Bad Request")
     void initierConversation_SelfContact_Rejected() {
         when(utilisateurRepository.findByEmail(proprietaire.getEmail())).thenReturn(Optional.of(proprietaire));
-        when(annonceRepository.findById(annonceId)).thenReturn(Optional.of(annonce));
+        when(annonceRepository.findByIdAndSupprimeFalse(annonceId)).thenReturn(Optional.of(annonce));
 
         assertThatThrownBy(() -> messagerieService.initierConversation(annonceId, proprietaire.getEmail()))
                 .isInstanceOf(ResponseStatusException.class)
@@ -240,5 +243,18 @@ class MessagerieServiceTest {
         long count = messagerieService.compterMessagesNonLus(locataire.getEmail());
 
         assertThat(count).isEqualTo(5L);
+    }
+
+    @Test
+    @DisplayName("Envoyer un message avec un compte désactivé — rejet 403 Forbidden")
+    void envoyerMessage_DisabledUser_Forbidden() {
+        locataire.setActif(false);
+        when(conversationSecurityService.isParticipant(conversationId, locataire.getEmail())).thenReturn(true);
+        when(utilisateurRepository.findByEmail(locataire.getEmail())).thenReturn(Optional.of(locataire));
+
+        assertThatThrownBy(() -> messagerieService.envoyerMessage(conversationId, "Message compte bloqué", locataire.getEmail()))
+                .isInstanceOf(ResponseStatusException.class)
+                .hasMessageContaining("désactivé");
+        verify(messageChatRepository, never()).save(any());
     }
 }

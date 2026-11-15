@@ -23,6 +23,7 @@ import com.ecourtier.domain.annonce.mapper.AnnonceMapper;
 import com.ecourtier.domain.annonce.repository.AnnonceRepository;
 import com.ecourtier.domain.annonce.repository.DocumentVerificationRepository;
 import com.ecourtier.domain.annonce.repository.PhotoAnnonceRepository;
+import com.ecourtier.domain.transaction.repository.TransactionRepository;
 import com.ecourtier.domain.utilisateur.entity.Role;
 import com.ecourtier.domain.utilisateur.entity.UtilisateurEntity;
 import com.ecourtier.domain.utilisateur.repository.UtilisateurRepository;
@@ -32,6 +33,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
+import org.mockito.Spy;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.mockito.junit.jupiter.MockitoSettings;
 import org.mockito.quality.Strictness;
@@ -41,15 +43,20 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.jpa.domain.Specification;
+import org.springframework.http.HttpStatus;
 import org.springframework.mock.web.MockMultipartFile;
 import org.springframework.web.multipart.MultipartFile;
 import org.springframework.web.server.ResponseStatusException;
 
 import java.math.BigDecimal;
+import java.time.Clock;
+import java.time.Instant;
 import java.time.LocalDateTime;
+import java.time.ZoneId;
 import java.util.List;
 import java.util.Optional;
 import java.util.Set;
+import java.util.TimeZone;
 import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -59,6 +66,7 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -79,10 +87,16 @@ public class AnnonceServiceTest {
     private UtilisateurRepository utilisateurRepository;
 
     @Mock
+    private TransactionRepository transactionRepository;
+
+    @Mock
     private FileStorageService fileStorageService;
 
     @Mock
     private AnnonceMapper annonceMapper;
+
+    @Spy
+    private AnnonceStatutStateMachine annonceStatutStateMachine = new AnnonceStatutStateMachine();
 
     @InjectMocks
     private AnnonceService annonceService;
@@ -146,6 +160,7 @@ public class AnnonceServiceTest {
     @DisplayName("Obtenir par ID et Modifier une annonce")
     void testGetAndModifierAnnonce() {
         when(annonceRepository.findByIdAndSupprimeFalse(annonce.getId())).thenReturn(Optional.of(annonce));
+        when(annonceRepository.findByIdAndSupprimeFalseForUpdate(annonce.getId())).thenReturn(Optional.of(annonce));
         when(annonceMapper.toResponseDTO(any(), any())).thenReturn(new AnnonceResponseDTO());
         when(annonceMapper.toResponseDTO(any())).thenReturn(new AnnonceResponseDTO());
 
@@ -155,6 +170,7 @@ public class AnnonceServiceTest {
         AnnonceUpdateDTO updateDto = new AnnonceUpdateDTO();
         updateDto.setTitre("Nouveau Titre Villa");
         updateDto.setPrix(BigDecimal.valueOf(1600000));
+        updateDto.setVersion(annonce.getVersion());
 
         when(annonceRepository.save(annonce)).thenReturn(annonce);
         AnnonceResponseDTO res2 = annonceService.modifierAnnonce(annonce.getId(), updateDto);
@@ -163,13 +179,22 @@ public class AnnonceServiceTest {
     }
 
     @Test
-    @DisplayName("Suppression logique (Soft-delete)")
+    @DisplayName("Suppression logique (Soft-delete par le propriétaire et rejet tiers/acteur absent)")
     void testSupprimerAnnonceLogique() {
-        when(annonceRepository.findByIdAndSupprimeFalse(annonce.getId())).thenReturn(Optional.of(annonce));
+        when(annonceRepository.findByIdAndSupprimeFalseForUpdate(annonce.getId())).thenReturn(Optional.of(annonce));
 
-        annonceService.supprimerAnnonceLogique(annonce.getId());
+        annonceService.supprimerAnnonceLogique(annonce.getId(), "proprio@test.sn", false);
         assertTrue(annonce.isSupprime());
         verify(annonceRepository).save(annonce);
+
+        // Acteur tiers ou absent (non admin) rejeté en 403 Forbidden
+        ResponseStatusException nonOwnerEx = assertThrows(ResponseStatusException.class,
+                () -> annonceService.supprimerAnnonceLogique(annonce.getId(), "tiers@test.sn", false));
+        assertEquals(HttpStatus.FORBIDDEN, nonOwnerEx.getStatusCode());
+
+        ResponseStatusException nullActorEx = assertThrows(ResponseStatusException.class,
+                () -> annonceService.supprimerAnnonceLogique(annonce.getId(), null, false));
+        assertEquals(HttpStatus.FORBIDDEN, nullActorEx.getStatusCode());
     }
 
     @Test
@@ -416,11 +441,12 @@ public class AnnonceServiceTest {
     @DisplayName("ANO-08 #1: Annonce VERIFIEE dont le prix change -> passe à EN_ATTENTE et dateVerification purgée")
     void testModifierAnnonceVerifieeChangementPrixInvalideBadge() {
         AnnonceEntity v = creerAnnonceVerifiee();
-        when(annonceRepository.findByIdAndSupprimeFalse(v.getId())).thenReturn(Optional.of(v));
+        when(annonceRepository.findByIdAndSupprimeFalseForUpdate(v.getId())).thenReturn(Optional.of(v));
         when(annonceRepository.save(v)).thenReturn(v);
         when(annonceMapper.toResponseDTO(v)).thenReturn(new AnnonceResponseDTO());
 
         AnnonceUpdateDTO dto = AnnonceUpdateDTO.builder()
+                .version(v.getVersion())
                 .prix(BigDecimal.valueOf(1800000))
                 .build();
 
@@ -435,11 +461,12 @@ public class AnnonceServiceTest {
     @DisplayName("ANO-08 #2: Annonce VERIFIEE dont la superficie change -> passe à EN_ATTENTE")
     void testModifierAnnonceVerifieeChangementSuperficieInvalideBadge() {
         AnnonceEntity v = creerAnnonceVerifiee();
-        when(annonceRepository.findByIdAndSupprimeFalse(v.getId())).thenReturn(Optional.of(v));
+        when(annonceRepository.findByIdAndSupprimeFalseForUpdate(v.getId())).thenReturn(Optional.of(v));
         when(annonceRepository.save(v)).thenReturn(v);
         when(annonceMapper.toResponseDTO(v)).thenReturn(new AnnonceResponseDTO());
 
         AnnonceUpdateDTO dto = AnnonceUpdateDTO.builder()
+                .version(v.getVersion())
                 .superficie(400.0)
                 .build();
 
@@ -454,11 +481,12 @@ public class AnnonceServiceTest {
     @DisplayName("ANO-08 #3: Annonce VERIFIEE dont le type change -> passe à EN_ATTENTE")
     void testModifierAnnonceVerifieeChangementTypeInvalideBadge() {
         AnnonceEntity v = creerAnnonceVerifiee();
-        when(annonceRepository.findByIdAndSupprimeFalse(v.getId())).thenReturn(Optional.of(v));
+        when(annonceRepository.findByIdAndSupprimeFalseForUpdate(v.getId())).thenReturn(Optional.of(v));
         when(annonceRepository.save(v)).thenReturn(v);
         when(annonceMapper.toResponseDTO(v)).thenReturn(new AnnonceResponseDTO());
 
         AnnonceUpdateDTO dto = AnnonceUpdateDTO.builder()
+                .version(v.getVersion())
                 .type(TypeBien.APPARTEMENT)
                 .build();
 
@@ -473,11 +501,12 @@ public class AnnonceServiceTest {
     @DisplayName("ANO-08 #4: Annonce VERIFIEE dont le mode de transaction change -> passe à EN_ATTENTE")
     void testModifierAnnonceVerifieeChangementModeTransactionInvalideBadge() {
         AnnonceEntity v = creerAnnonceVerifiee();
-        when(annonceRepository.findByIdAndSupprimeFalse(v.getId())).thenReturn(Optional.of(v));
+        when(annonceRepository.findByIdAndSupprimeFalseForUpdate(v.getId())).thenReturn(Optional.of(v));
         when(annonceRepository.save(v)).thenReturn(v);
         when(annonceMapper.toResponseDTO(v)).thenReturn(new AnnonceResponseDTO());
 
         AnnonceUpdateDTO dto = AnnonceUpdateDTO.builder()
+                .version(v.getVersion())
                 .modeTransaction(ModeTransaction.VENTE)
                 .build();
 
@@ -492,11 +521,12 @@ public class AnnonceServiceTest {
     @DisplayName("ANO-08 #5: Annonce VERIFIEE dont le quartier change -> passe à EN_ATTENTE")
     void testModifierAnnonceVerifieeChangementQuartierInvalideBadge() {
         AnnonceEntity v = creerAnnonceVerifiee();
-        when(annonceRepository.findByIdAndSupprimeFalse(v.getId())).thenReturn(Optional.of(v));
+        when(annonceRepository.findByIdAndSupprimeFalseForUpdate(v.getId())).thenReturn(Optional.of(v));
         when(annonceRepository.save(v)).thenReturn(v);
         when(annonceMapper.toResponseDTO(v)).thenReturn(new AnnonceResponseDTO());
 
         AnnonceUpdateDTO dto = AnnonceUpdateDTO.builder()
+                .version(v.getVersion())
                 .quartier("Mermoz")
                 .build();
 
@@ -511,11 +541,12 @@ public class AnnonceServiceTest {
     @DisplayName("ANO-08 #6: Annonce VERIFIEE dont la latitude change -> passe à EN_ATTENTE")
     void testModifierAnnonceVerifieeChangementLatitudeInvalideBadge() {
         AnnonceEntity v = creerAnnonceVerifiee();
-        when(annonceRepository.findByIdAndSupprimeFalse(v.getId())).thenReturn(Optional.of(v));
+        when(annonceRepository.findByIdAndSupprimeFalseForUpdate(v.getId())).thenReturn(Optional.of(v));
         when(annonceRepository.save(v)).thenReturn(v);
         when(annonceMapper.toResponseDTO(v)).thenReturn(new AnnonceResponseDTO());
 
         AnnonceUpdateDTO dto = AnnonceUpdateDTO.builder()
+                .version(v.getVersion())
                 .latitude(14.720)
                 .build();
 
@@ -530,11 +561,12 @@ public class AnnonceServiceTest {
     @DisplayName("ANO-08 #7: Annonce VERIFIEE dont la longitude change -> passe à EN_ATTENTE")
     void testModifierAnnonceVerifieeChangementLongitudeInvalideBadge() {
         AnnonceEntity v = creerAnnonceVerifiee();
-        when(annonceRepository.findByIdAndSupprimeFalse(v.getId())).thenReturn(Optional.of(v));
+        when(annonceRepository.findByIdAndSupprimeFalseForUpdate(v.getId())).thenReturn(Optional.of(v));
         when(annonceRepository.save(v)).thenReturn(v);
         when(annonceMapper.toResponseDTO(v)).thenReturn(new AnnonceResponseDTO());
 
         AnnonceUpdateDTO dto = AnnonceUpdateDTO.builder()
+                .version(v.getVersion())
                 .longitude(-17.480)
                 .build();
 
@@ -550,11 +582,12 @@ public class AnnonceServiceTest {
     void testModifierAnnonceVerifieeChampsEditoriauxSeulsPreserventBadge() {
         AnnonceEntity v = creerAnnonceVerifiee();
         LocalDateTime dateInitiale = v.getDateVerification();
-        when(annonceRepository.findByIdAndSupprimeFalse(v.getId())).thenReturn(Optional.of(v));
+        when(annonceRepository.findByIdAndSupprimeFalseForUpdate(v.getId())).thenReturn(Optional.of(v));
         when(annonceRepository.save(v)).thenReturn(v);
         when(annonceMapper.toResponseDTO(v)).thenReturn(new AnnonceResponseDTO());
 
         AnnonceUpdateDTO dto = AnnonceUpdateDTO.builder()
+                .version(v.getVersion())
                 .titre("Nouveau titre Almadies")
                 .description("Nouvelle description détaillée")
                 .lienVisite360("https://matterport.com/discover/space/test")
@@ -577,11 +610,12 @@ public class AnnonceServiceTest {
     void testModifierAnnonceVerifieeValeursIdentiquesPreserventBadge() {
         AnnonceEntity v = creerAnnonceVerifiee();
         LocalDateTime dateInitiale = v.getDateVerification();
-        when(annonceRepository.findByIdAndSupprimeFalse(v.getId())).thenReturn(Optional.of(v));
+        when(annonceRepository.findByIdAndSupprimeFalseForUpdate(v.getId())).thenReturn(Optional.of(v));
         when(annonceRepository.save(v)).thenReturn(v);
         when(annonceMapper.toResponseDTO(v)).thenReturn(new AnnonceResponseDTO());
 
         AnnonceUpdateDTO dto = AnnonceUpdateDTO.builder()
+                .version(v.getVersion())
                 .prix(new BigDecimal("1500000.00")) // Échelle différente mais même valeur mathématique
                 .superficie(350.0000)
                 .type(TypeBien.VILLA)
@@ -614,11 +648,12 @@ public class AnnonceServiceTest {
                 .dateVerification(null)
                 .build();
 
-        when(annonceRepository.findByIdAndSupprimeFalse(enAttente.getId())).thenReturn(Optional.of(enAttente));
+        when(annonceRepository.findByIdAndSupprimeFalseForUpdate(enAttente.getId())).thenReturn(Optional.of(enAttente));
         when(annonceRepository.save(enAttente)).thenReturn(enAttente);
         when(annonceMapper.toResponseDTO(enAttente)).thenReturn(new AnnonceResponseDTO());
 
         AnnonceUpdateDTO dto = AnnonceUpdateDTO.builder()
+                .version(enAttente.getVersion())
                 .prix(BigDecimal.valueOf(550000))
                 .build();
 
@@ -635,11 +670,12 @@ public class AnnonceServiceTest {
         AnnonceEntity v = creerAnnonceVerifiee();
         assertNotNull(v.getDateVerification());
 
-        when(annonceRepository.findByIdAndSupprimeFalse(v.getId())).thenReturn(Optional.of(v));
+        when(annonceRepository.findByIdAndSupprimeFalseForUpdate(v.getId())).thenReturn(Optional.of(v));
         when(annonceRepository.save(v)).thenReturn(v);
         when(annonceMapper.toResponseDTO(v)).thenReturn(new AnnonceResponseDTO());
 
         AnnonceUpdateDTO dto = AnnonceUpdateDTO.builder()
+                .version(v.getVersion())
                 .quartier("Ngor")
                 .build();
 
@@ -655,16 +691,78 @@ public class AnnonceServiceTest {
         AnnonceEntity v = creerAnnonceVerifiee();
         LocalDateTime dateInitiale = v.getDateVerification();
 
-        when(annonceRepository.findByIdAndSupprimeFalse(v.getId())).thenReturn(Optional.of(v));
+        when(annonceRepository.findByIdAndSupprimeFalseForUpdate(v.getId())).thenReturn(Optional.of(v));
         when(annonceRepository.save(v)).thenReturn(v);
         when(annonceMapper.toResponseDTO(v)).thenReturn(new AnnonceResponseDTO());
 
-        // DTO vide : tous les champs sont null
+        // DTO minimal avec version obligatoire uniquement
         AnnonceUpdateDTO dto = new AnnonceUpdateDTO();
+        dto.setVersion(v.getVersion());
 
         annonceService.modifierAnnonce(v.getId(), dto);
 
         assertEquals(StatutVerification.VERIFIEE, v.getStatutVerification());
         assertEquals(dateInitiale, v.getDateVerification());
+    }
+
+    @Test
+    @DisplayName("Phase 3 B1: Modification sans champ version rejetée en 400 Bad Request")
+    void testModifierAnnonceSansVersionRejete400() {
+        UUID annonceId = UUID.randomUUID();
+        AnnonceUpdateDTO dto = AnnonceUpdateDTO.builder()
+                .titre("Modification sans version")
+                .build();
+
+        ResponseStatusException ex = assertThrows(ResponseStatusException.class,
+                () -> annonceService.modifierAnnonce(annonceId, dto));
+
+        assertEquals(400, ex.getStatusCode().value());
+        verify(annonceRepository, never()).save(any());
+    }
+
+    @Test
+    @DisplayName("RES-07 : dateVerification utilise Africa/Dakar / Clock fixe même si le fuseau JVM est Europe/Paris")
+    void testDeciderVerificationAnnonceHorlogeDakarDeterministeSousTimezoneParis() {
+        UUID id = UUID.randomUUID();
+        AnnonceEntity cible = AnnonceEntity.builder()
+                .id(id)
+                .titre("Studio Dakar RES-07")
+                .statutVerification(StatutVerification.EN_ATTENTE)
+                .statutPublication(StatutPublication.DISPONIBLE)
+                .build();
+
+        DocumentVerificationEntity docId = DocumentVerificationEntity.builder()
+                .id(UUID.randomUUID())
+                .annonce(cible)
+                .typeDocument(TypeDocumentVerification.PIECE_IDENTITE)
+                .statut(StatutDocument.EN_ATTENTE)
+                .build();
+        DocumentVerificationEntity docTitre = DocumentVerificationEntity.builder()
+                .id(UUID.randomUUID())
+                .annonce(cible)
+                .typeDocument(TypeDocumentVerification.TITRE_FONCIER)
+                .statut(StatutDocument.EN_ATTENTE)
+                .build();
+
+        when(annonceRepository.findByIdAndSupprimeFalse(id)).thenReturn(Optional.of(cible));
+        when(documentVerificationRepository.findByAnnonceId(id)).thenReturn(List.of(docId, docTitre));
+        when(annonceRepository.save(cible)).thenReturn(cible);
+        when(annonceMapper.toResponseDTO(cible)).thenReturn(new AnnonceResponseDTO());
+
+        TimeZone previous = TimeZone.getDefault();
+        try {
+            TimeZone.setDefault(TimeZone.getTimeZone("Europe/Paris"));
+            annonceService.setClock(Clock.fixed(Instant.parse("2026-06-15T23:30:00Z"), ZoneId.of("Africa/Dakar")));
+
+            annonceService.deciderVerificationAnnonce(
+                    id,
+                    VerificationDecisionDTO.builder().statutVerification(StatutVerification.VERIFIEE).build()
+            );
+
+            assertEquals(LocalDateTime.of(2026, 6, 15, 23, 30, 0), cible.getDateVerification());
+        } finally {
+            annonceService.setClock(Clock.system(ZoneId.of("Africa/Dakar")));
+            TimeZone.setDefault(previous);
+        }
     }
 }

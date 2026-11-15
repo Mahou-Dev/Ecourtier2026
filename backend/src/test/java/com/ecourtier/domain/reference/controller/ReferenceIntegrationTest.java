@@ -27,10 +27,11 @@ class ReferenceIntegrationTest {
         mockMvc.perform(get("/api/v1/references"))
                 .andExpect(status().isOk())
                 // Types de bien
-                .andExpect(jsonPath("$.typesBien", hasSize(3)))
+                .andExpect(jsonPath("$.typesBien", hasSize(4)))
                 .andExpect(jsonPath("$.typesBien[?(@.valeur=='APPARTEMENT')].libelle").value("Appartement"))
                 .andExpect(jsonPath("$.typesBien[?(@.valeur=='VILLA')].libelle").value("Villa"))
                 .andExpect(jsonPath("$.typesBien[?(@.valeur=='STUDIO')].libelle").value("Studio"))
+                .andExpect(jsonPath("$.typesBien[?(@.valeur=='CHAMBRE')].libelle").value("Chambre"))
                 // Équipements
                 .andExpect(jsonPath("$.equipements", hasSize(7)))
                 .andExpect(jsonPath("$.equipements[?(@.valeur=='WIFI')].libelle").value("Wi-Fi"))

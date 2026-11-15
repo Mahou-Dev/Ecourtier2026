@@ -104,6 +104,8 @@ class IAIntegrationTest {
 
         String convResponseStr = convResult.getResponse().getContentAsString();
         String conversationId = objectMapper.readTree(convResponseStr).get("conversationId").asText();
+        jakarta.servlet.http.Cookie sessionCookie = convResult.getResponse().getCookie("ecourtier_ia_session");
+        org.junit.jupiter.api.Assertions.assertNotNull(sessionCookie, "Le cookie de session IA anonyme doit être émis");
 
         // 2. Envoie message
         long startTime = System.currentTimeMillis();
@@ -113,6 +115,7 @@ class IAIntegrationTest {
                 .build();
 
         mockMvc.perform(post("/api/v1/ia/conversations/" + conversationId + "/messages")
+                        .cookie(sessionCookie)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(messageDto)))
                 .andExpect(status().isOk())
@@ -127,7 +130,8 @@ class IAIntegrationTest {
         org.junit.jupiter.api.Assertions.assertTrue(duration < 5000, "Le temps de réponse doit être raisonnable pour l'appel d'intégration (obtenu: " + duration + "ms)");
 
         // 3. Obtenir historique
-        mockMvc.perform(get("/api/v1/ia/conversations/" + conversationId))
+        mockMvc.perform(get("/api/v1/ia/conversations/" + conversationId)
+                        .cookie(sessionCookie))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.conversationId", is(conversationId)))
                 .andExpect(jsonPath("$.messages", hasSize(greaterThanOrEqualTo(2))));

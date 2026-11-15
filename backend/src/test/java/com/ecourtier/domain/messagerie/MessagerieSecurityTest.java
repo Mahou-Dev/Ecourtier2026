@@ -63,4 +63,25 @@ class MessagerieSecurityTest {
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("Accès refusé : vous n'êtes pas participant de cette conversation");
     }
+
+    @Test
+    @DisplayName("STOMP SUBSCRIBE et SEND vers des destinations non autorisées — Rejet strict")
+    void stompUnauthorizedDestinations_Rejected() {
+        StompHeaderAccessor subOther = StompHeaderAccessor.create(StompCommand.SUBSCRIBE);
+        subOther.setDestination("/topic/admin/audit");
+        subOther.setUser(new UsernamePasswordAuthenticationToken("user@test.sn", null));
+        assertThatThrownBy(() -> webSocketAuthInterceptor.preSend(
+                MessageBuilder.createMessage(new byte[0], subOther.getMessageHeaders()), null))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("non autorisé");
+
+        UUID conversationId = UUID.randomUUID();
+        StompHeaderAccessor sendBypass = StompHeaderAccessor.create(StompCommand.SEND);
+        sendBypass.setDestination("/app/conversations/" + conversationId + "/hack");
+        sendBypass.setUser(new UsernamePasswordAuthenticationToken("user@test.sn", null));
+        assertThatThrownBy(() -> webSocketAuthInterceptor.preSend(
+                MessageBuilder.createMessage(new byte[0], sendBypass.getMessageHeaders()), null))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("non autorisé");
+    }
 }

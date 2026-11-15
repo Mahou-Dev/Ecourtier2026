@@ -196,4 +196,36 @@ class AvisAndSignalementIntegrationTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.statut").value("REJETE"));
     }
+
+    @Test
+    @DisplayName("Traitement admin avec suspension d'une annonce déjà supprimée logiquement -> 409 CONFLICT")
+    void testTraiterSignalementSuspensionAnnonceSupprimee409() throws Exception {
+        com.ecourtier.domain.avis.entity.SignalementEntity signalement = signalementRepository.save(
+                com.ecourtier.domain.avis.entity.SignalementEntity.builder()
+                        .annonce(annonce)
+                        .auteur(locataire)
+                        .motif(MotifSignalement.ARNAQUE_SUSPECTEE)
+                        .description("Annonce signalée avant suppression propriétaire")
+                        .statut(StatutSignalement.EN_ATTENTE)
+                        .build()
+        );
+
+        annonce.setSupprime(true);
+        annonceRepository.saveAndFlush(annonce);
+
+        TraiterSignalementDTO traiterDTO = TraiterSignalementDTO.builder()
+                .statut(StatutSignalement.TRAITE)
+                .suspendreAnnonce(true)
+                .build();
+
+        mockMvc.perform(put("/api/v1/admin/signalements/" + signalement.getId() + "/traiter")
+                        .header("Authorization", "Bearer " + adminToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(traiterDTO)))
+                .andExpect(status().isConflict());
+
+        com.ecourtier.domain.avis.entity.SignalementEntity unchanged = signalementRepository.findById(signalement.getId())
+                .orElseThrow();
+        org.junit.jupiter.api.Assertions.assertEquals(StatutSignalement.EN_ATTENTE, unchanged.getStatut());
+    }
 }

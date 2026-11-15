@@ -58,8 +58,24 @@ class AuthIntegrationTest {
     @Autowired
     private PasswordEncoder passwordEncoder;
 
+    @Autowired
+    private com.ecourtier.common.security.LoginRateLimiterService loginRateLimiterService;
+
+    @SuppressWarnings("unchecked")
+    private void clearLoginRateLimiter() {
+        Object attempts = org.springframework.test.util.ReflectionTestUtils.getField(loginRateLimiterService, "attemptsMap");
+        Object ipAttempts = org.springframework.test.util.ReflectionTestUtils.getField(loginRateLimiterService, "ipAttemptsMap");
+        if (attempts instanceof java.util.Map<?, ?> map) {
+            map.clear();
+        }
+        if (ipAttempts instanceof java.util.Map<?, ?> map) {
+            map.clear();
+        }
+    }
+
     @org.junit.jupiter.api.AfterEach
     void tearDown() {
+        clearLoginRateLimiter();
         signalementRepository.deleteAll();
         avisRepository.deleteAll();
         transactionRepository.deleteAll();
@@ -70,6 +86,7 @@ class AuthIntegrationTest {
 
     @BeforeEach
     void setUp() {
+        clearLoginRateLimiter();
         signalementRepository.deleteAll();
         avisRepository.deleteAll();
         transactionRepository.deleteAll();
@@ -242,5 +259,75 @@ class AuthIntegrationTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(wrongConnexion)))
                 .andExpect(status().isTooManyRequests());
+    }
+
+    @Test
+    @DisplayName("P0-1 : Un refreshToken est rejeté en 401 sur les endpoints REST protégés et un accessToken est rejeté sur /rafraichir")
+    void testStrictSeparationAccessVsRefreshTokensSurRest() throws Exception {
+        InscriptionRequestDTO dto = InscriptionRequestDTO.builder()
+                .nom("Sarr")
+                .prenom("Aissatou")
+                .email("aissatou.p01@ecourtier.sn")
+                .motDePasse("Pass1234!")
+                .telephone("+221 77 222 11 00")
+                .role(Role.PROPRIETAIRE)
+                .build();
+
+        MvcResult regResult = mockMvc.perform(post("/api/v1/auth/inscription")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(dto)))
+                .andExpect(status().isCreated())
+                .andReturn();
+
+        var json = objectMapper.readTree(regResult.getResponse().getContentAsString());
+        String accessToken = json.get("accessToken").asText();
+        String refreshToken = json.get("refreshToken").asText();
+
+        // 1. L'accessToken accède normalement à un endpoint protégé
+        mockMvc.perform(get("/api/v1/utilisateurs/moi")
+                        .header("Authorization", "Bearer " + accessToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.email").value("aissatou.p01@ecourtier.sn"));
+
+        // 2. Le refreshToken est STRICTEMENT refusé (401 Unauthorized) sur les endpoints REST protégés
+        mockMvc.perform(get("/api/v1/utilisateurs/moi")
+                        .header("Authorization", "Bearer " + refreshToken))
+                .andExpect(status().isUnauthorized());
+
+        mockMvc.perform(get("/api/v1/transactions/mes-transactions")
+                        .header("Authorization", "Bearer " + refreshToken))
+                .andExpect(status().isUnauthorized());
+
+        mockMvc.perform(get("/api/v1/admin/utilisateurs")
+                        .header("Authorization", "Bearer " + refreshToken))
+                .andExpect(status().isUnauthorized());
+
+        mockMvc.perform(post("/api/v1/annonces")
+                        .header("Authorization", "Bearer " + refreshToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{}"))
+                .andExpect(status().isUnauthorized());
+
+        // 3. Un accessToken envoyé sur /auth/rafraichir est rejeté en 401 Unauthorized
+        mockMvc.perform(post("/api/v1/auth/rafraichir")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"refreshToken\":\"" + accessToken + "\"}"))
+                .andExpect(status().isUnauthorized());
+
+        // 4. Un refreshToken valide fonctionne normalement sur /auth/rafraichir et délivre un accessToken opérationnel
+        MvcResult refreshRes = mockMvc.perform(post("/api/v1/auth/rafraichir")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"refreshToken\":\"" + refreshToken + "\"}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.accessToken", notNullValue()))
+                .andExpect(jsonPath("$.refreshToken", notNullValue()))
+                .andReturn();
+
+        String newAccessToken = objectMapper.readTree(refreshRes.getResponse().getContentAsString())
+                .get("accessToken").asText();
+        mockMvc.perform(get("/api/v1/utilisateurs/moi")
+                        .header("Authorization", "Bearer " + newAccessToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.email").value("aissatou.p01@ecourtier.sn"));
     }
 }

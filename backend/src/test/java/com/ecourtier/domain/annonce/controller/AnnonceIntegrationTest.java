@@ -177,6 +177,7 @@ public class AnnonceIntegrationTest {
         AnnonceUpdateDTO updateDto = AnnonceUpdateDTO.builder()
                 .titre("Titre piraté")
                 .prix(new BigDecimal("50000"))
+                .version(0L)
                 .build();
 
         mockMvc.perform(put("/api/v1/annonces/" + annonceId)
@@ -512,7 +513,7 @@ public class AnnonceIntegrationTest {
         mockMvc.perform(put("/api/v1/annonces/" + annonceId)
                         .header("Authorization", "Bearer " + tokenProprietaire1)
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"prix\": 450000}"))
+                        .content("{\"prix\": 450000, \"version\": 1}"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.statutVerification").value("EN_ATTENTE"))
                 .andExpect(jsonPath("$.dateVerification").doesNotExist())
@@ -537,7 +538,7 @@ public class AnnonceIntegrationTest {
         mockMvc.perform(put("/api/v1/annonces/" + annonceId)
                         .header("Authorization", "Bearer " + tokenProprietaire1)
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"titre\": \"Nouveau titre valide\", \"description\": \"Nouvelle description mise à jour\"}"))
+                        .content("{\"titre\": \"Nouveau titre valide\", \"description\": \"Nouvelle description mise à jour\", \"version\": 1}"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.statutVerification").value("VERIFIEE"))
                 .andExpect(jsonPath("$.titre").value("Nouveau titre valide"));
@@ -556,7 +557,7 @@ public class AnnonceIntegrationTest {
         mockMvc.perform(put("/api/v1/annonces/" + annonceId)
                         .header("Authorization", "Bearer " + tokenProprietaire1)
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"prix\": 750000, \"statutVerification\": \"VERIFIEE\"}"))
+                        .content("{\"prix\": 750000, \"statutVerification\": \"VERIFIEE\", \"version\": 1}"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.statutVerification").value("EN_ATTENTE"))
                 .andExpect(jsonPath("$.prix").value(750000));

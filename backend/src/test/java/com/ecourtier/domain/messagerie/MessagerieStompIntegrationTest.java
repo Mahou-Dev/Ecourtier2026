@@ -69,6 +69,12 @@ class MessagerieStompIntegrationTest {
     @Autowired
     private JwtService jwtService;
 
+    @Autowired
+    private com.ecourtier.domain.utilisateur.service.UtilisateurManagementService utilisateurManagementService;
+
+    @Autowired
+    private com.ecourtier.common.security.WebSocketSessionRegistry webSocketSessionRegistry;
+
     private UtilisateurEntity locataire;
     private UtilisateurEntity proprietaire;
     private UtilisateurEntity tiers;
@@ -327,6 +333,145 @@ class MessagerieStompIntegrationTest {
         }
         if (sessionTiers.isConnected()) {
             sessionTiers.disconnect();
+        }
+    }
+
+    @Test
+    @DisplayName("P0-1 STOMP CONNECT avec un Refresh Token d'un participant légitime -> Connexion STOMP refusée")
+    void stompConnect_WithRefreshToken_Rejected() {
+        String wsUrl = "ws://localhost:" + port + "/ws";
+        WebSocketStompClient clientRefresh = createStompClient();
+        String participantRefreshToken = jwtService.generateRefreshToken(proprietaire);
+
+        StompHeaders connectHeaders = new StompHeaders();
+        connectHeaders.add("Authorization", "Bearer " + participantRefreshToken);
+
+        CompletableFuture<Throwable> errorFuture = new CompletableFuture<>();
+        StompSessionHandlerAdapter handler = new StompSessionHandlerAdapter() {
+            @Override
+            public void handleException(StompSession session, StompCommand command, StompHeaders headers, byte[] payload, Throwable exception) {
+                errorFuture.complete(exception);
+            }
+
+            @Override
+            public void handleTransportError(StompSession session, Throwable exception) {
+                errorFuture.complete(exception);
+            }
+        };
+
+        assertThatThrownBy(() -> {
+            StompSession session = clientRefresh.connectAsync(wsUrl, new WebSocketHttpHeaders(), connectHeaders, handler)
+                    .get(5, TimeUnit.SECONDS);
+            // If handshake returned an Http/WS session before STOMP CONNECT rejection, await transport/STOMP error
+            Throwable err = errorFuture.get(5, TimeUnit.SECONDS);
+            assertThat(err).isNotNull();
+            throw err;
+        }).isInstanceOf(Throwable.class);
+    }
+
+    @Test
+    @DisplayName("RES-04 : La désactivation d'un utilisateur ferme sa session WebSocket active et bloque CONNECT/SEND")
+    void disabledUser_ActiveWebSocketClosed_AndReconnectRejected() throws Exception {
+        UtilisateurEntity admin = utilisateurRepository.save(UtilisateurEntity.builder()
+                .email("admin.ws@test.sn")
+                .motDePasse("$2a$10$e.wFv9w.uO")
+                .nom("Admin")
+                .prenom("Secu")
+                .telephone("+221770009999")
+                .role(Role.ADMIN)
+                .actif(true)
+                .build());
+
+        String wsUrl = "ws://localhost:" + port + "/ws";
+        WebSocketStompClient clientLocataire = createStompClient();
+        StompHeaders headers = new StompHeaders();
+        headers.add("Authorization", "Bearer " + locataireToken);
+
+        CompletableFuture<Throwable> closedErrorFuture = new CompletableFuture<>();
+        StompSession session = clientLocataire.connectAsync(wsUrl, new WebSocketHttpHeaders(), headers,
+                new StompSessionHandlerAdapter() {
+                    @Override
+                    public void handleTransportError(StompSession s, Throwable exception) {
+                        closedErrorFuture.complete(exception);
+                    }
+                }).get(5, TimeUnit.SECONDS);
+
+        Thread.sleep(200);
+        assertThat(webSocketSessionRegistry.getActiveSessionCount(locataire.getEmail())).isEqualTo(1);
+
+        // Désactivation administrative -> fermeture forcée côté serveur après commit
+        utilisateurManagementService.changerStatut(locataire.getId(), false, admin.getEmail());
+
+        // La session WebSocket doit être fermée activement
+        long deadline = System.currentTimeMillis() + 5000;
+        while (session.isConnected() && System.currentTimeMillis() < deadline) {
+            Thread.sleep(50);
+        }
+        assertThat(session.isConnected()).isFalse();
+        assertThat(webSocketSessionRegistry.getActiveSessionCount(locataire.getEmail())).isZero();
+
+        // Tentative de reconnexion STOMP CONNECT avec ancien access token valide -> rejetée
+        WebSocketStompClient reconnectClient = createStompClient();
+        CompletableFuture<Throwable> reconnectError = new CompletableFuture<>();
+        assertThatThrownBy(() -> {
+            reconnectClient.connectAsync(wsUrl, new WebSocketHttpHeaders(), headers, new StompSessionHandlerAdapter() {
+                @Override
+                public void handleException(StompSession s, StompCommand c, StompHeaders h, byte[] p, Throwable ex) {
+                    reconnectError.complete(ex);
+                }
+
+                @Override
+                public void handleTransportError(StompSession s, Throwable ex) {
+                    reconnectError.complete(ex);
+                }
+            }).get(5, TimeUnit.SECONDS);
+            Throwable err = reconnectError.get(5, TimeUnit.SECONDS);
+            assertThat(err).isNotNull();
+            throw err;
+        }).isInstanceOf(Throwable.class);
+    }
+
+    @Test
+    @DisplayName("RES-04 : Session STOMP ouverte refuse SEND/SUBSCRIBE si le JWT utilisé au CONNECT a expiré")
+    void expiredJwtOnOpenStompSession_RejectsSend() throws Exception {
+        JwtService shortJwt = new JwtService();
+        org.springframework.test.util.ReflectionTestUtils.setField(
+                shortJwt, "secretKey", "404E635266556A586E3272357538782F413F4428472B4B6250645367566B5970");
+        org.springframework.test.util.ReflectionTestUtils.setField(shortJwt, "accessTokenExpirationMs", 1500L);
+        String shortLivedToken = shortJwt.generateAccessToken(locataire);
+
+        String wsUrl = "ws://localhost:" + port + "/ws";
+        WebSocketStompClient client = createStompClient();
+        StompHeaders headers = new StompHeaders();
+        headers.add("Authorization", "Bearer " + shortLivedToken);
+
+        CompletableFuture<Throwable> stompErrorFuture = new CompletableFuture<>();
+        StompSession session = client.connectAsync(wsUrl, new WebSocketHttpHeaders(), headers,
+                new StompSessionHandlerAdapter() {
+                    @Override
+                    public void handleException(StompSession s, StompCommand c, StompHeaders h, byte[] p, Throwable ex) {
+                        stompErrorFuture.complete(ex);
+                    }
+
+                    @Override
+                    public void handleTransportError(StompSession s, Throwable ex) {
+                        stompErrorFuture.complete(ex);
+                    }
+                }).get(5, TimeUnit.SECONDS);
+
+        // Attendre l'expiration du token utilisé au CONNECT
+        Thread.sleep(1700);
+        try {
+            session.send("/app/conversations/" + conversation.getId() + "/envoyer",
+                    MessageSendDTO.builder().contenu("Message après expiration").build());
+            Throwable err = stompErrorFuture.get(5, TimeUnit.SECONDS);
+            assertThat(err).isNotNull();
+        } catch (IllegalStateException closedEx) {
+            assertThat(closedEx.getMessage()).containsIgnoringCase("closed");
+        }
+        assertThat(messageChatRepository.count()).isZero();
+        if (session.isConnected()) {
+            session.disconnect();
         }
     }
 }

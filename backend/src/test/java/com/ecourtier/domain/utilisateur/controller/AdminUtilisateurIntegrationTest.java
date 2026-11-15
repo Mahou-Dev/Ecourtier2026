@@ -227,9 +227,17 @@ class AdminUtilisateurIntegrationTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.role").value("AGENT"));
 
-        // Maintenant adminUser est le seul ADMIN restant, une tentative depuis un autre token doit échouer
-        String secondUserToken = jwtService.generateAccessToken(secondAdminUser);
-        // secondAdminUser n'est plus admin, 403
+        // Le token émis avant changement de rôle est immédiatement révoqué (401)
+        String staleSecondUserToken = jwtService.generateAccessToken(secondAdminUser);
+        mockMvc.perform(put("/api/v1/admin/utilisateurs/{id}/role", adminUser.getId())
+                        .header("Authorization", "Bearer " + staleSecondUserToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(demoteOther)))
+                .andExpect(status().isUnauthorized());
+
+        // Avec un nouveau jeton émis après rechargement (role AGENT, tokenVersion incrémentée) -> 403 Forbidden
+        UtilisateurEntity updatedSecondUser = utilisateurRepository.findById(secondAdminUser.getId()).orElseThrow();
+        String secondUserToken = jwtService.generateAccessToken(updatedSecondUser);
         mockMvc.perform(put("/api/v1/admin/utilisateurs/{id}/role", adminUser.getId())
                         .header("Authorization", "Bearer " + secondUserToken)
                         .contentType(MediaType.APPLICATION_JSON)
@@ -270,9 +278,16 @@ class AdminUtilisateurIntegrationTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.actif").value(true));
 
-        // 4. Locataire de nouveau autorisé
+        // 4. L'ancien jeton émis avant la désactivation reste révoqué définitivement (token_version incrémenté -> 401)
         mockMvc.perform(get("/api/v1/utilisateurs/moi")
                         .header("Authorization", "Bearer " + locataireToken))
+                .andExpect(status().isUnauthorized());
+
+        // Après reconnexion (nouveau jeton avec tokenVersion à jour), le locataire est de nouveau autorisé
+        UtilisateurEntity refreshedLocataire = utilisateurRepository.findById(locataireUser.getId()).orElseThrow();
+        String newLocataireToken = jwtService.generateAccessToken(refreshedLocataire);
+        mockMvc.perform(get("/api/v1/utilisateurs/moi")
+                        .header("Authorization", "Bearer " + newLocataireToken))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.email").value("locataire.test@ecourtier.sn"));
 
@@ -308,7 +323,7 @@ class AdminUtilisateurIntegrationTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.message", containsString("succès")));
 
-        // Ancien mot de passe incorrect -> 400
+        // L'ancien jeton d'accès est révoqué après changement de mot de passe (401)
         ChangerMotDePasseRequestDTO badOldPwd = ChangerMotDePasseRequestDTO.builder()
                 .ancienMotDePasse("MauvaisAncienPass1!")
                 .nouveauMotDePasse("AutrePass789!")
@@ -316,6 +331,16 @@ class AdminUtilisateurIntegrationTest {
 
         mockMvc.perform(put("/api/v1/utilisateurs/moi/mot-de-passe")
                         .header("Authorization", "Bearer " + agentToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(badOldPwd)))
+                .andExpect(status().isUnauthorized());
+
+        // Avec un nouveau jeton émis après changement de mot de passe, l'ancien mot de passe incorrect renvoie 400
+        UtilisateurEntity refreshedAgent = utilisateurRepository.findById(agentUser.getId()).orElseThrow();
+        String newAgentToken = jwtService.generateAccessToken(refreshedAgent);
+
+        mockMvc.perform(put("/api/v1/utilisateurs/moi/mot-de-passe")
+                        .header("Authorization", "Bearer " + newAgentToken)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(badOldPwd)))
                 .andExpect(status().isBadRequest())

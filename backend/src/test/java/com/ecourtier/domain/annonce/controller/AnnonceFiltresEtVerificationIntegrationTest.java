@@ -259,6 +259,7 @@ class AnnonceFiltresEtVerificationIntegrationTest {
                 .quartier("Fann")
                 .latitude(14.69)
                 .longitude(-17.46)
+                .version(0L)
                 .build();
 
         // 1. Tiers tente de modifier -> 403 Forbidden
@@ -368,5 +369,51 @@ class AnnonceFiltresEtVerificationIntegrationTest {
                         .content(objectMapper.writeValueAsString(validReject)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.statutVerification").value("REJETEE"));
+
+        // 6. Re-soumission d'un document après rejet -> statutVerification repasse à EN_ATTENTE
+        MockMultipartFile pdfDoc2 = new MockMultipartFile("file", "titre_foncier_clair.pdf", "application/pdf", pdfBytes);
+        mockMvc.perform(multipart("/api/v1/annonces/{id}/documents", annonceId)
+                        .file(pdfDoc2)
+                        .param("typeDocument", "TITRE_FONCIER")
+                        .header("Authorization", "Bearer " + auteurToken))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.statut").value("EN_ATTENTE"));
+
+        mockMvc.perform(get("/api/v1/annonces/{id}", annonceId))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.statutVerification").value("EN_ATTENTE"));
+    }
+
+    @Test
+    @DisplayName("Recherche textuelle libre via paramètre q (titre, quartier, ville)")
+    void testRechercheTextuelleQ() throws Exception {
+        AnnonceCreateDTO studioDto = AnnonceCreateDTO.builder()
+                .titre("Studio Cosy Fann Hock")
+                .description("Vue mer calme et ventilée")
+                .prix(BigDecimal.valueOf(220000))
+                .type(TypeBien.STUDIO)
+                .modeTransaction(ModeTransaction.LOCATION)
+                .superficie(40.0)
+                .nombrePieces(1)
+                .ville("Dakar")
+                .quartier("Fann Hock")
+                .latitude(14.68)
+                .longitude(-17.46)
+                .build();
+
+        mockMvc.perform(post("/api/v1/annonces")
+                        .header("Authorization", "Bearer " + auteurToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(studioDto)))
+                .andExpect(status().isCreated());
+
+        mockMvc.perform(get("/api/v1/annonces").param("q", "vue mer"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.content", hasSize(1)))
+                .andExpect(jsonPath("$.content[0].titre").value("Studio Cosy Fann Hock"));
+
+        mockMvc.perform(get("/api/v1/annonces").param("q", "Almadies"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.content", hasSize(0)));
     }
 }

@@ -599,7 +599,7 @@ class WorkflowTransactionIntegrationTest {
 
         // 1. Annonce EN_ATTENTE -> 400 Bad Request
         annonce.setStatutVerification(StatutVerification.EN_ATTENTE);
-        annonceRepository.save(annonce);
+        annonce = annonceRepository.save(annonce);
 
         mockMvc.perform(post("/api/v1/annonces/" + annonce.getId() + "/transactions")
                         .contentType(MediaType.APPLICATION_JSON)
@@ -608,7 +608,7 @@ class WorkflowTransactionIntegrationTest {
 
         // 2. Annonce REJETEE -> 400 Bad Request
         annonce.setStatutVerification(StatutVerification.REJETEE);
-        annonceRepository.save(annonce);
+        annonce = annonceRepository.save(annonce);
 
         mockMvc.perform(post("/api/v1/annonces/" + annonce.getId() + "/transactions")
                         .contentType(MediaType.APPLICATION_JSON)
@@ -623,7 +623,7 @@ class WorkflowTransactionIntegrationTest {
                 StatutPublication.VENDUE,
                 StatutPublication.SUSPENDUE)) {
             annonce.setStatutPublication(statutIndispo);
-            annonceRepository.save(annonce);
+            annonce = annonceRepository.save(annonce);
 
             mockMvc.perform(post("/api/v1/annonces/" + annonce.getId() + "/transactions")
                             .contentType(MediaType.APPLICATION_JSON)
@@ -961,8 +961,8 @@ class WorkflowTransactionIntegrationTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.statutSequestre", is("BLOQUE")));
 
-        annonce.setStatutPublication(StatutPublication.RESERVEE);
-        annonceRepository.save(annonce);
+        annonce = annonceRepository.findById(annonce.getId()).orElseThrow();
+        assertEquals(StatutPublication.RESERVEE, annonce.getStatutPublication());
 
         // 3. Remboursement de A par l'ADMIN -> A passe à REMBOURSE et l'annonce repasse à DISPONIBLE
         mockMvc.perform(post("/api/v1/transactions/" + txA.getId() + "/remboursement")

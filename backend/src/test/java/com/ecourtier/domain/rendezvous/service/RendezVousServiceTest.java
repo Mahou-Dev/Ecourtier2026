@@ -211,7 +211,7 @@ public class RendezVousServiceTest {
     }
 
     @Test
-    @DisplayName("Annulation et Marquer Effectué RDV")
+    @DisplayName("Annulation et Marquer Effectué RDV respectent la machine d'états")
     void testAnnulerEtEffectue() {
         when(rendezVousRepository.findById(rdv.getId())).thenReturn(Optional.of(rdv));
         when(rendezVousRepository.save(any())).thenReturn(rdv);
@@ -222,8 +222,33 @@ public class RendezVousServiceTest {
         rendezVousService.annulerRendezVous(rdv.getId(), cancelDto, "locataire.rdv@test.sn");
         assertEquals(StatutRendezVous.ANNULE, rdv.getStatut());
 
+        // Un RDV annulé ne peut pas être annulé deux fois ni marqué effectué
+        ResponseStatusException exCancel = assertThrows(ResponseStatusException.class,
+                () -> rendezVousService.annulerRendezVous(rdv.getId(), cancelDto, "locataire.rdv@test.sn"));
+        assertEquals(409, exCancel.getStatusCode().value());
+
+        ResponseStatusException exEffOnCancelled = assertThrows(ResponseStatusException.class,
+                () -> rendezVousService.marquerEffectue(rdv.getId(), "proprio.rdv@test.sn"));
+        assertEquals(409, exEffOnCancelled.getStatusCode().value());
+
+        // Seul un RDV CONFIRME peut passer à EFFECTUE
+        rdv.setStatut(StatutRendezVous.CONFIRME);
         rendezVousService.marquerEffectue(rdv.getId(), "proprio.rdv@test.sn");
         assertEquals(StatutRendezVous.EFFECTUE, rdv.getStatut());
+    }
+
+    @Test
+    @DisplayName("Auto-demande de RDV par le propriétaire sur sa propre annonce -> 400 BAD_REQUEST")
+    void testDemanderRendezVousSelfRefused() {
+        when(utilisateurRepository.findByEmail("proprio.rdv@test.sn")).thenReturn(Optional.of(proprietaire));
+        when(annonceRepository.findByIdAndSupprimeFalse(annonce.getId())).thenReturn(Optional.of(annonce));
+
+        RendezVousRequestDTO req = new RendezVousRequestDTO();
+        req.setDateHeure(LocalDateTime.now().plusDays(2));
+
+        ResponseStatusException ex = assertThrows(ResponseStatusException.class,
+                () -> rendezVousService.demanderRendezVous(annonce.getId(), req, "proprio.rdv@test.sn"));
+        assertEquals(400, ex.getStatusCode().value());
     }
 
     @Test

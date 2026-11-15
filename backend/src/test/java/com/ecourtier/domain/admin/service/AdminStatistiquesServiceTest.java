@@ -20,11 +20,16 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.cache.CacheManager;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
+import java.time.Clock;
+import java.time.Instant;
 import java.time.LocalDateTime;
+import java.time.ZoneId;
+import java.util.TimeZone;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
@@ -354,5 +359,30 @@ class AdminStatistiquesServiceTest {
         assertEquals(0, BigDecimal.ZERO.compareTo(stats.getActiviteCommerciale().getMontantTotalSequestreBloque()));
         assertEquals(0L, stats.getActiviteCommerciale().getNombreBauxSignesComplets());
         assertEquals(0L, stats.getActiviteCommerciale().getNombreTransactionsInitiees());
+    }
+
+    @Test
+    @DisplayName("RES-07 : Calcul statistiques ancré Africa/Dakar / Clock fixe même sous TZ Europe/Paris")
+    void testStatistiquesDeterministesSousTimezoneParisEtClockFixe() {
+        TimeZone previous = TimeZone.getDefault();
+        try {
+            if (cacheManager != null && cacheManager.getCache("adminStats") != null) {
+                cacheManager.getCache("adminStats").clear();
+            }
+            TimeZone.setDefault(TimeZone.getTimeZone("Europe/Paris"));
+            adminStatistiquesService.setClock(Clock.fixed(Instant.parse("2026-06-15T23:30:00Z"), ZoneId.of("Africa/Dakar")));
+
+            AdminStatistiquesDTO stats = adminStatistiquesService.obtenirStatistiques("7j");
+            var series = stats.getUtilisateurs().getNouvellesInscriptions();
+            assertEquals(8, series.size());
+            assertEquals("2026-06-08", series.get(0).getDate());
+            assertEquals("2026-06-15", series.get(series.size() - 1).getDate());
+        } finally {
+            adminStatistiquesService.setClock(Clock.system(ZoneId.of("Africa/Dakar")));
+            if (cacheManager != null && cacheManager.getCache("adminStats") != null) {
+                cacheManager.getCache("adminStats").clear();
+            }
+            TimeZone.setDefault(previous);
+        }
     }
 }
