@@ -4,11 +4,16 @@ import org.flywaydb.core.Flyway;
 import org.flywaydb.core.api.MigrationInfo;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.condition.EnabledIf;
+import org.junit.jupiter.api.condition.EnabledIfSystemProperty;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.test.annotation.DirtiesContext;
-import org.springframework.test.context.ActiveProfiles;
+import org.springframework.test.context.DynamicPropertyRegistry;
+import org.springframework.test.context.DynamicPropertySource;
+import org.testcontainers.containers.PostgreSQLContainer;
+import org.testcontainers.junit.jupiter.Container;
+import org.testcontainers.junit.jupiter.Testcontainers;
+import org.testcontainers.utility.DockerImageName;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
@@ -16,54 +21,53 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 @SpringBootTest(properties = {
     "ADMIN_BOOTSTRAP_PASSWORD=",
-    "JWT_SECRET=404E635266556A586E3272357538782F413F4428472B4B6250645367566B5970",
-    "spring.datasource.url=jdbc:postgresql://${DB_HOST:ecourtier-db}:${DB_PORT:5432}/ecourtier_v11_fresh",
-    "spring.datasource.username=ecourtier_user",
-    "spring.datasource.password=ecourtier_secure_pass_2026",
-    "spring.datasource.driver-class-name=org.postgresql.Driver",
-    "spring.flyway.enabled=true",
-    "spring.flyway.baseline-on-migrate=true",
-    "spring.jpa.database-platform=org.hibernate.dialect.PostgreSQLDialect",
-    "spring.jpa.hibernate.ddl-auto=validate"
+    "spring.jpa.hibernate.ddl-auto=validate",
+    "spring.flyway.enabled=true"
 })
-@ActiveProfiles("test")
+@Testcontainers
 @DirtiesContext
-@EnabledIf("isDatabaseReachable")
+@EnabledIfSystemProperty(named = "ecourtier.test.pg16", matches = "true")
 public class FlywayFreshMigrationIntegrationTest {
 
-    static boolean isDatabaseReachable() {
-        String host = System.getenv("DB_HOST");
-        if (host == null || host.isBlank()) {
-            host = System.getProperty("DB_HOST", "ecourtier-db");
+    static {
+        if (System.getProperty("api.version") == null) {
+            System.setProperty("api.version", "1.44");
         }
-        int port = 5432;
-        try {
-            port = Integer.parseInt(System.getenv().getOrDefault("DB_PORT", System.getProperty("DB_PORT", "5432")));
-        } catch (NumberFormatException ignored) {}
+    }
 
-        try (java.net.Socket socket = new java.net.Socket()) {
-            socket.connect(new java.net.InetSocketAddress(host, port), 400);
-            return true;
-        } catch (Exception e) {
-            return false;
-        }
+    @Container
+    static final PostgreSQLContainer<?> POSTGRES = new PostgreSQLContainer<>(
+            DockerImageName.parse("postgres:16-alpine"))
+            .withDatabaseName("ecourtier_flyway_fresh")
+            .withUsername("ecourtier_test")
+            .withPassword("ecourtier_test_pwd");
+
+    @DynamicPropertySource
+    static void configurePostgresProperties(DynamicPropertyRegistry registry) {
+        registry.add("spring.datasource.url", POSTGRES::getJdbcUrl);
+        registry.add("spring.datasource.username", POSTGRES::getUsername);
+        registry.add("spring.datasource.password", POSTGRES::getPassword);
+        registry.add("spring.datasource.driver-class-name", () -> "org.postgresql.Driver");
+        registry.add("spring.jpa.database-platform", () -> "org.hibernate.dialect.PostgreSQLDialect");
+        registry.add("spring.flyway.enabled", () -> "true");
+        registry.add("spring.jpa.hibernate.ddl-auto", () -> "validate");
     }
 
     @Autowired(required = false)
     private Flyway flyway;
 
     @Test
-    @DisplayName("Vérifie l'exécution sans erreur de toutes les migrations Flyway (V1 à V15) sur une base PostgreSQL vierge")
+    @DisplayName("CA3-011: Vérifie l'exécution sans erreur de toutes les migrations Flyway (V1 à V20) sur PostgreSQL 16 vierge isolé")
     void testFlywayMigrationsOnFreshDatabase() {
         assertNotNull(flyway, "Flyway bean doit être disponible");
         MigrationInfo current = flyway.info().current();
         assertNotNull(current, "Une version courante de migration doit être enregistrée");
-        assertEquals("15", current.getVersion().getVersion(), "La dernière migration appliquée doit être la V15");
-        assertTrue(current.getState().isApplied(), "La migration V15 doit être appliquée avec succès");
+        assertEquals("20", current.getVersion().getVersion(), "La dernière migration appliquée doit être la V20");
+        assertTrue(current.getState().isApplied(), "La migration V20 doit être appliquée avec succès");
 
         MigrationInfo[] applied = flyway.info().applied();
-        assertEquals(15, applied.length, "Toutes les migrations V1 à V15 doivent être appliquées");
-        for (int v = 1; v <= 15; v++) {
+        assertEquals(20, applied.length, "Toutes les migrations V1 à V20 doivent être appliquées");
+        for (int v = 1; v <= 20; v++) {
             MigrationInfo migration = applied[v - 1];
             assertEquals(String.valueOf(v), migration.getVersion().getVersion(),
                     "La migration V" + v + " doit être présente dans l'ordre");

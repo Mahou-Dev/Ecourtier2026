@@ -42,6 +42,7 @@ class JwtServiceTest {
         String token = jwtService.generateAccessToken(testUser);
 
         assertNotNull(token);
+        assertTrue(jwtService.isAccessTokenValid(token, testUser.getEmail()));
         assertTrue(jwtService.isTokenValid(token, testUser.getEmail()));
         assertEquals(testUser.getEmail(), jwtService.extractEmail(token));
         assertEquals(Role.LOCATAIRE.name(), jwtService.extractRole(token));
@@ -50,13 +51,61 @@ class JwtServiceTest {
     }
 
     @Test
-    @DisplayName("Génération d'un Refresh Token JWT et vérification du type")
+    @DisplayName("P0-1 : Un Refresh Token est strictement rejeté en validation d'accès (REST/STOMP) et accepté comme refresh")
     void testGenerateRefreshToken() {
         String refreshToken = jwtService.generateRefreshToken(testUser);
 
         assertNotNull(refreshToken);
         assertTrue(jwtService.isRefreshToken(refreshToken));
+        assertFalse(jwtService.isAccessTokenValid(refreshToken));
+        assertFalse(jwtService.isAccessTokenValid(refreshToken, testUser.getEmail()));
+        assertFalse(jwtService.isTokenValid(refreshToken));
+        assertFalse(jwtService.isTokenValid(refreshToken, testUser.getEmail()));
         assertEquals(testUser.getEmail(), jwtService.extractEmail(refreshToken));
+    }
+
+    @Test
+    @DisplayName("P0-1 : Un JWT sans claim type ou avec type inconnu ou sans subject est rejeté")
+    void testTokenWithoutTypeOrUnknownTypeRejected() {
+        byte[] keyBytes = JwtService.resolveSigningKeyBytes(
+                "404E635266556A586E3272357538782F413F4428472B4B6250645367566B5970"
+        );
+        javax.crypto.SecretKey key = io.jsonwebtoken.security.Keys.hmacShaKeyFor(keyBytes);
+        java.util.Date now = new java.util.Date();
+        java.util.Date exp = new java.util.Date(now.getTime() + 600_000L);
+
+        String missingTypeToken = io.jsonwebtoken.Jwts.builder()
+                .subject(testUser.getEmail())
+                .issuedAt(now)
+                .expiration(exp)
+                .signWith(key)
+                .compact();
+
+        String unknownTypeToken = io.jsonwebtoken.Jwts.builder()
+                .subject(testUser.getEmail())
+                .claim("type", "ADMIN_BYPASS")
+                .issuedAt(now)
+                .expiration(exp)
+                .signWith(key)
+                .compact();
+
+        String missingSubjectAccessToken = io.jsonwebtoken.Jwts.builder()
+                .claim("type", JwtService.TOKEN_TYPE_ACCESS)
+                .issuedAt(now)
+                .expiration(exp)
+                .signWith(key)
+                .compact();
+
+        assertFalse(jwtService.isAccessTokenValid(missingTypeToken));
+        assertFalse(jwtService.isTokenValid(missingTypeToken, testUser.getEmail()));
+        assertFalse(jwtService.isRefreshToken(missingTypeToken));
+
+        assertFalse(jwtService.isAccessTokenValid(unknownTypeToken));
+        assertFalse(jwtService.isTokenValid(unknownTypeToken, testUser.getEmail()));
+        assertFalse(jwtService.isRefreshToken(unknownTypeToken));
+
+        assertFalse(jwtService.isAccessTokenValid(missingSubjectAccessToken));
+        assertFalse(jwtService.isRefreshToken(missingSubjectAccessToken));
     }
 
     @Test
@@ -100,5 +149,62 @@ class JwtServiceTest {
             assertInstanceOf(IllegalStateException.class, root);
             assertTrue(root.getMessage().contains("JWT_SECRET"));
         });
+    }
+
+    @Test
+    @DisplayName("Phase 2 : Tokens émis contiennent jti, iss, aud et rejettent issuer/audience erronés ou legacy sans jti")
+    void testIssuerAudienceJtiEtRejetLegacy() {
+        String access = jwtService.generateAccessToken(testUser);
+        String refresh = jwtService.generateRefreshToken(testUser);
+
+        assertNotNull(jwtService.extractJti(access));
+        assertNotNull(jwtService.extractJti(refresh));
+        assertNotNull(jwtService.extractValidRefreshJti(refresh));
+        assertNull(jwtService.extractValidRefreshJti(access));
+
+        byte[] keyBytes = JwtService.resolveSigningKeyBytes(
+                "404E635266556A586E3272357538782F413F4428472B4B6250645367566B5970"
+        );
+        javax.crypto.SecretKey key = io.jsonwebtoken.security.Keys.hmacShaKeyFor(keyBytes);
+        java.util.Date now = new java.util.Date();
+        java.util.Date exp = new java.util.Date(now.getTime() + 600_000L);
+
+        String legacyRefreshWithoutJti = io.jsonwebtoken.Jwts.builder()
+                .subject(testUser.getEmail())
+                .issuer("ecourtier-api")
+                .audience().add("ecourtier-client").and()
+                .claim("type", JwtService.TOKEN_TYPE_REFRESH)
+                .issuedAt(now)
+                .expiration(exp)
+                .signWith(key)
+                .compact();
+
+        String wrongIssuerAccess = io.jsonwebtoken.Jwts.builder()
+                .id(UUID.randomUUID().toString())
+                .subject(testUser.getEmail())
+                .issuer("evil-issuer")
+                .audience().add("ecourtier-client").and()
+                .claim("type", JwtService.TOKEN_TYPE_ACCESS)
+                .issuedAt(now)
+                .expiration(exp)
+                .signWith(key)
+                .compact();
+
+        String wrongAudienceRefresh = io.jsonwebtoken.Jwts.builder()
+                .id(UUID.randomUUID().toString())
+                .subject(testUser.getEmail())
+                .issuer("ecourtier-api")
+                .audience().add("other-app").and()
+                .claim("type", JwtService.TOKEN_TYPE_REFRESH)
+                .issuedAt(now)
+                .expiration(exp)
+                .signWith(key)
+                .compact();
+
+        assertFalse(jwtService.isRefreshToken(legacyRefreshWithoutJti));
+        assertNull(jwtService.extractValidRefreshJti(legacyRefreshWithoutJti));
+        assertFalse(jwtService.isAccessTokenValid(wrongIssuerAccess));
+        assertFalse(jwtService.isRefreshToken(wrongAudienceRefresh));
+        assertNull(jwtService.extractValidRefreshJti(wrongAudienceRefresh));
     }
 }
