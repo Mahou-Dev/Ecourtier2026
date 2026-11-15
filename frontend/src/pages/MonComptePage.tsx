@@ -9,10 +9,11 @@ import { Button } from '../components/ui/Button';
 import { Badge } from '../components/ui/Badge';
 import { PatternClaustra } from '../components/ui/PatternClaustra';
 import { toast } from 'sonner';
+import { getErrorMessage } from '../lib/errors';
 
 export const MonComptePage: React.FC = () => {
   const navigate = useNavigate();
-  const { utilisateur } = useAuthStore();
+  const { utilisateur, logout } = useAuthStore();
 
   const [ancienMotDePasse, setAncienMotDePasse] = useState('');
   const [nouveauMotDePasse, setNouveauMotDePasse] = useState('');
@@ -53,12 +54,14 @@ export const MonComptePage: React.FC = () => {
         ancienMotDePasse,
         nouveauMotDePasse,
       });
-      toast.success(res.message || 'Mot de passe modifié avec succès');
+      toast.success(res.message || 'Mot de passe modifié. Veuillez vous reconnecter.');
       setAncienMotDePasse('');
       setNouveauMotDePasse('');
       setConfirmationMotDePasse('');
-    } catch (err: any) {
-      toast.error(err.message || 'Impossible de modifier le mot de passe');
+      await logout();
+      navigate('/connexion');
+    } catch (err: unknown) {
+      toast.error(getErrorMessage(err, 'Impossible de modifier le mot de passe'));
     } finally {
       setLoading(false);
     }

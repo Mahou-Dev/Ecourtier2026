@@ -291,7 +291,7 @@ export const AdminDashboardPage: React.FC = () => {
                     <YAxis allowDecimals={false} tick={{ fontSize: 11, fill: '#6e675f' }} />
                     <Tooltip
                       contentStyle={{ backgroundColor: '#ffffff', borderRadius: '12px', border: '1px solid #e0d8c8', fontSize: '12px' }}
-                      formatter={(value: any) => [`${value} utilisateur(s)`, 'Inscriptions']}
+                      formatter={(value) => [`${value ?? 0} utilisateur(s)`, 'Inscriptions']}
                     />
                     <Area type="monotone" dataKey="valeur" stroke={PALETTE.terracotta} strokeWidth={2.5} fillOpacity={1} fill="url(#gradientTerracotta)" />
                   </AreaChart>
@@ -318,7 +318,7 @@ export const AdminDashboardPage: React.FC = () => {
                     <YAxis type="category" dataKey="etape" tick={{ fontSize: 11, fill: '#262322', fontWeight: 600 }} width={120} />
                     <Tooltip
                       contentStyle={{ backgroundColor: '#ffffff', borderRadius: '12px', border: '1px solid #e0d8c8', fontSize: '12px' }}
-                      formatter={(valeur: any) => [`${valeur}`, 'Volume']}
+                      formatter={(valeur) => [`${valeur ?? 0}`, 'Volume']}
                     />
                     <Bar dataKey="valeur" radius={[0, 8, 8, 0]}>
                       {conversionFunnelData.map((entry, index) => (

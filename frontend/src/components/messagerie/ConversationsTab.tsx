@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { motion } from 'framer-motion';
 import {
   MessageSquare,
@@ -28,25 +28,46 @@ export const ConversationsTab: React.FC = () => {
 
   const { messages, isConnected, isOffline, sendMessage } = useConversationSocket(activeId);
 
-  const fetchConversations = async () => {
+  const fetchConversations = useCallback(async (withSpinner = false) => {
     try {
-      setLoading(true);
+      if (withSpinner) {
+        setLoading(true);
+      }
       const list = await messagerieService.listerMesConversations();
       setConversations(list);
 
       // Auto select first conversation if none selected
-      if (list.length > 0 && !selectedConversation) {
-        setSelectedConversation(list[0]);
+      if (list.length > 0) {
+        setSelectedConversation((current) => current ?? list[0]);
       }
     } catch (err) {
       console.error('Erreur chargement des conversations:', err);
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
 
   useEffect(() => {
-    fetchConversations();
+    let cancelled = false;
+    void (async () => {
+      try {
+        const list = await messagerieService.listerMesConversations();
+        if (cancelled) return;
+        setConversations(list);
+        if (list.length > 0) {
+          setSelectedConversation((current) => current ?? list[0]);
+        }
+      } catch (err) {
+        console.error('Erreur chargement des conversations:', err);
+      } finally {
+        if (!cancelled) {
+          setLoading(false);
+        }
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   // When selected conversation changes, mark as read
@@ -75,7 +96,7 @@ export const ConversationsTab: React.FC = () => {
     if (success) {
       setInputContent('');
       // Refresh conversation list preview
-      fetchConversations();
+      void fetchConversations(false);
     }
   };
 

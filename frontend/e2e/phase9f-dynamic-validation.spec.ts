@@ -38,7 +38,9 @@ test.describe('ANO-F-01 — Sécurisation des credentials PWA', () => {
             headers: t.headers,
             credentials: t.credentials as RequestCredentials,
           });
-        } catch (_) {}
+        } catch {
+          /* Requête réseau simulée sans réponse attendue dans le test SW */
+        }
 
         const matched = await cache.match(url);
         res[t.name] = !!matched;
@@ -54,7 +56,9 @@ test.describe('ANO-F-01 — Sécurisation des credentials PWA', () => {
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ test: true }),
           });
-        } catch (_) {}
+        } catch {
+          /* Requête non-GET hors ligne attendue */
+        }
         const matched = await cache.match(mUrl);
         res[m] = !!matched;
       }
@@ -215,7 +219,7 @@ test.describe('ANO-F-03 — Purge du cache TanStack Query à la déconnexion', (
     expect(resB.p2.content[0].titre).not.toBe('Villa Privée A');
   });
 
-  test('Test unitaire node/playwright : useAuthStore.logout() appelle effectivement queryClient.clear()', async ({ page }) => {
+  test('Test unitaire node/playwright : useAuthStore.logout() appelle effectivement queryClient.clear()', async () => {
     // Vérifier par inspection statique et dynamique que queryClient.clear() est présent dans useAuthStore
     const authStoreContent = fs.readFileSync(
       path.resolve(__dirname, '../src/store/useAuthStore.ts'),
@@ -235,7 +239,7 @@ test.describe('ANO-F-04 — Suppression des retries HTTP 404 et 410', () => {
     // Importer directement la fonction retry configurée dans src/lib/queryClient.ts
     const retryEvaluation = await page.evaluate(() => {
       // Configuration exacte de src/lib/queryClient.ts après correction :
-      const retryFn = (failureCount: number, error: any) => {
+      const retryFn = (failureCount: number, error: { status?: number; response?: { status?: number } }) => {
         const status = error?.status || error?.response?.status;
         if (status === 401 || status === 403 || status === 404 || status === 410) {
           return false;

@@ -1,5 +1,5 @@
 import React from 'react';
-import { Toaster as SonnerToaster, toast } from 'sonner';
+import { Toaster as SonnerToaster } from 'sonner';
 
 export const Toaster: React.FC = () => {
   return (
@@ -19,5 +19,3 @@ export const Toaster: React.FC = () => {
     />
   );
 };
-
-export { toast };

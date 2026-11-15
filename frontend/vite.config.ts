@@ -36,7 +36,7 @@ export default defineConfig({
                 ? (request.headers.get('cookie') || request.headers.get('Cookie'))
                 : null;
               if (cookieHeader) return false;
-              const creds = (request as any).credentials;
+              const creds = (request as { credentials?: RequestCredentials }).credentials;
               if (creds === 'include' || creds === 'same-origin') return false;
 
               const pathname = url.pathname;

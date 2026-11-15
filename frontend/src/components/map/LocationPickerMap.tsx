@@ -5,6 +5,7 @@ import 'leaflet/dist/leaflet.css';
 import { Button } from '../ui/Button';
 import { MapPin, Navigation, AlertCircle } from 'lucide-react';
 import { toast } from 'sonner';
+import { isInsideSenegal } from '../../lib/geo';
 
 // Custom default Leaflet icon fix
 const defaultMarkerIcon = L.icon({
@@ -23,23 +24,6 @@ interface LocationPickerMapProps {
   onChange: (lat: number, lng: number) => void;
   className?: string;
 }
-
-// Senegal bounding box
-export const SENEGAL_BOUNDS = {
-  minLat: 12.0,
-  maxLat: 17.0,
-  minLng: -17.8,
-  maxLng: -11.0,
-};
-
-export const isInsideSenegal = (lat: number, lng: number): boolean => {
-  return (
-    lat >= SENEGAL_BOUNDS.minLat &&
-    lat <= SENEGAL_BOUNDS.maxLat &&
-    lng >= SENEGAL_BOUNDS.minLng &&
-    lng <= SENEGAL_BOUNDS.maxLng
-  );
-};
 
 // Map sub-component to handle map clicks & resize invalidation
 const MapEventsHandler: React.FC<{

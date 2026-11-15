@@ -1,0 +1,13 @@
+# Exclude local secrets, dependencies, build artifacts and test outputs from Docker build context
+.env
+.env.*
+!.env.example
+.git
+.gitignore
+.idea
+.vscode
+node_modules/
+dist/
+playwright-report/
+test-results/
+*.log

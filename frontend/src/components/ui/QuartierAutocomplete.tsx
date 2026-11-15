@@ -17,12 +17,7 @@ export const QuartierAutocomplete: React.FC<QuartierAutocompleteProps> = ({
 }) => {
   const { data: quartiers = [] } = useQuartiers();
   const [open, setOpen] = useState(false);
-  const [inputValue, setInputValue] = useState(value);
   const containerRef = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    setInputValue(value);
-  }, [value]);
 
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
@@ -35,7 +30,7 @@ export const QuartierAutocomplete: React.FC<QuartierAutocompleteProps> = ({
   }, []);
 
   const filteredQuartiers = quartiers.filter((q) =>
-    q.toLowerCase().includes(inputValue.toLowerCase())
+    q.toLowerCase().includes(value.toLowerCase())
   );
 
   return (
@@ -44,9 +39,8 @@ export const QuartierAutocomplete: React.FC<QuartierAutocompleteProps> = ({
         <MapPin className="absolute left-3 w-4 h-4 text-terracotta-500 pointer-events-none" />
         <input
           type="text"
-          value={inputValue}
+          value={value}
           onChange={(e) => {
-            setInputValue(e.target.value);
             onChange(e.target.value);
             setOpen(true);
           }}
@@ -54,11 +48,10 @@ export const QuartierAutocomplete: React.FC<QuartierAutocompleteProps> = ({
           placeholder={placeholder}
           className="w-full pl-9 pr-8 py-2 text-xs rounded-xl border border-sand-300 bg-white focus:outline-none focus:ring-2 focus:ring-terracotta-500"
         />
-        {inputValue && (
+        {value && (
           <button
             type="button"
             onClick={() => {
-              setInputValue('');
               onChange('');
               setOpen(false);
             }}
@@ -78,7 +71,6 @@ export const QuartierAutocomplete: React.FC<QuartierAutocompleteProps> = ({
                 key={q}
                 type="button"
                 onClick={() => {
-                  setInputValue(q);
                   onChange(q);
                   setOpen(false);
                 }}

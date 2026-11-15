@@ -20,7 +20,7 @@ export const OfflineIndicator: React.FC = () => {
   if (!isOffline) return null;
 
   return (
-    <div className="fixed bottom-4 left-4 z-50 flex items-center gap-2 bg-charcoal-900/90 text-amber-300 backdrop-blur-md px-4 py-2.5 rounded-2xl border border-amber-500/30 shadow-2xl text-xs font-semibold animate-bounce-subtle">
+    <div className="fixed bottom-4 left-4 right-4 sm:right-auto max-w-[calc(100vw-2rem)] z-50 flex items-center gap-2 bg-charcoal-900/90 text-amber-300 backdrop-blur-md px-4 py-2.5 rounded-2xl border border-amber-500/30 shadow-2xl text-xs font-semibold animate-bounce-subtle">
       <WifiOff className="w-4 h-4 text-amber-400 shrink-0" />
       <span>Mode hors ligne — Consultation des annonces en cache</span>
     </div>

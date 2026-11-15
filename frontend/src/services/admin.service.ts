@@ -3,6 +3,7 @@ import {
   AdminCreateUtilisateurInput,
   AdminCreateUtilisateurResponse,
   AdminStatistiquesDTO,
+  AnnonceDTO,
   ChangerMotDePasseInput,
   PageResponse,
   TransactionResponseDTO,
@@ -85,6 +86,20 @@ export const adminService = {
     return apiFetch<TransactionResponseDTO>(`/api/v1/transactions/${id}/rembourser`, {
       method: 'POST',
       body: JSON.stringify({ motif: motif?.trim() || 'Remboursement de séquestre autorisé par l\'administrateur' }),
+    });
+  },
+
+  changerStatutAnnonce: async (
+    id: string,
+    payload: {
+      statutPublication: 'DISPONIBLE' | 'RESERVEE' | 'LOUEE' | 'VENDUE' | 'SUSPENDUE';
+      motif?: string;
+      version?: number;
+    }
+  ): Promise<AnnonceDTO> => {
+    return apiFetch<AnnonceDTO>(`/api/v1/admin/annonces/${id}/statut`, {
+      method: 'PUT',
+      body: JSON.stringify(payload),
     });
   },
 };

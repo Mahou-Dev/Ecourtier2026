@@ -22,8 +22,9 @@ export const PatternClaustra: React.FC<PatternClaustraProps> = ({
     charcoal: '#1E232A',
   };
 
+  const rawId = React.useId();
   const strokeColor = colorMap[variant];
-  const patternId = `claustra-pattern-${variant}-${Math.random().toString(36).substring(2, 7)}`;
+  const patternId = `claustra-pattern-${variant}-${rawId.replace(/:/g, '')}`;
 
   return (
     <svg

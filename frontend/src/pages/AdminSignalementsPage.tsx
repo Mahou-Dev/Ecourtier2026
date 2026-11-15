@@ -1,8 +1,9 @@
 import React, { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { ShieldAlert, CheckCircle, AlertTriangle, ExternalLink, RefreshCw } from 'lucide-react';
-import { Link } from 'react-router-dom';
+import { Link, Navigate } from 'react-router-dom';
 import { apiFetch } from '../services/api';
+import { useAuthStore } from '../store/useAuthStore';
 import { PageResponse, SignalementDTO, StatutSignalement } from '../types';
 import { Button } from '../components/ui/Button';
 import { Badge } from '../components/ui/Badge';
@@ -10,11 +11,15 @@ import { Skeleton } from '../components/ui/Skeleton';
 import { PatternClaustra } from '../components/ui/PatternClaustra';
 import { AdminNavTabs } from '../components/admin/AdminNavTabs';
 import { toast } from 'sonner';
+import { getErrorMessage } from '../lib/errors';
 
 export const AdminSignalementsPage: React.FC = () => {
+  const { utilisateur } = useAuthStore();
   const [statutFilter, setStatutFilter] = useState<string>('EN_ATTENTE');
   const [page, setPage] = useState<number>(0);
   const [processingId, setProcessingId] = useState<string | null>(null);
+
+  const isAdmin = utilisateur?.role === 'ADMIN';
 
   const { data, isLoading, isError, refetch } = useQuery<PageResponse<SignalementDTO>>({
     queryKey: ['admin-signalements', statutFilter, page],
@@ -27,7 +32,16 @@ export const AdminSignalementsPage: React.FC = () => {
       }
       return apiFetch<PageResponse<SignalementDTO>>(`/api/v1/admin/signalements?${params.toString()}`);
     },
+    enabled: isAdmin,
   });
+
+  if (!utilisateur) {
+    return <Navigate to="/connexion" replace />;
+  }
+
+  if (!isAdmin) {
+    return <Navigate to="/" replace />;
+  }
 
   const handleTraiter = async (signalementId: string, statut: StatutSignalement, suspendreAnnonce: boolean = false) => {
     setProcessingId(signalementId);
@@ -42,8 +56,8 @@ export const AdminSignalementsPage: React.FC = () => {
           : `Signalement mis à jour (${statut})`
       );
       refetch();
-    } catch (err: any) {
-      toast.error(err.message || 'Erreur lors du traitement du signalement');
+    } catch (err: unknown) {
+      toast.error(getErrorMessage(err, 'Erreur lors du traitement du signalement'));
     } finally {
       setProcessingId(null);
     }
@@ -201,6 +215,32 @@ export const AdminSignalementsPage: React.FC = () => {
                 </div>
               );
             })}
+          </div>
+        )}
+
+        {data && data.totalPages > 1 && (
+          <div className="flex items-center justify-between pt-2">
+            <span className="text-xs text-charcoal-500">
+              Page {data.number + 1} sur {data.totalPages} ({data.totalElements} signalements)
+            </span>
+            <div className="flex items-center gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                disabled={data.first}
+                onClick={() => setPage((p) => Math.max(0, p - 1))}
+              >
+                Précédent
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                disabled={data.last}
+                onClick={() => setPage((p) => p + 1)}
+              >
+                Suivant
+              </Button>
+            </div>
           </div>
         )}
 

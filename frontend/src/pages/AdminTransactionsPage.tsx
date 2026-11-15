@@ -64,6 +64,10 @@ export const AdminTransactionsPage: React.FC = () => {
         return <Badge variant="success">Fonds libérés</Badge>;
       case 'REMBOURSE':
         return <Badge variant="neutral">Remboursé</Badge>;
+      case 'ANNULE':
+        return <Badge variant="neutral">Annulé</Badge>;
+      case 'EXPIRE':
+        return <Badge variant="rose">Expiré</Badge>;
       default:
         return <Badge variant="neutral">{tx.statutSequestre}</Badge>;
     }
@@ -90,7 +94,7 @@ export const AdminTransactionsPage: React.FC = () => {
           <Filter className="w-4 h-4 text-terracotta-600" />
           <span className="text-xs font-bold text-charcoal-700 uppercase tracking-wider">Statut séquestre :</span>
           <div className="flex flex-wrap gap-1.5">
-            {['TOUS', 'BLOQUE', 'REMBOURSE', 'LIBERE', 'INITIALISE'].map((st) => (
+            {['TOUS', 'BLOQUE', 'REMBOURSE', 'LIBERE', 'INITIALISE', 'ANNULE', 'EXPIRE'].map((st) => (
               <button
                 key={st}
                 onClick={() => {
@@ -272,7 +276,9 @@ export const AdminTransactionsPage: React.FC = () => {
             setIsModalOpen(false);
             setSelectedTransaction(null);
           }}
-          transaction={selectedTransaction}
+          transaction={
+            transactions.find((t) => t.id === selectedTransaction.id) || selectedTransaction
+          }
           onRefresh={() => {
             queryClient.invalidateQueries({ queryKey: ['admin-transactions'] });
             refetch().then((result) => {

@@ -7,6 +7,7 @@ import { apiFetch } from '../services/api';
 import { AuthResponseDTO } from '../types';
 import { useAuthStore } from '../store/useAuthStore';
 import { toast } from 'sonner';
+import { getErrorMessage } from '../lib/errors';
 
 import { PatternClaustra } from '../components/ui/PatternClaustra';
 
@@ -51,9 +52,8 @@ export const RegisterPage: React.FC = () => {
       } else {
         navigate('/dashboard');
       }
-    } catch (err: any) {
-      const msg = err.message || "Erreur lors de l'inscription";
-      toast.error(msg);
+    } catch (err: unknown) {
+      toast.error(getErrorMessage(err, "Erreur lors de l'inscription"));
     } finally {
       setLoading(false);
     }

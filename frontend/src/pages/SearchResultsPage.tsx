@@ -24,7 +24,7 @@ import { Skeleton } from '../components/ui/Skeleton';
 import { FavoriteButton } from '../components/ui/FavoriteButton';
 import { useReferences } from '../hooks/useReferences';
 import { QuartierAutocomplete } from '../components/ui/QuartierAutocomplete';
-import { getProximiteMeta } from '../components/ui/ReferenceIcons';
+import { getProximiteMeta } from '../lib/referenceMeta';
 
 export const SearchResultsPage: React.FC = () => {
   const shouldReduceMotion = useReducedMotion();
@@ -52,6 +52,10 @@ export const SearchResultsPage: React.FC = () => {
 
   const [quartierFilter, setQuartierFilter] = useState<string>(
     searchParams.get('quartier') || ''
+  );
+
+  const [qFilter, setQFilter] = useState<string>(
+    searchParams.get('q') || ''
   );
 
   const [budgetMin, setBudgetMin] = useState<number | undefined>(() => {
@@ -114,38 +118,47 @@ export const SearchResultsPage: React.FC = () => {
 
   // Synchronize state when URL search parameters change externally (e.g. Back/Forward button)
   useEffect(() => {
-    const mode = searchParams.get('modeTransaction') || 'TOUS';
-    const types = searchParams.getAll('type');
-    const singleType = searchParams.get('type');
-    const finalTypes = types.length > 0 ? types : (singleType && singleType !== 'TOUS' ? [singleType] : []);
-    const city = searchParams.get('ville') || searchParams.get('city') || 'TOUS';
-    const quartier = searchParams.get('quartier') || '';
-    const bMin = searchParams.get('budgetMin') ? Number(searchParams.get('budgetMin')) : undefined;
-    const bMax = searchParams.get('budgetMax') ? Number(searchParams.get('budgetMax')) : undefined;
-    const sMin = searchParams.get('superficieMin') ? Number(searchParams.get('superficieMin')) : undefined;
-    const nPieces = searchParams.get('nombrePieces') ? Number(searchParams.get('nombrePieces')) : undefined;
-    const m = searchParams.get('meuble');
-    const mFilter = m === 'true' ? 'MEUBLE' : m === 'false' ? 'NON_MEUBLE' : 'TOUS';
-    const animaux = searchParams.get('animauxAcceptes') === 'true';
-    const proxs = searchParams.getAll('proximite');
-    const singleProx = searchParams.get('proximite');
-    const finalProxs = proxs.length > 0 ? proxs : (singleProx && singleProx !== 'TOUS' ? [singleProx] : []);
-    const verified = searchParams.get('statutVerification') === 'VERIFIEE' || searchParams.get('onlyVerified') === 'true';
-    const p = searchParams.get('page') ? Number(searchParams.get('page')) : 0;
+    let cancelled = false;
+    void Promise.resolve().then(() => {
+      if (cancelled) return;
+      const mode = searchParams.get('modeTransaction') || 'TOUS';
+      const types = searchParams.getAll('type');
+      const singleType = searchParams.get('type');
+      const finalTypes = types.length > 0 ? types : (singleType && singleType !== 'TOUS' ? [singleType] : []);
+      const city = searchParams.get('ville') || searchParams.get('city') || 'TOUS';
+      const quartier = searchParams.get('quartier') || '';
+      const q = searchParams.get('q') || '';
+      const bMin = searchParams.get('budgetMin') ? Number(searchParams.get('budgetMin')) : undefined;
+      const bMax = searchParams.get('budgetMax') ? Number(searchParams.get('budgetMax')) : undefined;
+      const sMin = searchParams.get('superficieMin') ? Number(searchParams.get('superficieMin')) : undefined;
+      const nPieces = searchParams.get('nombrePieces') ? Number(searchParams.get('nombrePieces')) : undefined;
+      const m = searchParams.get('meuble');
+      const mFilter = m === 'true' ? 'MEUBLE' : m === 'false' ? 'NON_MEUBLE' : 'TOUS';
+      const animaux = searchParams.get('animauxAcceptes') === 'true';
+      const proxs = searchParams.getAll('proximite');
+      const singleProx = searchParams.get('proximite');
+      const finalProxs = proxs.length > 0 ? proxs : (singleProx && singleProx !== 'TOUS' ? [singleProx] : []);
+      const verified = searchParams.get('statutVerification') === 'VERIFIEE' || searchParams.get('onlyVerified') === 'true';
+      const p = searchParams.get('page') ? Number(searchParams.get('page')) : 0;
 
-    setModeTransaction((prev) => prev !== mode ? mode : prev);
-    setSelectedTypes((prev) => JSON.stringify(prev) !== JSON.stringify(finalTypes) ? finalTypes : prev);
-    setCityFilter((prev) => prev !== city ? city : prev);
-    setQuartierFilter((prev) => prev !== quartier ? quartier : prev);
-    setBudgetMin((prev) => prev !== bMin ? bMin : prev);
-    setBudgetMax((prev) => prev !== bMax ? bMax : prev);
-    setSuperficieMin((prev) => prev !== sMin ? sMin : prev);
-    setNombrePieces((prev) => prev !== nPieces ? nPieces : prev);
-    setMeubleFilter((prev) => prev !== mFilter ? mFilter : prev);
-    setAnimauxAcceptes((prev) => prev !== animaux ? animaux : prev);
-    setSelectedProximites((prev) => JSON.stringify(prev) !== JSON.stringify(finalProxs) ? finalProxs : prev);
-    setOnlyVerified((prev) => prev !== verified ? verified : prev);
-    setPage((prev) => prev !== p ? p : prev);
+      setModeTransaction((prev) => prev !== mode ? mode : prev);
+      setSelectedTypes((prev) => JSON.stringify(prev) !== JSON.stringify(finalTypes) ? finalTypes : prev);
+      setCityFilter((prev) => prev !== city ? city : prev);
+      setQuartierFilter((prev) => prev !== quartier ? quartier : prev);
+      setQFilter((prev) => prev !== q ? q : prev);
+      setBudgetMin((prev) => prev !== bMin ? bMin : prev);
+      setBudgetMax((prev) => prev !== bMax ? bMax : prev);
+      setSuperficieMin((prev) => prev !== sMin ? sMin : prev);
+      setNombrePieces((prev) => prev !== nPieces ? nPieces : prev);
+      setMeubleFilter((prev) => prev !== mFilter ? mFilter : prev);
+      setAnimauxAcceptes((prev) => prev !== animaux ? animaux : prev);
+      setSelectedProximites((prev) => JSON.stringify(prev) !== JSON.stringify(finalProxs) ? finalProxs : prev);
+      setOnlyVerified((prev) => prev !== verified ? verified : prev);
+      setPage((prev) => prev !== p ? p : prev);
+    });
+    return () => {
+      cancelled = true;
+    };
   }, [searchParams]);
 
   // Synchronize filter states to URL search parameters
@@ -156,6 +169,7 @@ export const SearchResultsPage: React.FC = () => {
     selectedTypes.forEach((t) => newParams.append('type', t));
     if (cityFilter !== 'TOUS') newParams.set('ville', cityFilter);
     if (quartierFilter.trim()) newParams.set('quartier', quartierFilter.trim());
+    if (qFilter.trim()) newParams.set('q', qFilter.trim());
     if (budgetMin !== undefined && budgetMin > 0) newParams.set('budgetMin', budgetMin.toString());
     if (budgetMax !== undefined && budgetMax > 0) newParams.set('budgetMax', budgetMax.toString());
     if (superficieMin !== undefined && superficieMin > 0) newParams.set('superficieMin', superficieMin.toString());
@@ -175,6 +189,7 @@ export const SearchResultsPage: React.FC = () => {
     selectedTypes,
     cityFilter,
     quartierFilter,
+    qFilter,
     budgetMin,
     budgetMax,
     superficieMin,
@@ -195,6 +210,7 @@ export const SearchResultsPage: React.FC = () => {
       selectedTypes,
       cityFilter,
       quartierFilter,
+      qFilter,
       budgetMin,
       budgetMax,
       superficieMin,
@@ -209,13 +225,13 @@ export const SearchResultsPage: React.FC = () => {
       const params = new URLSearchParams();
       params.append('page', page.toString());
       params.append('size', '12');
-      params.append('tri', 'dateCreation');
-      params.append('direction', 'DESC');
+      params.append('sort', 'dateCreation,desc');
 
       if (modeTransaction !== 'TOUS') params.append('modeTransaction', modeTransaction);
       selectedTypes.forEach((t) => params.append('type', t));
       if (cityFilter !== 'TOUS') params.append('ville', cityFilter);
       if (quartierFilter.trim()) params.append('quartier', quartierFilter.trim());
+      if (qFilter.trim()) params.append('q', qFilter.trim());
       if (budgetMin !== undefined && budgetMin > 0) params.append('budgetMin', budgetMin.toString());
       if (budgetMax !== undefined && budgetMax > 0) params.append('budgetMax', budgetMax.toString());
       if (superficieMin !== undefined && superficieMin > 0) params.append('superficieMin', superficieMin.toString());
@@ -237,6 +253,7 @@ export const SearchResultsPage: React.FC = () => {
     setSelectedTypes([]);
     setCityFilter('TOUS');
     setQuartierFilter('');
+    setQFilter('');
     setBudgetMin(undefined);
     setBudgetMax(undefined);
     setSuperficieMin(undefined);
@@ -741,11 +758,12 @@ export const SearchResultsPage: React.FC = () => {
             <label className="block text-xs font-bold text-sahel-800 mb-1.5">
               Types de bien (choix multiple)
             </label>
-            <div className="grid grid-cols-3 gap-2">
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
               {(references?.typesBien || [
                 { valeur: 'APPARTEMENT', libelle: 'Appartement' },
                 { valeur: 'VILLA', libelle: 'Villa' },
                 { valeur: 'STUDIO', libelle: 'Studio' },
+                { valeur: 'CHAMBRE', libelle: 'Chambre' },
               ]).map((t) => {
                 const isChecked = selectedTypes.includes(t.valeur);
                 return (

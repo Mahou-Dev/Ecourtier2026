@@ -1,21 +1,24 @@
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
 import { Modal } from '../ui/Modal';
 import { Button } from '../ui/Button';
 import { Badge } from '../ui/Badge';
 import { TransactionResponseDTO } from '../../types';
-import { apiFetch, downloadPdfBail } from '../../services/api';
+import { apiFetch, downloadPdfBail, genererPdfBail } from '../../services/api';
 import { adminService } from '../../services/admin.service';
 import { toast } from 'sonner';
-import { 
-  FileCheck, 
-  Download, 
-  CreditCard, 
-  CheckCircle2, 
-  Clock, 
+import { getErrorMessage, getErrorStatus } from '../../lib/errors';
+import {
+  FileCheck,
+  Download,
+  CreditCard,
+  CheckCircle2,
+  Clock,
   AlertCircle,
   Building,
   UserCheck,
-  RotateCcw
+  RotateCcw,
+  RefreshCw,
 } from 'lucide-react';
 import { useAuthStore } from '../../store/useAuthStore';
 
@@ -33,36 +36,70 @@ export const TransactionDetailsModal: React.FC<TransactionDetailsModalProps> = (
   onRefresh,
 }) => {
   const { utilisateur } = useAuthStore();
-  const [internalTx, setInternalTx] = useState<TransactionResponseDTO | null>(transactionProp);
-
-  React.useEffect(() => {
-    if (transactionProp) {
-      setInternalTx((prev) => {
-        if (prev?.statutSequestre === 'REMBOURSE' && transactionProp.statutSequestre !== 'REMBOURSE') {
-          return { ...transactionProp, ...prev };
-        }
-        return transactionProp;
-      });
-    }
-  }, [transactionProp]);
-
-  const transaction = internalTx || transactionProp;
+  const queryClient = useQueryClient();
+  const [overrideTx, setOverrideTx] = useState<TransactionResponseDTO | null>(null);
 
   const [isPaying, setIsPaying] = useState(false);
+  const [isCancelling, setIsCancelling] = useState(false);
   const [isSigning, setIsSigning] = useState(false);
   const [isDownloadingPdf, setIsDownloadingPdf] = useState(false);
+  const [isRegeneratingPdf, setIsRegeneratingPdf] = useState(false);
   const [isRefunding, setIsRefunding] = useState(false);
-  const [showRefundConfirm, setShowRefundConfirm] = useState(false);
+  const [refundConfirmTxId, setRefundConfirmTxId] = useState<string | null>(null);
   const [motifRemboursementInput, setMotifRemboursementInput] = useState('');
 
+  const handleModalClose = () => {
+    setOverrideTx(null);
+    setRefundConfirmTxId(null);
+    setMotifRemboursementInput('');
+    onClose();
+  };
+
+  const transaction = useMemo(() => {
+    if (!transactionProp) return overrideTx;
+    if (overrideTx && overrideTx.id === transactionProp.id) {
+      return { ...transactionProp, ...overrideTx };
+    }
+    return transactionProp;
+  }, [transactionProp, overrideTx]);
+
+  const syncTransactionState = (updated: TransactionResponseDTO) => {
+    setOverrideTx(updated);
+    queryClient.setQueryData<TransactionResponseDTO[]>(['my-transactions'], (old) =>
+      Array.isArray(old) ? old.map((t) => (t.id === updated.id ? { ...t, ...updated } : t)) : old
+    );
+    queryClient.invalidateQueries({ queryKey: ['my-transactions'] });
+    queryClient.invalidateQueries({ queryKey: ['admin-transactions'] });
+    if (updated.annonceId) {
+      queryClient.invalidateQueries({ queryKey: ['annonce', updated.annonceId] });
+    }
+    queryClient.invalidateQueries({ queryKey: ['my-annonces'] });
+    queryClient.invalidateQueries({ queryKey: ['annonces'] });
+    onRefresh();
+  };
+
   if (!transaction) return null;
+
+  const showRefundConfirm = refundConfirmTxId === transaction.id;
+  const setShowRefundConfirm = (open: boolean) => {
+    setRefundConfirmTxId(open ? transaction.id : null);
+  };
+
+  const isAnyActionPending =
+    isPaying || isCancelling || isSigning || isDownloadingPdf || isRegeneratingPdf || isRefunding;
 
   const isVente = transaction.modeTransaction === 'VENTE';
   const isLocataire = utilisateur?.id === transaction.locataireId;
   const isProprietaire = utilisateur?.id === transaction.proprietaireId;
   const isAdmin = utilisateur?.role === 'ADMIN';
+  const isClosedTerminal =
+    transaction.dossierActif === false ||
+    transaction.statutSequestre === 'REMBOURSE' ||
+    transaction.statutSequestre === 'ANNULE' ||
+    transaction.statutSequestre === 'EXPIRE';
 
   const handleRembourser = async () => {
+    if (isAnyActionPending) return;
     if (!motifRemboursementInput.trim()) {
       toast.error('Veuillez renseigner un motif de remboursement.');
       return;
@@ -73,10 +110,9 @@ export const TransactionDetailsModal: React.FC<TransactionDetailsModalProps> = (
       toast.success(`Séquestre remboursé avec succès ! Réf Wave : ${res.referenceRemboursementWave || 'Enregistré'}`);
       setShowRefundConfirm(false);
       setMotifRemboursementInput('');
-      setInternalTx((prev) => ({ ...(prev || transaction), ...res }));
-      onRefresh();
-    } catch (err: any) {
-      toast.error(err.message || 'Échec du remboursement du séquestre.');
+      syncTransactionState({ ...transaction, ...res });
+    } catch (err: unknown) {
+      toast.error(getErrorMessage(err, 'Échec du remboursement du séquestre.'));
     } finally {
       setIsRefunding(false);
     }
@@ -84,6 +120,7 @@ export const TransactionDetailsModal: React.FC<TransactionDetailsModalProps> = (
 
   // Caution Payment handler
   const handlePaiementCaution = async () => {
+    if (isAnyActionPending) return;
     setIsPaying(true);
     try {
       const res = await apiFetch<TransactionResponseDTO>(
@@ -91,33 +128,59 @@ export const TransactionDetailsModal: React.FC<TransactionDetailsModalProps> = (
         { method: 'POST' }
       );
       toast.success(`Paiement du séquestre effectué ! Réf Wave: ${res.referenceWave}`);
-      onRefresh();
-    } catch (err: any) {
-      if (err.status === 403) {
+      syncTransactionState({ ...transaction, ...res });
+    } catch (err: unknown) {
+      if (getErrorStatus(err) === 403) {
         toast.error("Vous n'êtes pas autorisé à payer la caution pour cette transaction.");
       } else {
-        toast.error(err.message || 'Échec du paiement de la caution');
+        toast.error(getErrorMessage(err, 'Échec du paiement de la caution'));
       }
     } finally {
       setIsPaying(false);
     }
   };
 
+  // Unpaid INITIALISE Transaction Cancellation handler
+  const handleAnnulerTransaction = async () => {
+    if (isAnyActionPending) return;
+    setIsCancelling(true);
+    try {
+      const res = await apiFetch<TransactionResponseDTO>(
+        `/api/v1/transactions/${transaction.id}/annuler`,
+        {
+          method: 'POST',
+          body: JSON.stringify({ motif: 'Annulation demandée depuis le dossier de transaction' }),
+        }
+      );
+      toast.success('Transaction annulée. Le bien est de nouveau disponible.');
+      syncTransactionState({ ...transaction, ...res });
+    } catch (err: unknown) {
+      if (getErrorStatus(err) === 403) {
+        toast.error("Vous n'êtes pas autorisé à annuler cette transaction.");
+      } else {
+        toast.error(getErrorMessage(err, "Échec de l'annulation de la transaction"));
+      }
+    } finally {
+      setIsCancelling(false);
+    }
+  };
+
   // Lease Sign handler
   const handleSignerBail = async () => {
+    if (isAnyActionPending) return;
     setIsSigning(true);
     try {
-      await apiFetch<TransactionResponseDTO>(
+      const res = await apiFetch<TransactionResponseDTO>(
         `/api/v1/transactions/${transaction.id}/bail/signer`,
         { method: 'POST' }
       );
       toast.success('Félicitations, votre signature électronique a été enregistrée !');
-      onRefresh();
-    } catch (err: any) {
-      if (err.status === 403) {
+      syncTransactionState({ ...transaction, ...res });
+    } catch (err: unknown) {
+      if (getErrorStatus(err) === 403) {
         toast.error("Accès refusé : vous ne faites pas partie des signataires de ce contrat.");
       } else {
-        toast.error(err.message || 'Échec de la signature');
+        toast.error(getErrorMessage(err, 'Échec de la signature'));
       }
     } finally {
       setIsSigning(false);
@@ -126,14 +189,40 @@ export const TransactionDetailsModal: React.FC<TransactionDetailsModalProps> = (
 
   // PDF Download handler
   const handleDownloadPdf = async () => {
+    if (isAnyActionPending) return;
     setIsDownloadingPdf(true);
     try {
       await downloadPdfBail(transaction.id);
       toast.success(isVente ? 'Téléchargement du récapitulatif de réservation démarré !' : 'Téléchargement du contrat de bail démarré !');
-    } catch (err: any) {
-      toast.error(err.message || 'Impossible de télécharger le document PDF');
+    } catch (err: unknown) {
+      if (getErrorStatus(err) === 503) {
+        setOverrideTx(null);
+        toast.error(getErrorMessage(err, 'Document PDF temporairement indisponible. Relancez la génération.'));
+        queryClient.invalidateQueries({ queryKey: ['my-transactions'] });
+        onRefresh();
+      } else {
+        toast.error(getErrorMessage(err, 'Impossible de télécharger le document PDF'));
+      }
     } finally {
       setIsDownloadingPdf(false);
+    }
+  };
+
+  // Manual PDF generation/recovery handler
+  const handleRegeneratePdf = async () => {
+    if (isAnyActionPending) return;
+    setIsRegeneratingPdf(true);
+    try {
+      const updated = await genererPdfBail(transaction.id);
+      toast.success('Document PDF généré avec succès !');
+      syncTransactionState({ ...transaction, ...updated });
+    } catch (err: unknown) {
+      setOverrideTx(null);
+      toast.error(getErrorMessage(err, 'Échec de la génération du document PDF'));
+      queryClient.invalidateQueries({ queryKey: ['my-transactions'] });
+      onRefresh();
+    } finally {
+      setIsRegeneratingPdf(false);
     }
   };
 
@@ -148,6 +237,10 @@ export const TransactionDetailsModal: React.FC<TransactionDetailsModalProps> = (
         return <Badge variant="success">Séquestre : Fonds libérés</Badge>;
       case 'REMBOURSE':
         return <Badge variant="neutral">Séquestre : Remboursé</Badge>;
+      case 'ANNULE':
+        return <Badge variant="neutral">Transaction : Annulée</Badge>;
+      case 'EXPIRE':
+        return <Badge variant="rose">Transaction : Expirée</Badge>;
       default:
         return null;
     }
@@ -170,7 +263,7 @@ export const TransactionDetailsModal: React.FC<TransactionDetailsModalProps> = (
   };
 
   return (
-    <Modal isOpen={isOpen} onClose={onClose} title={`Dossier de Transaction #${transaction.id.slice(0, 8)}`} size="lg">
+    <Modal isOpen={isOpen} onClose={handleModalClose} title={`Dossier de Transaction #${transaction.id.slice(0, 8)}`} size="lg">
       <div className="space-y-6">
         
         {/* Header Summary */}
@@ -205,6 +298,12 @@ export const TransactionDetailsModal: React.FC<TransactionDetailsModalProps> = (
               <span className="text-xs font-bold text-emerald-700 flex items-center gap-1">
                 <CheckCircle2 className="w-4 h-4 text-emerald-600" /> Dépôt validé
               </span>
+            ) : transaction.statutSequestre === 'ANNULE' ? (
+              <span className="text-xs font-bold text-sahel-600">Transaction annulée</span>
+            ) : transaction.statutSequestre === 'EXPIRE' ? (
+              <span className="text-xs font-bold text-rose-700">Délai expiré</span>
+            ) : transaction.statutSequestre === 'REMBOURSE' ? (
+              <span className="text-xs font-bold text-sahel-600">Séquestre remboursé</span>
             ) : (
               <span className="text-xs font-bold text-amber-700 flex items-center gap-1">
                 <Clock className="w-4 h-4 text-amber-600" /> En attente de paiement
@@ -255,7 +354,17 @@ export const TransactionDetailsModal: React.FC<TransactionDetailsModalProps> = (
           {transaction.referenceWave && (
             <div className="p-3 rounded-xl bg-emerald-50 border border-emerald-200 text-xs text-emerald-900 flex items-center justify-between">
               <span>Référence Wave Sandbox : <strong>{transaction.referenceWave}</strong></span>
-              <Badge variant="success">Séquestre bloqué</Badge>
+              {transaction.statutSequestre === 'BLOQUE' ? (
+                <Badge variant="success">Séquestre bloqué</Badge>
+              ) : transaction.statutSequestre === 'LIBERE' ? (
+                <Badge variant="info">Fonds libérés</Badge>
+              ) : transaction.statutSequestre === 'REMBOURSE' ? (
+                <Badge variant="neutral">Remboursé</Badge>
+              ) : transaction.statutSequestre === 'EXPIRE' ? (
+                <Badge variant="rose">Expiré</Badge>
+              ) : (
+                <Badge variant="warning">{transaction.statutSequestre}</Badge>
+              )}
             </div>
           )}
 
@@ -279,20 +388,69 @@ export const TransactionDetailsModal: React.FC<TransactionDetailsModalProps> = (
           )}
 
           {transaction.statutSequestre === 'INITIALISE' && (
-            <div>
-              {isLocataire ? (
-                <Button
-                  variant="primary"
-                  className="w-full"
-                  isLoading={isPaying}
-                  onClick={handlePaiementCaution}
-                >
-                  Payer {(transaction.montantTotalSequestre ?? (transaction.montantCaution + (transaction.montantPremierLoyer || 0) + transaction.fraisDossier)).toLocaleString('fr-FR')} FCFA via Wave (Sandbox)
-                </Button>
-              ) : (
-                <p className="text-xs text-sahel-600 italic">
-                  En attente du paiement du séquestre par {isVente ? "l'acheteur" : "le locataire"} ({transaction.locataireNomComplet}).
+            <div className="space-y-2">
+              {transaction.dateExpiration && (
+                <p className="text-[11px] text-amber-700">
+                  Échéance de paiement : <strong>{new Date(transaction.dateExpiration).toLocaleString('fr-FR')}</strong>
                 </p>
+              )}
+              {isLocataire ? (
+                <div className="flex flex-col sm:flex-row gap-2">
+                  <Button
+                    variant="primary"
+                    className="w-full"
+                    isLoading={isPaying}
+                    disabled={isCancelling}
+                    onClick={handlePaiementCaution}
+                  >
+                    Payer {(transaction.montantTotalSequestre ?? (transaction.montantCaution + (transaction.montantPremierLoyer || 0) + transaction.fraisDossier)).toLocaleString('fr-FR')} FCFA via Wave (Sandbox)
+                  </Button>
+                  <Button
+                    variant="outline"
+                    className="sm:w-auto shrink-0 border-sand-400 text-sahel-700 hover:bg-sand-100"
+                    isLoading={isCancelling}
+                    disabled={isPaying}
+                    onClick={handleAnnulerTransaction}
+                  >
+                    Annuler la transaction
+                  </Button>
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  <p className="text-xs text-sahel-600 italic">
+                    En attente du paiement du séquestre par {isVente ? "l'acheteur" : "le locataire"} ({transaction.locataireNomComplet}).
+                  </p>
+                  {isAdmin && (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="border-sand-400 text-sahel-700 hover:bg-sand-100"
+                      isLoading={isCancelling}
+                      onClick={handleAnnulerTransaction}
+                    >
+                      Annuler la transaction (Admin)
+                    </Button>
+                  )}
+                </div>
+              )}
+            </div>
+          )}
+
+          {(transaction.statutSequestre === 'ANNULE' || transaction.statutSequestre === 'EXPIRE') && (
+            <div className={`p-3.5 rounded-xl border text-xs space-y-1 ${
+              transaction.statutSequestre === 'EXPIRE'
+                ? 'bg-rose-50 border-rose-200 text-rose-900'
+                : 'bg-sand-100 border-sand-300 text-sahel-900'
+            }`}>
+              <div className="flex items-center gap-1.5 font-bold">
+                <AlertCircle className={`w-4 h-4 ${transaction.statutSequestre === 'EXPIRE' ? 'text-rose-600' : 'text-sahel-600'}`} />
+                <span>{transaction.statutSequestre === 'EXPIRE' ? 'Transaction expirée' : 'Transaction annulée'}</span>
+              </div>
+              {transaction.dateCloture && (
+                <p>Date de clôture : {new Date(transaction.dateCloture).toLocaleString('fr-FR')}</p>
+              )}
+              {transaction.motifCloture && (
+                <p className="italic">Motif : {transaction.motifCloture}</p>
               )}
             </div>
           )}
@@ -445,9 +603,16 @@ export const TransactionDetailsModal: React.FC<TransactionDetailsModalProps> = (
           </div>
 
           {/* Action to Sign */}
-          {transaction.statutBail !== 'SIGNE_COMPLET' && (
+          {!isClosedTerminal && transaction.statutBail !== 'SIGNE_COMPLET' && (
             <div>
-              {((isLocataire && !transaction.dateSignatureLocataire) || (isProprietaire && !transaction.dateSignatureProprietaire)) ? (
+              {transaction.statutSequestre !== 'BLOQUE' ? (
+                <div className="p-3 rounded-xl bg-amber-50 border border-amber-200 text-xs text-amber-900 flex items-center gap-2">
+                  <Clock className="w-4 h-4 text-amber-600 shrink-0" />
+                  <span>
+                    La signature numérique du {isVente ? "récapitulatif de réservation" : "contrat de bail"} est débloquée uniquement après confirmation du paiement du séquestre Wave (statut <strong>BLOQUE</strong>).
+                  </span>
+                </div>
+              ) : ((isLocataire && !transaction.dateSignatureLocataire) || (isProprietaire && !transaction.dateSignatureProprietaire)) ? (
                 <Button
                   variant="primary"
                   className="w-full"
@@ -456,38 +621,90 @@ export const TransactionDetailsModal: React.FC<TransactionDetailsModalProps> = (
                 >
                   {isVente ? "Signer le récapitulatif de réservation" : "Signer le bail numérique"}
                 </Button>
-              ) : (
+              ) : (isLocataire || isProprietaire) ? (
                 <div className="p-3 rounded-xl bg-amber-50 border border-amber-200 text-xs text-amber-900 flex items-center gap-2">
                   <AlertCircle className="w-4 h-4 text-amber-600 shrink-0" />
                   <span>Votre signature est déjà enregistrée. En attente de la deuxième partie.</span>
                 </div>
-              )}
+              ) : null}
             </div>
           )}
 
-          {/* Action Download PDF */}
+          {/* Action Download / Recovery PDF */}
           {transaction.statutBail === 'SIGNE_COMPLET' && (
-            <div className="pt-2">
-              <Button
-                variant="outline"
-                className="w-full border-terracotta-500 text-terracotta-700 hover:bg-terracotta-50 flex items-center justify-center gap-2"
-                isLoading={isDownloadingPdf}
-                onClick={handleDownloadPdf}
-              >
-                <Download className="w-4 h-4 text-terracotta-600" />
-                <span>
-                  {isVente
-                    ? "Télécharger le récapitulatif de réservation d'achat (PDF horodaté)"
-                    : "Télécharger le contrat de bail PDF (Horodaté & Numéroté)"}
-                </span>
-              </Button>
+            <div className="pt-2 space-y-3">
+              {transaction.statutDocumentBail === 'ECHEC' && (
+                <div
+                  role="alert"
+                  className="p-3 rounded-xl bg-rose-50 border border-rose-200 text-xs text-rose-900 space-y-1"
+                >
+                  <div className="flex items-center gap-1.5 font-bold">
+                    <AlertCircle className="w-4 h-4 text-rose-600 shrink-0" />
+                    <span>Génération du document PDF en échec</span>
+                  </div>
+                  {transaction.pdfBailErreur && (
+                    <p className="text-[11px] text-rose-800">{transaction.pdfBailErreur}</p>
+                  )}
+                  {typeof transaction.pdfBailTentatives === 'number' && transaction.pdfBailTentatives > 0 && (
+                    <p className="text-[11px] text-rose-700">
+                      Tentatives effectuées : {transaction.pdfBailTentatives}
+                    </p>
+                  )}
+                </div>
+              )}
+
+              {transaction.statutDocumentBail === 'A_GENERER' && (
+                <div className="p-3 rounded-xl bg-amber-50 border border-amber-200 text-xs text-amber-900 flex items-center gap-2">
+                  <Clock className="w-4 h-4 text-amber-600 shrink-0" />
+                  <span>Le document PDF est en attente de génération. Vous pouvez déclencher sa création immédiatement.</span>
+                </div>
+              )}
+
+              {transaction.statutDocumentBail === 'GENERE' && (
+                <div className="p-2.5 rounded-xl bg-emerald-50 border border-emerald-200 text-xs text-emerald-900 flex items-center gap-2">
+                  <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+                  <span>Document PDF généré et prêt au téléchargement.</span>
+                </div>
+              )}
+
+              <div className="flex flex-col sm:flex-row gap-2">
+                <Button
+                  variant="outline"
+                  className="w-full border-terracotta-500 text-terracotta-700 hover:bg-terracotta-50 flex items-center justify-center gap-2"
+                  isLoading={isDownloadingPdf}
+                  disabled={isRegeneratingPdf}
+                  onClick={handleDownloadPdf}
+                >
+                  <Download className="w-4 h-4 text-terracotta-600" />
+                  <span>
+                    {isVente
+                      ? "Télécharger le récapitulatif de réservation d'achat (PDF horodaté)"
+                      : "Télécharger le contrat de bail PDF (Horodaté & Numéroté)"}
+                  </span>
+                </Button>
+
+                {(transaction.statutDocumentBail === 'ECHEC' ||
+                  transaction.statutDocumentBail === 'A_GENERER' ||
+                  (!transaction.pdfBailPath && transaction.statutDocumentBail !== 'GENERE')) && (
+                  <Button
+                    variant="secondary"
+                    className="sm:w-auto shrink-0 flex items-center justify-center gap-2"
+                    isLoading={isRegeneratingPdf}
+                    disabled={isDownloadingPdf}
+                    onClick={handleRegeneratePdf}
+                  >
+                    <RefreshCw className="w-4 h-4" />
+                    <span>Régénérer le PDF</span>
+                  </Button>
+                )}
+              </div>
             </div>
           )}
         </div>
 
         {/* Close Modal Button */}
         <div className="flex justify-end pt-2">
-          <Button variant="ghost" onClick={onClose}>
+          <Button variant="ghost" onClick={handleModalClose}>
             Fermer
           </Button>
         </div>

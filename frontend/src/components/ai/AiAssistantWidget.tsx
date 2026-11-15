@@ -1,9 +1,10 @@
-import React, { useState } from 'react';
-import { Sparkles, X, Send, Bot, User, ShieldCheck, CheckCircle2, AlertCircle } from 'lucide-react';
+import React, { useState, useEffect, useRef } from 'react';
+import { Sparkles, X, Send, Bot, User, ShieldCheck, CheckCircle2, AlertCircle, RotateCcw } from 'lucide-react';
 import { AnimatePresence, motion, useReducedMotion } from 'framer-motion';
 import { Button } from '../ui/Button';
 import { apiFetch, getPhotoUrl } from '../../services/api';
-import { AnnonceDTO, MessageIAResponseDTO } from '../../types';
+import { AnnonceDTO, MessageIAResponseDTO, ConversationHistoryResponseDTO } from '../../types';
+import { useAuthStore } from '../../store/useAuthStore';
 import { Link } from 'react-router-dom';
 
 export interface ChatMessageItem {
@@ -16,21 +17,126 @@ export interface ChatMessageItem {
   isError?: boolean;
 }
 
+const formatTimeLabel = (dateInput?: string): string => {
+  const d = dateInput ? new Date(dateInput) : new Date();
+  return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+};
+
+const createWelcomeMessage = (): ChatMessageItem => ({
+  id: 'msg-welcome',
+  sender: 'ai',
+  text: 'Na nga def ! Je suis Samba, votre assistant IA E-Courtier. Dites-moi quel logement vous cherchez (ville, budget, type, meublé)...',
+  timestamp: formatTimeLabel(),
+});
+
+type LegacyMessageIADTO = MessageIAResponseDTO & {
+  reponse?: string;
+  criteresExtraits?: Record<string, unknown> & { questionDeRelance?: string };
+};
+
 export const AiAssistantWidget: React.FC = () => {
+  const { utilisateur } = useAuthStore();
+  const currentUserId = utilisateur?.id || 'anon';
+  return <AiAssistantWidgetInner key={currentUserId} currentUserId={currentUserId} />;
+};
+
+const AiAssistantWidgetInner: React.FC<{ currentUserId: string }> = ({ currentUserId }) => {
   const shouldReduceMotion = useReducedMotion();
+  const storageKey = `ecourtier_ia_conversation_${currentUserId}`;
+
   const [isOpen, setIsOpen] = useState(false);
   const [inputText, setInputText] = useState('');
-  const [conversationId, setConversationId] = useState<string | null>(null);
+  const [conversationId, setConversationId] = useState<string | null>(() => {
+    if (typeof window === 'undefined') return null;
+    return localStorage.getItem(storageKey);
+  });
   const [isSending, setIsSending] = useState(false);
+  const [messages, setMessages] = useState<ChatMessageItem[]>(() => [createWelcomeMessage()]);
 
-  const [messages, setMessages] = useState<ChatMessageItem[]>([
-    {
-      id: 'msg-welcome',
-      sender: 'ai',
-      text: 'Na nga def ! Je suis Samba, votre assistant IA E-Courtier. Dites-moi quel logement vous cherchez (ville, budget, type, meublé)...',
-      timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-    },
-  ]);
+  // R1: Compteur de génération et contrôleur d'envoi pour bloquer les courses asynchrones
+  const generationRef = useRef(0);
+  const msgSeqRef = useRef(0);
+  const sendAbortControllerRef = useRef<AbortController | null>(null);
+
+  const isSessionStillValid = (expectedGen: number, expectedUserId: string, signal?: AbortSignal) => {
+    const liveUserId = useAuthStore.getState().utilisateur?.id || 'anon';
+    return (
+      generationRef.current === expectedGen &&
+      liveUserId === expectedUserId &&
+      !(signal?.aborted)
+    );
+  };
+
+  // Restore existing conversation on reload (F5) for this user key
+  useEffect(() => {
+    const genCounter = generationRef;
+    const currentGen = ++genCounter.current;
+    const abortController = new AbortController();
+
+    const savedConvId = typeof window !== 'undefined' ? localStorage.getItem(storageKey) : null;
+    if (!savedConvId) {
+      return () => {
+        genCounter.current++;
+        abortController.abort();
+      };
+    }
+
+    apiFetch<ConversationHistoryResponseDTO>(`/api/v1/ia/conversations/${savedConvId}`, {
+      signal: abortController.signal,
+    })
+      .then((history) => {
+        if (!isSessionStillValid(currentGen, currentUserId, abortController.signal)) {
+          return;
+        }
+
+        if (history && history.messages && history.messages.length > 0) {
+          const restored: ChatMessageItem[] = history.messages.map((m, idx) => ({
+            id: m.id || `msg-restored-${idx}`,
+            sender: m.role === 'UTILISATEUR' ? 'user' : 'ai',
+            text: m.contenu,
+            timestamp: formatTimeLabel(m.dateEnvoi),
+            questionDeRelance:
+              typeof m.criteresExtraits?.questionDeRelance === 'string'
+                ? m.criteresExtraits.questionDeRelance
+                : undefined,
+          }));
+          setMessages(restored);
+        }
+      })
+      .catch((err: unknown) => {
+        if (
+          !isSessionStillValid(currentGen, currentUserId, abortController.signal) ||
+          (err instanceof Error && err.name === 'AbortError')
+        ) {
+          return;
+        }
+
+        if (typeof window !== 'undefined') {
+          localStorage.removeItem(storageKey);
+        }
+        setConversationId(null);
+        setMessages([createWelcomeMessage()]);
+      });
+
+    return () => {
+      genCounter.current++;
+      abortController.abort();
+      sendAbortControllerRef.current?.abort();
+      sendAbortControllerRef.current = null;
+    };
+  }, [currentUserId, storageKey]);
+
+  const handleResetConversation = () => {
+    generationRef.current++;
+    sendAbortControllerRef.current?.abort();
+    sendAbortControllerRef.current = null;
+    setIsSending(false);
+    if (typeof window !== 'undefined') {
+      localStorage.removeItem(storageKey);
+    }
+    setConversationId(null);
+    setMessages([createWelcomeMessage()]);
+  };
 
   const suggestions = [
     'Appartement 3 pièces à Nema < 160 000 FCFA',
@@ -38,15 +144,41 @@ export const AiAssistantWidget: React.FC = () => {
     'Villa avec piscine à Saly',
   ];
 
+  const nextSequenceId = (prefix: string): string => {
+    msgSeqRef.current += 1;
+    return `${prefix}-${msgSeqRef.current}`;
+  };
+
+  const addAssistantMessage = (msg: LegacyMessageIADTO) => {
+    const relance =
+      msg.questionDeRelance ??
+      (typeof msg.criteresExtraits?.questionDeRelance === 'string'
+        ? msg.criteresExtraits.questionDeRelance
+        : undefined);
+    const aiMsg: ChatMessageItem = {
+      id: msg.id || nextSequenceId('ai'),
+      sender: 'ai',
+      text: msg.contenu || msg.reponse || '',
+      timestamp: formatTimeLabel(),
+      questionDeRelance: relance,
+      suggestedProperties: msg.annoncesSuggeres && msg.annoncesSuggeres.length > 0 ? msg.annoncesSuggeres : undefined,
+    };
+    setMessages((prev) => [...prev, aiMsg]);
+  };
+
   const handleSendMessage = async (textToSend?: string) => {
     const query = textToSend || inputText;
     if (!query.trim() || isSending) return;
 
+    const sendGen = generationRef.current;
+    const sendController = new AbortController();
+    sendAbortControllerRef.current = sendController;
+
     const userMsg: ChatMessageItem = {
-      id: `user-${Date.now()}`,
+      id: nextSequenceId('user'),
       sender: 'user',
       text: query,
-      timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+      timestamp: formatTimeLabel(),
     };
 
     setMessages((prev) => [...prev, userMsg]);
@@ -60,41 +192,69 @@ export const AiAssistantWidget: React.FC = () => {
       if (!currentConvId) {
         const newConv = await apiFetch<{ conversationId: string; dateCreation: string }>('/api/v1/ia/conversations', {
           method: 'POST',
+          signal: sendController.signal,
         });
+
+        if (!isSessionStillValid(sendGen, currentUserId, sendController.signal)) {
+          return;
+        }
+
         currentConvId = newConv.conversationId;
         setConversationId(currentConvId);
+        if (typeof window !== 'undefined') {
+          localStorage.setItem(storageKey, currentConvId);
+        }
       }
 
       // 2. Send message to conversation
-      const assistantMsg = await apiFetch<MessageIAResponseDTO>(`/api/v1/ia/conversations/${currentConvId}/messages`, {
+      const assistantMsg = await apiFetch<LegacyMessageIADTO>(`/api/v1/ia/conversations/${currentConvId}/messages`, {
         method: 'POST',
         body: JSON.stringify({ message: query }),
+        signal: sendController.signal,
       });
+
+      if (!isSessionStillValid(sendGen, currentUserId, sendController.signal)) {
+        return;
+      }
+
       addAssistantMessage(assistantMsg);
-    } catch (err: any) {
+    } catch (err: unknown) {
+      if (
+        !isSessionStillValid(sendGen, currentUserId, sendController.signal) ||
+        (err instanceof Error && err.name === 'AbortError')
+      ) {
+        return;
+      }
+
+      const status = (err as { status?: number } | null)?.status;
+      const apiMsg = err instanceof Error && err.message ? err.message : '';
+      let displayText =
+        "Désolé, l'assistant IA est actuellement indisponible ou rencontre un problème réseau. Vous pouvez utiliser la recherche classique.";
+      if (status === 429) {
+        displayText =
+          apiMsg ||
+          'Limite de requêtes IA atteinte. Veuillez patienter quelques instants avant de renvoyer un message.';
+      } else if (status === 400) {
+        displayText =
+          apiMsg || 'Message invalide (maximum 500 caractères autorisés).';
+      }
+
       const errorMsg: ChatMessageItem = {
-        id: `err-${Date.now()}`,
+        id: nextSequenceId('err'),
         sender: 'ai',
-        text: "Désolé, l'assistant IA est actuellement indisponible ou rencontre un problème réseau. Vous pouvez utiliser la recherche classique.",
-        timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+        text: displayText,
+        timestamp: formatTimeLabel(),
         isError: true,
       };
       setMessages((prev) => [...prev, errorMsg]);
     } finally {
-      setIsSending(false);
+      if (sendAbortControllerRef.current === sendController) {
+        sendAbortControllerRef.current = null;
+      }
+      if (isSessionStillValid(sendGen, currentUserId, sendController.signal)) {
+        setIsSending(false);
+      }
     }
-  };
-
-  const addAssistantMessage = (msg: MessageIAResponseDTO) => {
-    const aiMsg: ChatMessageItem = {
-      id: msg.id || `ai-${Date.now()}`,
-      sender: 'ai',
-      text: msg.contenu,
-      timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-      questionDeRelance: msg.questionDeRelance,
-      suggestedProperties: msg.annoncesSuggeres && msg.annoncesSuggeres.length > 0 ? msg.annoncesSuggeres : undefined,
-    };
-    setMessages((prev) => [...prev, aiMsg]);
   };
 
   return (
@@ -146,12 +306,25 @@ export const AiAssistantWidget: React.FC = () => {
                   </p>
                 </div>
               </div>
-              <button
-                onClick={() => setIsOpen(false)}
-                className="p-1.5 rounded-full hover:bg-sahel-700 text-sahel-200 transition-colors"
-              >
-                <X className="w-5 h-5" />
-              </button>
+              <div className="flex items-center gap-1">
+                <button
+                  type="button"
+                  onClick={handleResetConversation}
+                  title="Nouvelle conversation"
+                  aria-label="Nouvelle conversation"
+                  className="p-1.5 rounded-full hover:bg-sahel-700 text-sahel-200 transition-colors"
+                >
+                  <RotateCcw className="w-4 h-4" />
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setIsOpen(false)}
+                  aria-label="Fermer l'assistant"
+                  className="p-1.5 rounded-full hover:bg-sahel-700 text-sahel-200 transition-colors"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
             </div>
 
             {/* Messages Feed */}
@@ -287,6 +460,7 @@ export const AiAssistantWidget: React.FC = () => {
             >
               <input
                 type="text"
+                maxLength={500}
                 placeholder="Posez votre question en français wolofisé..."
                 value={inputText}
                 onChange={(e) => setInputText(e.target.value)}

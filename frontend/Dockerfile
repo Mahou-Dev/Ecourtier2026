@@ -1,23 +1,28 @@
-FROM node:20-alpine
+# ==========================================
+# Multi-stage Production Dockerfile for Frontend (React + Vite + Nginx non-root)
+# ==========================================
+
+# --- Stage 1: Build Stage ---
+FROM node:20-alpine AS builder
 
 WORKDIR /app
 
-# Copy package configuration
+ARG VITE_API_BASE_URL=http://localhost:8080
+ENV VITE_API_BASE_URL=${VITE_API_BASE_URL}
+
 COPY package*.json ./
+RUN npm ci
 
-# Install npm dependencies inside container
-RUN npm install
-
-# Copy source code
 COPY . .
+RUN npm run build
 
-# Fix permissions on /app for non-root node user
-RUN chown -R node:node /app
+# --- Stage 2: Runtime Stage (Nginx non-root port 8080) ---
+FROM nginxinc/nginx-unprivileged:1.27-alpine
 
-# Run container as non-root node user
-USER node
+COPY nginx.conf /etc/nginx/conf.d/default.conf
+COPY --from=builder /app/dist /usr/share/nginx/html
 
-EXPOSE 3000
+EXPOSE 8080
 
-# Run Vite dev server bound to 0.0.0.0 for container networking
-CMD ["npm", "run", "dev"]
+HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
+  CMD wget -qO- http://127.0.0.1:8080/ >/dev/null || exit 1

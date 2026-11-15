@@ -33,21 +33,43 @@ import { SmsSimulesTab } from '../components/dashboard/SmsSimulesTab';
 import { TransactionDetailsModal } from '../components/transaction/TransactionDetailsModal';
 import { ConversationsTab } from '../components/messagerie/ConversationsTab';
 import { toast } from 'sonner';
+import { getErrorMessage } from '../lib/errors';
 
 export const DashboardPage: React.FC = () => {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const queryClient = useQueryClient();
   const { utilisateur, logout } = useAuthStore();
-  const [activeTab, setActiveTab] = useState<'ANNONCES' | 'VISITES' | 'SEQUESTRES' | 'MESSAGES' | 'SMS'>('ANNONCES');
+  const [activeTab, setActiveTab] = useState<'ANNONCES' | 'VISITES' | 'SEQUESTRES' | 'MESSAGES' | 'SMS'>(() => {
+    const t = searchParams.get('tab');
+    if (t === 'messages') return 'MESSAGES';
+    if (t === 'sms') return 'SMS';
+    if (t === 'visites') return 'VISITES';
+    if (t === 'sequestres') return 'SEQUESTRES';
+    return utilisateur?.role === 'LOCATAIRE' ? 'VISITES' : 'ANNONCES';
+  });
 
   React.useEffect(() => {
-    if (searchParams.get('tab') === 'messages') {
-      setActiveTab('MESSAGES');
+    let cancelled = false;
+    const t = searchParams.get('tab');
+    if (t === 'messages' || t === 'sms' || t === 'visites' || t === 'sequestres') {
+      void Promise.resolve().then(() => {
+        if (!cancelled) {
+          setActiveTab(
+            t === 'messages'
+              ? 'MESSAGES'
+              : t === 'sms'
+                ? 'SMS'
+                : t === 'visites'
+                  ? 'VISITES'
+                  : 'SEQUESTRES'
+          );
+        }
+      });
     }
-    if (searchParams.get('tab') === 'sms') {
-      setActiveTab('SMS');
-    }
+    return () => {
+      cancelled = true;
+    };
   }, [searchParams]);
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [annonceEnEdition, setAnnonceEnEdition] = useState<AnnonceDTO | null>(null);
@@ -65,8 +87,8 @@ export const DashboardPage: React.FC = () => {
       toast.success('Annonce supprimée avec succès');
       setAnnonceASupprimer(null);
       queryClient.invalidateQueries({ queryKey: ['my-annonces'] });
-    } catch (err: any) {
-      toast.error(err.message || 'Erreur lors de la suppression de l\'annonce');
+    } catch (err: unknown) {
+      toast.error(getErrorMessage(err, "Erreur lors de la suppression de l'annonce"));
     } finally {
       setIsDeleting(false);
     }
@@ -120,8 +142,8 @@ export const DashboardPage: React.FC = () => {
       await apiFetch<RendezVousResponseDTO>(`/api/v1/rendez-vous/${visitId}/confirmer`, { method: 'PUT' });
       toast.success('Rendez-vous confirmé avec succès !');
       queryClient.invalidateQueries({ queryKey: ['my-visites'] });
-    } catch (err: any) {
-      toast.error(err.message || 'Échec de la confirmation du rendez-vous');
+    } catch (err: unknown) {
+      toast.error(getErrorMessage(err, 'Échec de la confirmation du rendez-vous'));
     } finally {
       setActionLoadingId(null);
     }
@@ -136,8 +158,8 @@ export const DashboardPage: React.FC = () => {
       });
       toast.success('Rendez-vous annulé.');
       queryClient.invalidateQueries({ queryKey: ['my-visites'] });
-    } catch (err: any) {
-      toast.error(err.message || 'Échec de l\'annulation');
+    } catch (err: unknown) {
+      toast.error(getErrorMessage(err, "Échec de l'annulation"));
     } finally {
       setActionLoadingId(null);
     }
@@ -149,8 +171,8 @@ export const DashboardPage: React.FC = () => {
       await apiFetch<RendezVousResponseDTO>(`/api/v1/rendez-vous/${visitId}/marquer-effectue`, { method: 'PUT' });
       toast.success('Rendez-vous marqué comme EFFECTUÉ !');
       queryClient.invalidateQueries({ queryKey: ['my-visites'] });
-    } catch (err: any) {
-      toast.error(err.message || 'Échec du changement de statut');
+    } catch (err: unknown) {
+      toast.error(getErrorMessage(err, 'Échec du changement de statut'));
     } finally {
       setActionLoadingId(null);
     }
@@ -161,8 +183,8 @@ export const DashboardPage: React.FC = () => {
     setIsTxModalOpen(true);
   };
 
-  const handleLogout = () => {
-    logout();
+  const handleLogout = async () => {
+    await logout();
     navigate('/connexion');
   };
 
@@ -203,20 +225,22 @@ export const DashboardPage: React.FC = () => {
 
           {/* Sidebar Nav Items */}
           <nav className="space-y-1">
-            <button
-              onClick={() => setActiveTab('ANNONCES')}
-              className={`w-full flex items-center justify-between px-4 py-3 rounded-xl text-xs font-semibold transition-colors ${
-                activeTab === 'ANNONCES' ? 'bg-terracotta-500 text-white shadow-terracotta-glow' : 'text-sahel-200 hover:bg-sahel-800'
-              }`}
-            >
-              <div className="flex items-center gap-2.5">
-                <Home className="w-4 h-4" />
-                <span>Mes Annonces</span>
-              </div>
-              <Badge variant="neutral" className="bg-sahel-800 text-white border-0 text-[10px]">
-                {annoncesList.length}
-              </Badge>
-            </button>
+            {(utilisateur.role === 'PROPRIETAIRE' || utilisateur.role === 'AGENT' || utilisateur.role === 'ADMIN') && (
+              <button
+                onClick={() => setActiveTab('ANNONCES')}
+                className={`w-full flex items-center justify-between px-4 py-3 rounded-xl text-xs font-semibold transition-colors ${
+                  activeTab === 'ANNONCES' ? 'bg-terracotta-500 text-white shadow-terracotta-glow' : 'text-sahel-200 hover:bg-sahel-800'
+                }`}
+              >
+                <div className="flex items-center gap-2.5">
+                  <Home className="w-4 h-4" />
+                  <span>Mes Annonces</span>
+                </div>
+                <Badge variant="neutral" className="bg-sahel-800 text-white border-0 text-[10px]">
+                  {annoncesList.length}
+                </Badge>
+              </button>
+            )}
 
             <button
               onClick={() => setActiveTab('VISITES')}
@@ -300,7 +324,7 @@ export const DashboardPage: React.FC = () => {
                 <h1 className="font-display font-bold text-2xl text-sahel-900">Mes Annonces Immobilières</h1>
                 <p className="text-xs text-sahel-600">Gérez vos propriétés, vérifiez le statut de publication et contrôlez vos annonces.</p>
               </div>
-              {(utilisateur.role === 'PROPRIETAIRE' || utilisateur.role === 'AGENT' || utilisateur.role === 'ADMIN') && (
+              {(utilisateur.role === 'PROPRIETAIRE' || utilisateur.role === 'AGENT') && (
                 <Button
                   variant="primary"
                   onClick={() => setIsCreateModalOpen(true)}
@@ -324,7 +348,7 @@ export const DashboardPage: React.FC = () => {
                 <p className="text-xs text-sahel-600 max-w-md mx-auto">
                   Vous n'avez pas encore publié de propriété. Déposez votre premier bien pour recevoir des demandes de visite.
                 </p>
-                {(utilisateur.role === 'PROPRIETAIRE' || utilisateur.role === 'AGENT' || utilisateur.role === 'ADMIN') && (
+                {(utilisateur.role === 'PROPRIETAIRE' || utilisateur.role === 'AGENT') && (
                   <Button variant="primary" onClick={() => setIsCreateModalOpen(true)} className="inline-flex items-center gap-2">
                     <Plus className="w-4 h-4" /> Publier un bien
                   </Button>
@@ -352,6 +376,7 @@ export const DashboardPage: React.FC = () => {
                               {item.statutPublication === 'RESERVEE' && <Badge variant="info">Publication: Réservée</Badge>}
                               {item.statutPublication === 'LOUEE' && <Badge variant="neutral">Publication: Louée</Badge>}
                               {item.statutPublication === 'VENDUE' && <Badge variant="neutral">Publication: Vendue</Badge>}
+                              {item.statutPublication === 'SUSPENDUE' && <Badge variant="rose">Publication: Suspendue</Badge>}
 
                               {item.statutVerification === 'VERIFIEE' && (
                                 <Badge variant="success" className="flex items-center gap-1">
@@ -461,40 +486,52 @@ export const DashboardPage: React.FC = () => {
 
                           {/* Actions depending on role and status */}
                           <div className="flex items-center gap-2">
-                            {rdv.statut === 'DEMANDE' && (
-                              <>
-                                <Button
-                                  variant="primary"
-                                  size="sm"
-                                  isLoading={actionLoadingId === rdv.id}
-                                  onClick={() => handleConfirmVisit(rdv.id)}
-                                >
-                                  Confirmer
-                                </Button>
-                                <Button
-                                  variant="ghost"
-                                  size="sm"
-                                  className="text-rose-600 hover:bg-rose-50"
-                                  isLoading={actionLoadingId === rdv.id}
-                                  onClick={() => handleCancelVisit(rdv.id)}
-                                >
-                                  Annuler
-                                </Button>
-                              </>
-                            )}
+                            {(() => {
+                              const isVisitOwner =
+                                (utilisateur.role === 'PROPRIETAIRE' ||
+                                  utilisateur.role === 'AGENT' ||
+                                  utilisateur.role === 'ADMIN') &&
+                                rdv.demandeurEmail !== utilisateur.email;
+                              return (
+                                <>
+                                  {rdv.statut === 'DEMANDE' && isVisitOwner && (
+                                    <Button
+                                      variant="primary"
+                                      size="sm"
+                                      isLoading={actionLoadingId === rdv.id}
+                                      onClick={() => handleConfirmVisit(rdv.id)}
+                                    >
+                                      Confirmer
+                                    </Button>
+                                  )}
 
-                            {rdv.statut === 'CONFIRME' && (
-                              <Button
-                                variant="outline"
-                                size="sm"
-                                className="border-emerald-600 text-emerald-700 hover:bg-emerald-50"
-                                isLoading={actionLoadingId === rdv.id}
-                                onClick={() => handleMarkEffectueVisit(rdv.id)}
-                              >
-                                <CheckCircle2 className="w-3.5 h-3.5 mr-1" />
-                                Marquer effectué
-                              </Button>
-                            )}
+                                  {rdv.statut === 'CONFIRME' && isVisitOwner && (
+                                    <Button
+                                      variant="outline"
+                                      size="sm"
+                                      className="border-emerald-600 text-emerald-700 hover:bg-emerald-50"
+                                      isLoading={actionLoadingId === rdv.id}
+                                      onClick={() => handleMarkEffectueVisit(rdv.id)}
+                                    >
+                                      <CheckCircle2 className="w-3.5 h-3.5 mr-1" />
+                                      Marquer effectué
+                                    </Button>
+                                  )}
+
+                                  {(rdv.statut === 'DEMANDE' || rdv.statut === 'CONFIRME') && (
+                                    <Button
+                                      variant="ghost"
+                                      size="sm"
+                                      className="text-rose-600 hover:bg-rose-50"
+                                      isLoading={actionLoadingId === rdv.id}
+                                      onClick={() => handleCancelVisit(rdv.id)}
+                                    >
+                                      Annuler
+                                    </Button>
+                                  )}
+                                </>
+                              );
+                            })()}
 
                             {rdv.statut === 'EFFECTUE' && utilisateur.role === 'LOCATAIRE' && (
                               <Button
@@ -567,6 +604,8 @@ export const DashboardPage: React.FC = () => {
                           {tx.statutSequestre === 'BLOQUE' && <Badge variant="info">Séquestre : Bloqué</Badge>}
                           {tx.statutSequestre === 'LIBERE' && <Badge variant="success">Séquestre : Libéré</Badge>}
                           {tx.statutSequestre === 'REMBOURSE' && <Badge variant="neutral">Séquestre : Remboursé</Badge>}
+                          {tx.statutSequestre === 'ANNULE' && <Badge variant="neutral">Transaction : Annulée</Badge>}
+                          {tx.statutSequestre === 'EXPIRE' && <Badge variant="rose">Transaction : Expirée</Badge>}
 
                           {tx.statutBail === 'NON_SIGNE' && <Badge variant="neutral">Bail : Non signé</Badge>}
                           {(tx.statutBail === 'SIGNE_LOCATAIRE' || tx.statutBail === 'SIGNE_PROPRIETAIRE') && (
@@ -656,10 +695,18 @@ export const DashboardPage: React.FC = () => {
       {/* TRANSACTION DETAILS & SIGNATURE MODAL */}
       <TransactionDetailsModal
         isOpen={isTxModalOpen}
-        onClose={() => setIsTxModalOpen(false)}
-        transaction={selectedTransaction}
+        onClose={() => {
+          setIsTxModalOpen(false);
+          setSelectedTransaction(null);
+        }}
+        transaction={
+          (selectedTransaction &&
+            transactionsList.find((tx) => tx.id === selectedTransaction.id)) ||
+          selectedTransaction
+        }
         onRefresh={() => {
           queryClient.invalidateQueries({ queryKey: ['my-transactions'] });
+          queryClient.invalidateQueries({ queryKey: ['my-annonces'] });
         }}
       />
 

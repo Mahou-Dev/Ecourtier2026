@@ -1,4 +1,7 @@
+import fs from 'node:fs';
 import { defineConfig, devices } from '@playwright/test';
+
+const localChromiumPath = '/home/mahou-dev/.cache/ms-playwright/chromium-1248/chrome-linux64/chrome';
 
 export default defineConfig({
   testDir: './e2e',
@@ -9,7 +12,9 @@ export default defineConfig({
   use: {
     baseURL: process.env.PLAYWRIGHT_BASE_URL || 'http://localhost:3000',
     launchOptions: {
-      executablePath: '/home/mahou-dev/.cache/ms-playwright/chromium-1248/chrome-linux64/chrome',
+      ...( !process.env.CI && fs.existsSync(localChromiumPath)
+        ? { executablePath: localChromiumPath }
+        : {} ),
       args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage'],
     },
     trace: 'off',

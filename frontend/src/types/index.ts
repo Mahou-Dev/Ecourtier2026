@@ -69,7 +69,7 @@ export interface AnnonceDTO {
   id: string;
   titre: string;
   description: string;
-  type: 'STUDIO' | 'APPARTEMENT' | 'VILLA';
+  type: 'STUDIO' | 'APPARTEMENT' | 'VILLA' | 'CHAMBRE';
   modeTransaction: 'LOCATION' | 'VENTE';
   prix: number;
   superficie: number;
@@ -86,6 +86,7 @@ export interface AnnonceDTO {
   statutVerification: 'EN_ATTENTE' | 'VERIFIEE' | 'REJETEE';
   statutPublication: 'DISPONIBLE' | 'RESERVEE' | 'LOUEE' | 'VENDUE' | 'SUSPENDUE';
   dateCreation: string;
+  version?: number;
   auteurRole?: 'ADMIN' | 'AGENT' | 'PROPRIETAIRE' | 'LOCATAIRE';
   auteur: UtilisateurDTO;
   photos: PhotoAnnonceDTO[];
@@ -153,9 +154,23 @@ export interface MessageIAResponseDTO {
   expediteur: 'UTILISATEUR' | 'ASSISTANT';
   contenu: string;
   questionDeRelance?: string;
-  criteres?: any;
+  criteres?: Record<string, unknown>;
   annoncesSuggeres?: AnnonceDTO[];
   dateEnvoi: string;
+}
+
+export interface MessageHistoryItemDTO {
+  id: string;
+  role: 'UTILISATEUR' | 'ASSISTANT';
+  contenu: string;
+  criteresExtraits?: Record<string, unknown>;
+  dateEnvoi: string;
+}
+
+export interface ConversationHistoryResponseDTO {
+  conversationId: string;
+  dateCreation: string;
+  messages: MessageHistoryItemDTO[];
 }
 
 export interface ConversationIAResponseDTO {
@@ -164,7 +179,7 @@ export interface ConversationIAResponseDTO {
   messages: MessageIAResponseDTO[];
 }
 
-export type StatutSequestre = 'INITIALISE' | 'BLOQUE' | 'LIBERE' | 'REMBOURSE';
+export type StatutSequestre = 'INITIALISE' | 'BLOQUE' | 'LIBERE' | 'REMBOURSE' | 'ANNULE' | 'EXPIRE';
 export type StatutBail = 'NON_SIGNE' | 'SIGNE_LOCATAIRE' | 'SIGNE_PROPRIETAIRE' | 'SIGNE_COMPLET';
 
 export interface TransactionResponseDTO {
@@ -184,6 +199,10 @@ export interface TransactionResponseDTO {
   montantTotalSequestre: number;
   montantVerseProprietaire: number;
   statutSequestre: StatutSequestre;
+  dossierActif?: boolean;
+  dateExpiration?: string;
+  dateCloture?: string;
+  motifCloture?: string;
   referenceWave?: string;
   datePaiement?: string;
   referenceRemboursementWave?: string;
@@ -195,10 +214,20 @@ export interface TransactionResponseDTO {
   dateSignatureProprietaire?: string;
   dateLiberation?: string;
   pdfBailPath?: string;
+  statutDocumentBail?: StatutDocumentBail;
+  pdfBailErreur?: string;
+  pdfBailTentatives?: number;
+  pdfBailDerniereTentative?: string;
   dateCreation: string;
 }
 
+export type StatutDocumentBail = 'NON_GENERE' | 'A_GENERER' | 'GENERE' | 'ECHEC';
+
 export interface RemboursementRequestDTO {
+  motif?: string;
+}
+
+export interface AnnulationTransactionRequestDTO {
   motif?: string;
 }
 
@@ -223,7 +252,7 @@ export interface TransactionRequestDTO {
 export interface AnnonceCreateInput {
   titre: string;
   description: string;
-  type: 'STUDIO' | 'APPARTEMENT' | 'VILLA';
+  type: 'STUDIO' | 'APPARTEMENT' | 'VILLA' | 'CHAMBRE';
   modeTransaction: 'LOCATION' | 'VENTE';
   prix: number;
   superficie: number;

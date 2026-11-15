@@ -21,6 +21,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { apiFetch, getPhotoUrl } from '../services/api';
 import { messagerieService } from '../services/messagerie.service';
 import { EquipementBadge, ProximiteBadge } from '../components/ui/ReferenceIcons';
+import { getErrorMessage, getErrorStatus } from '../lib/errors';
 import { 
   AnnonceDTO, 
   RendezVousResponseDTO, 
@@ -140,8 +141,8 @@ export const PropertyDetailPage: React.FC = () => {
       const conv = await messagerieService.initierConversation(id);
       setActiveConversation(conv);
       setIsChatOpen(true);
-    } catch (err: any) {
-      toast.error(err.message || 'Impossible d\'ouvrir la discussion');
+    } catch (err: unknown) {
+      toast.error(getErrorMessage(err, "Impossible d'ouvrir la discussion"));
     } finally {
       setIsInitiatingChat(false);
     }
@@ -176,8 +177,8 @@ export const PropertyDetailPage: React.FC = () => {
       toast.success('Document(s) envoyé(s) pour vérification');
       setDocFilesToUpload([]);
       queryClient.invalidateQueries({ queryKey: ['annonce', id] });
-    } catch (err: any) {
-      toast.error(err.message || 'Erreur lors de l\'envoi du document');
+    } catch (err: unknown) {
+      toast.error(getErrorMessage(err, "Erreur lors de l'envoi du document"));
     } finally {
       setIsUploadingDoc(false);
     }
@@ -187,7 +188,11 @@ export const PropertyDetailPage: React.FC = () => {
   const { data: property, isLoading, isError, refetch: refetchProperty } = useQuery<AnnonceDTO>({
     queryKey: ['annonce', id],
     queryFn: async () => {
-      const win = typeof window !== 'undefined' ? (window as any) : null;
+      interface PrefetchedWindow {
+        __PREFETCHED_ANNONCE_ID__?: string;
+        __PREFETCHED_ANNONCE_PROMISE__?: Promise<{ ok?: boolean; status?: number; data?: AnnonceDTO }> | null;
+      }
+      const win = typeof window !== 'undefined' ? (window as unknown as PrefetchedWindow) : null;
       if (win && win.__PREFETCHED_ANNONCE_ID__ === id && win.__PREFETCHED_ANNONCE_PROMISE__) {
         const prefetched = win.__PREFETCHED_ANNONCE_PROMISE__;
         win.__PREFETCHED_ANNONCE_PROMISE__ = null;
@@ -197,23 +202,24 @@ export const PropertyDetailPage: React.FC = () => {
             // Case 1: Prefetch succeeded with valid listing data
             if (res.ok && res.data && res.data.id === id) {
               wasPrefetchedRef.current = true;
-              return res.data as AnnonceDTO;
+              return res.data;
             }
             // Case 2: Listing is definitively 404 (Not Found) - throw immediately to avoid duplicate request
             if (res.status === 404) {
-              const notFoundErr: any = new Error("Annonce introuvable ou supprimée");
+              const notFoundErr = new Error('Annonce introuvable ou supprimée') as Error & { status?: number };
               notFoundErr.status = 404;
               throw notFoundErr;
             }
             // Case 3: Other definitive client errors (403, 410)
             if (res.status === 403 || res.status === 410) {
-              const clientErr: any = new Error(`Erreur ${res.status}`);
+              const clientErr = new Error(`Erreur ${res.status}`) as Error & { status?: number };
               clientErr.status = res.status;
               throw clientErr;
             }
           }
-        } catch (err: any) {
-          if (err && (err.status === 404 || err.status === 403 || err.status === 410)) {
+        } catch (err: unknown) {
+          const status = getErrorStatus(err);
+          if (status === 404 || status === 403 || status === 410) {
             throw err;
           }
         }
@@ -221,8 +227,9 @@ export const PropertyDetailPage: React.FC = () => {
       return apiFetch<AnnonceDTO>(`/api/v1/annonces/${id}`);
     },
     enabled: !!id,
-    retry: (failureCount, error: any) => {
-      if (error?.status === 404 || error?.status === 401 || error?.status === 403 || error?.status === 410) {
+    retry: (failureCount, error: unknown) => {
+      const status = getErrorStatus(error);
+      if (status === 404 || status === 401 || status === 403 || status === 410) {
         return false;
       }
       return failureCount < 1;
@@ -269,7 +276,14 @@ export const PropertyDetailPage: React.FC = () => {
     (v) => v.annonceId === id && v.statut === 'EFFECTUE'
   );
 
-  const existingTx = userTransactions?.find((tx) => tx.annonceId === id);
+  const existingTx = userTransactions?.find(
+    (tx) =>
+      tx.annonceId === id &&
+      tx.dossierActif !== false &&
+      (tx.statutSequestre === 'INITIALISE' ||
+        tx.statutSequestre === 'BLOQUE' ||
+        tx.statutSequestre === 'LIBERE')
+  );
 
   const handleDemanderVisiteClick = () => {
     if (!utilisateur) {
@@ -306,8 +320,8 @@ export const PropertyDetailPage: React.FC = () => {
       toast.success(`Demande de visite transmise avec succès ! (RDV #${res.id.slice(0, 8)})`);
       queryClient.invalidateQueries({ queryKey: ['my-visites'] });
       setIsVisitModalOpen(false);
-    } catch (err: any) {
-      toast.error(err.message || 'Échec de la réservation de visite');
+    } catch (err: unknown) {
+      toast.error(getErrorMessage(err, 'Échec de la réservation de visite'));
     } finally {
       setIsSubmittingVisit(false);
     }
@@ -325,8 +339,8 @@ export const PropertyDetailPage: React.FC = () => {
       queryClient.invalidateQueries({ queryKey: ['my-transactions'] });
       setSelectedTx(tx);
       setIsTxModalOpen(true);
-    } catch (err: any) {
-      toast.error(err.message || 'Impossible d\'initier la transaction');
+    } catch (err: unknown) {
+      toast.error(getErrorMessage(err, "Impossible d'initier la transaction"));
     } finally {
       setIsInitiatingTx(false);
     }
@@ -344,13 +358,15 @@ export const PropertyDetailPage: React.FC = () => {
       toast.success('Avis publié avec succès ! Merci pour votre retour.');
       setNewComment('');
       refetchAvis();
-    } catch (err: any) {
-      if (err.status === 409 || err.message?.includes('déjà noté')) {
+    } catch (err: unknown) {
+      const status = getErrorStatus(err);
+      const message = getErrorMessage(err, "Erreur lors de la publication de l'avis");
+      if (status === 409 || message.includes('déjà noté')) {
         toast.warning('Vous avez déjà noté cette annonce');
-      } else if (err.status === 403 || err.message?.includes('visite validée')) {
+      } else if (status === 403 || message.includes('visite validée')) {
         toast.error('Seuls les locataires ayant effectué une visite validée peuvent déposer un avis');
       } else {
-        toast.error(err.message || 'Erreur lors de la publication de l\'avis');
+        toast.error(message);
       }
     } finally {
       setIsSubmittingAvis(false);
@@ -622,11 +638,11 @@ export const PropertyDetailPage: React.FC = () => {
                   ? 'Publié par un agent immobilier'
                   : 'Proposé par un propriétaire identifié'}
               </h3>
-              <div className="flex items-center justify-between gap-4">
-                <div className="flex items-center gap-4">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                <div className="flex items-center gap-4 min-w-0">
                   <Avatar src={property.auteur.photoProfilUrl} name={`${property.auteur.prenom} ${property.auteur.nom}`} size="lg" isVerified />
-                  <div className="space-y-1">
-                    <div className="flex items-center gap-2">
+                  <div className="space-y-1 min-w-0">
+                    <div className="flex flex-wrap items-center gap-2">
                       <h4 className="font-display font-bold text-base text-charcoal-900">{property.auteur.prenom} {property.auteur.nom}</h4>
                       <Badge variant="sahel">
                         {(property.auteurRole === 'AGENT' || property.auteur?.role === 'AGENT') ? 'Agent immobilier' : property.auteur.role}
@@ -637,10 +653,10 @@ export const PropertyDetailPage: React.FC = () => {
                 </div>
 
                 {/* Landlord Reputation Badge */}
-                <div className="text-right bg-sand-100 p-3 rounded-xl border border-argile-300">
+                <div className="sm:text-right bg-sand-100 p-3 rounded-xl border border-argile-300 shrink-0">
                   <p className="text-[11px] text-charcoal-500 font-semibold uppercase tracking-wider">Réputation Propriétaire</p>
                   {landlordReputation?.noteMoyenne ? (
-                    <div className="flex items-center justify-end gap-1.5 mt-0.5">
+                    <div className="flex items-center sm:justify-end gap-1.5 mt-0.5">
                       <Star className="w-4 h-4 fill-amber-400 text-amber-500" />
                       <span className="font-display font-extrabold text-base text-charcoal-900">
                         {landlordReputation.noteMoyenne.toFixed(1)} / 5
@@ -738,7 +754,11 @@ export const PropertyDetailPage: React.FC = () => {
                     </label>
                     <select
                       value={docTypeToUpload}
-                      onChange={(e) => setDocTypeToUpload(e.target.value as any)}
+                      onChange={(e) =>
+                        setDocTypeToUpload(
+                          e.target.value as 'TITRE_FONCIER' | 'BAIL_PRECEDENT' | 'PIECE_IDENTITE'
+                        )
+                      }
                       className="w-full px-3 py-2 rounded-xl border border-sand-300 text-xs focus:ring-2 focus:ring-terracotta-500 outline-none"
                     >
                       <option value="TITRE_FONCIER">Titre Foncier / Attestation de propriété</option>
@@ -1087,10 +1107,17 @@ export const PropertyDetailPage: React.FC = () => {
         <React.Suspense fallback={null}>
           <LazyTransactionDetailsModal
             isOpen={isTxModalOpen}
-            onClose={() => setIsTxModalOpen(false)}
-            transaction={selectedTx}
+            onClose={() => {
+              setIsTxModalOpen(false);
+              setSelectedTx(null);
+            }}
+            transaction={
+              (selectedTx && userTransactions?.find((t) => t.id === selectedTx.id)) ||
+              selectedTx
+            }
             onRefresh={() => {
               queryClient.invalidateQueries({ queryKey: ['my-transactions'] });
+              queryClient.invalidateQueries({ queryKey: ['annonce', id] });
             }}
           />
         </React.Suspense>

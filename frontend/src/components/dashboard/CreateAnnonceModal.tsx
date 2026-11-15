@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { useForm } from 'react-hook-form';
+import { useForm, useWatch } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { Modal } from '../ui/Modal';
@@ -10,18 +10,23 @@ import { AnnonceDTO } from '../../types';
 import { toast } from 'sonner';
 import { Upload, X, FileText, Image as ImageIcon, Plus, Check } from 'lucide-react';
 import { useReferences } from '../../hooks/useReferences';
-import { LocationPickerMap, isInsideSenegal } from '../map/LocationPickerMap';
-import { getEquipementMeta, getProximiteMeta } from '../ui/ReferenceIcons';
+import { LocationPickerMap } from '../map/LocationPickerMap';
+import { isInsideSenegal } from '../../lib/geo';
+import { getEquipementMeta, getProximiteMeta } from '../../lib/referenceMeta';
+import { getErrorMessage } from '../../lib/errors';
 
 const annonceSchema = z.object({
   titre: z.string().min(5, 'Le titre doit faire au moins 5 caractères'),
   description: z.string().min(15, 'La description doit faire au moins 15 caractères'),
-  type: z.enum(['STUDIO', 'APPARTEMENT', 'VILLA']),
+  type: z.enum(['STUDIO', 'APPARTEMENT', 'VILLA', 'CHAMBRE']),
   modeTransaction: z.enum(['LOCATION', 'VENTE']),
   prix: z.coerce.number().positive('Le prix doit être strictement positif'),
   superficie: z.coerce.number().positive('La superficie doit être positive'),
   nombrePieces: z.coerce.number().int().min(1, 'Au moins 1 pièce'),
-  etage: z.coerce.number().int().optional(),
+  etage: z.preprocess(
+    (val) => (val === '' || val === null || val === undefined ? undefined : val),
+    z.coerce.number().int().min(0, 'Étage invalide').optional()
+  ),
   quartier: z.string().min(2, 'Le quartier est obligatoire'),
   ville: z.string().min(2, 'La ville est obligatoire'),
   latitude: z.coerce.number(),
@@ -62,7 +67,7 @@ export const CreateAnnonceModal: React.FC<CreateAnnonceModalProps> = ({
     register,
     handleSubmit,
     setValue,
-    watch,
+    control,
     reset,
     formState: { errors },
   } = useForm<AnnonceFormData>({
@@ -83,8 +88,10 @@ export const CreateAnnonceModal: React.FC<CreateAnnonceModalProps> = ({
     },
   });
 
-  const currentLat = watch('latitude') ?? 14.745;
-  const currentLng = watch('longitude') ?? -17.518;
+  const watchedLat = useWatch({ control, name: 'latitude' });
+  const watchedLng = useWatch({ control, name: 'longitude' });
+  const currentLat = watchedLat ?? 14.745;
+  const currentLng = watchedLng ?? -17.518;
 
   const handlePhotoSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files) {
@@ -180,8 +187,8 @@ export const CreateAnnonceModal: React.FC<CreateAnnonceModalProps> = ({
       setSelectedProximites([]);
       onSuccess();
       onClose();
-    } catch (err: any) {
-      toast.error(err.message || 'Erreur lors de la création de l\'annonce');
+    } catch (err: unknown) {
+      toast.error(getErrorMessage(err, "Erreur lors de la création de l'annonce"));
     } finally {
       setIsSubmitting(false);
     }
@@ -232,6 +239,7 @@ export const CreateAnnonceModal: React.FC<CreateAnnonceModalProps> = ({
                   { valeur: 'APPARTEMENT', libelle: 'Appartement' },
                   { valeur: 'VILLA', libelle: 'Villa' },
                   { valeur: 'STUDIO', libelle: 'Studio' },
+                  { valeur: 'CHAMBRE', libelle: 'Chambre' },
                 ]).map((t) => (
                   <option key={t.valeur} value={t.valeur}>{t.libelle}</option>
                 ))}
@@ -469,7 +477,9 @@ export const CreateAnnonceModal: React.FC<CreateAnnonceModalProps> = ({
               <label className="block text-xs font-bold text-sahel-800 mb-1">Type de document</label>
               <select
                 value={selectedDocType}
-                onChange={(e) => setSelectedDocType(e.target.value as any)}
+                onChange={(e) =>
+                  setSelectedDocType(e.target.value as 'TITRE_FONCIER' | 'BAIL_PRECEDENT' | 'PIECE_IDENTITE')
+                }
                 className="w-full px-3 py-2 rounded-xl border border-sand-300 text-sm focus:ring-2 focus:ring-terracotta-500 outline-none"
               >
                 {docTypesList.map((dt) => (

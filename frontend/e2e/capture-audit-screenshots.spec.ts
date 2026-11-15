@@ -1,4 +1,4 @@
-import { test, expect } from '@playwright/test';
+import { test } from '@playwright/test';
 import path from 'path';
 
 const SCREENSHOTS_DIR = path.resolve(process.cwd(), '../docs/audit/screenshots');

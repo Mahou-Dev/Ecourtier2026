@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { apiFetch, fetchProtectedBlob, getPhotoUrl } from '../services/api';
+import { adminService } from '../services/admin.service';
 import { AnnonceDTO, DocumentVerificationDTO, PageResponse, VerificationDecisionDTO } from '../types';
 import { useAuthStore } from '../store/useAuthStore';
 import { useNavigate } from 'react-router-dom';
@@ -13,6 +14,8 @@ import {
   AlertTriangle,
   ExternalLink,
   Loader2,
+  Ban,
+  RotateCcw,
 } from 'lucide-react';
 import { Button } from '../components/ui/Button';
 import { Badge } from '../components/ui/Badge';
@@ -23,6 +26,7 @@ import { Modal } from '../components/ui/Modal';
 import { AdminNavTabs } from '../components/admin/AdminNavTabs';
 import { useReferences } from '../hooks/useReferences';
 import { toast } from 'sonner';
+import { getErrorMessage } from '../lib/errors';
 
 interface PreviewState {
   doc: DocumentVerificationDTO;
@@ -31,15 +35,24 @@ interface PreviewState {
   contentType: string;
 }
 
+type StatutPub = 'DISPONIBLE' | 'RESERVEE' | 'LOUEE' | 'VENDUE' | 'SUSPENDUE';
+
 export const AdminVerificationPage: React.FC = () => {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const { utilisateur } = useAuthStore();
   const { data: references } = useReferences();
 
+  const [viewMode, setViewMode] = useState<'EN_ATTENTE' | 'TOUTES'>('EN_ATTENTE');
   const [rejectModalOpen, setRejectModalOpen] = useState(false);
   const [selectedAnnonceId, setSelectedAnnonceId] = useState<string | null>(null);
   const [motifRejet, setMotifRejet] = useState('');
+
+  // Status management state per annonce
+  const [statusTargetByAnnonce, setStatusTargetByAnnonce] = useState<Record<string, StatutPub>>({});
+  const [statusMotifByAnnonce, setStatusMotifByAnnonce] = useState<Record<string, string>>({});
+  const [statusErrorByAnnonce, setStatusErrorByAnnonce] = useState<Record<string, string>>({});
+  const [statusPendingAnnonceId, setStatusPendingAnnonceId] = useState<string | null>(null);
 
   // Authenticated blob viewer state
   const [preview, setPreview] = useState<PreviewState | null>(null);
@@ -76,7 +89,16 @@ export const AdminVerificationPage: React.FC = () => {
     enabled: utilisateur?.role === 'ADMIN',
   });
 
+  const { data: allAnnoncesData, isLoading: isLoadingAll } = useQuery<PageResponse<AnnonceDTO>>({
+    queryKey: ['admin-all-annonces'],
+    queryFn: () => apiFetch<PageResponse<AnnonceDTO>>('/api/v1/annonces?include_indisponibles=true&page=0&size=50'),
+    enabled: utilisateur?.role === 'ADMIN' && viewMode === 'TOUTES',
+  });
+
   const pendingAnnonces = data?.content || [];
+  const allAnnonces = allAnnoncesData?.content || [];
+  const displayedAnnonces = viewMode === 'TOUTES' ? allAnnonces : pendingAnnonces;
+  const isCurrentListLoading = viewMode === 'TOUTES' ? isLoadingAll : isLoading;
 
   const getDocLabel = (code: string): string => {
     const found = references?.typesDocument?.find((d) => d.valeur === code);
@@ -105,6 +127,23 @@ export const AdminVerificationPage: React.FC = () => {
     return missing;
   };
 
+  const renderStatutPublicationBadge = (statut?: StatutPub) => {
+    switch (statut) {
+      case 'DISPONIBLE':
+        return <Badge variant="success">Publication : DISPONIBLE</Badge>;
+      case 'SUSPENDUE':
+        return <Badge variant="rose">Publication : SUSPENDUE</Badge>;
+      case 'RESERVEE':
+        return <Badge variant="warning">Publication : RESERVEE</Badge>;
+      case 'LOUEE':
+        return <Badge variant="info">Publication : LOUEE</Badge>;
+      case 'VENDUE':
+        return <Badge variant="info">Publication : VENDUE</Badge>;
+      default:
+        return <Badge variant="neutral">Publication : {statut || 'DISPONIBLE'}</Badge>;
+    }
+  };
+
   const handleOpenPreview = async (doc: DocumentVerificationDTO, annonceTitre: string) => {
     setLoadingDocId(doc.id);
     try {
@@ -113,8 +152,8 @@ export const AdminVerificationPage: React.FC = () => {
         window.URL.revokeObjectURL(preview.blobUrl);
       }
       setPreview({ doc, annonceTitre, blobUrl, contentType });
-    } catch (err: any) {
-      toast.error(err.message || 'Impossible de charger la pièce justificative');
+    } catch (err: unknown) {
+      toast.error(getErrorMessage(err, 'Impossible de charger la pièce justificative'));
     } finally {
       setLoadingDocId(null);
     }
@@ -134,14 +173,81 @@ export const AdminVerificationPage: React.FC = () => {
           : 'Annonce rejetée avec notification du motif.'
       );
       queryClient.invalidateQueries({ queryKey: ['admin-pending-annonces'] });
+      queryClient.invalidateQueries({ queryKey: ['admin-all-annonces'] });
+      queryClient.invalidateQueries({ queryKey: ['annonces'] });
+      queryClient.invalidateQueries({ queryKey: ['my-annonces'] });
+      queryClient.invalidateQueries({ queryKey: ['annonce', variables.id] });
       setRejectModalOpen(false);
       setSelectedAnnonceId(null);
       setMotifRejet('');
     },
-    onError: (err: any) => {
-      toast.error(err.message || 'Échec de la décision de vérification');
+    onError: (err: unknown) => {
+      toast.error(getErrorMessage(err, 'Échec de la décision de vérification'));
     },
   });
+
+  const updateAnnonceInLists = (updated: AnnonceDTO) => {
+    const patchPage = (old?: PageResponse<AnnonceDTO>) => {
+      if (!old || !Array.isArray(old.content)) return old;
+      return {
+        ...old,
+        content: old.content.map((item) => (item.id === updated.id ? { ...item, ...updated } : item)),
+      };
+    };
+    queryClient.setQueryData<PageResponse<AnnonceDTO>>(['admin-pending-annonces'], patchPage);
+    queryClient.setQueryData<PageResponse<AnnonceDTO>>(['admin-all-annonces'], patchPage);
+    queryClient.setQueryData<AnnonceDTO>(['annonce', updated.id], (old) =>
+      old ? { ...old, ...updated } : updated
+    );
+    queryClient.invalidateQueries({ queryKey: ['admin-pending-annonces'] });
+    queryClient.invalidateQueries({ queryKey: ['admin-all-annonces'] });
+    queryClient.invalidateQueries({ queryKey: ['annonces'] });
+    queryClient.invalidateQueries({ queryKey: ['my-annonces'] });
+    queryClient.invalidateQueries({ queryKey: ['annonce', updated.id] });
+  };
+
+  const handleChangerStatutAnnonce = async (annonce: AnnonceDTO, targetStatut: StatutPub) => {
+    if (statusPendingAnnonceId) return;
+    setStatusPendingAnnonceId(annonce.id);
+    setStatusErrorByAnnonce((prev) => {
+      const next = { ...prev };
+      delete next[annonce.id];
+      return next;
+    });
+    const rawMotif = statusMotifByAnnonce[annonce.id]?.trim();
+    const defaultMotif =
+      targetStatut === 'SUSPENDUE'
+        ? 'Suspension administrative depuis la console de modération'
+        : targetStatut === 'DISPONIBLE'
+          ? 'Réactivation administrative après contrôle'
+          : `Transition administrative vers ${targetStatut}`;
+
+    try {
+      const updated = await adminService.changerStatutAnnonce(annonce.id, {
+        statutPublication: targetStatut,
+        motif: rawMotif || defaultMotif,
+        version: annonce.version,
+      });
+      updateAnnonceInLists(updated);
+      setStatusTargetByAnnonce((prev) => ({
+        ...prev,
+        [annonce.id]: updated.statutPublication,
+      }));
+      toast.success(
+        updated.statutPublication === 'SUSPENDUE'
+          ? 'Annonce suspendue avec succès.'
+          : updated.statutPublication === 'DISPONIBLE'
+            ? 'Annonce réactivée (DISPONIBLE) avec succès.'
+            : `Statut de l'annonce mis à jour : ${updated.statutPublication}.`
+      );
+    } catch (err: unknown) {
+      const message = getErrorMessage(err, 'Transition de statut refusée par le serveur');
+      setStatusErrorByAnnonce((prev) => ({ ...prev, [annonce.id]: message }));
+      toast.error(message);
+    } finally {
+      setStatusPendingAnnonceId(null);
+    }
+  };
 
   const handleApprove = (annonceId: string) => {
     setSelectedAnnonceId(annonceId);
@@ -194,41 +300,84 @@ export const AdminVerificationPage: React.FC = () => {
           <div className="relative z-10 space-y-2">
             <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-terracotta-500/20 border border-terracotta-500/40 text-terracotta-300 text-xs font-semibold">
               <ShieldCheck className="w-4 h-4" />
-              <span>Modération & Vérification des Pièces</span>
+              <span>Modération, Vérification des Pièces & Statuts de Publication</span>
             </div>
             <h1 className="font-display font-bold text-2xl md:text-3xl">Espace Modération Administrateur</h1>
             <p className="text-xs text-sand-300 max-w-2xl">
-              Inspectez chaque pièce justificative (images et PDF protégés) avant d'attribuer le badge vérifié. La validation requiert obligatoirement la pièce d'identité avec photo du propriétaire ainsi qu'un titre foncier ou un bail précédent.
+              Inspectez chaque pièce justificative (images et PDF protégés) avant d'attribuer le badge vérifié, et gérez le statut de publication des annonces (suspension administrative ou réactivation).
             </p>
           </div>
-          <div className="relative z-10 shrink-0">
+          <div className="relative z-10 shrink-0 flex flex-col sm:flex-row items-end sm:items-center gap-2">
             <Badge variant="warning" size="lg" className="text-sm px-4 py-2">
               {pendingAnnonces.length} bien(s) en attente
             </Badge>
           </div>
         </div>
 
+        {/* View Mode Selector */}
+        <div className="flex flex-wrap items-center justify-between gap-3 bg-white p-4 rounded-2xl border border-sand-300">
+          <div className="flex flex-wrap items-center gap-2">
+            <button
+              type="button"
+              onClick={() => setViewMode('EN_ATTENTE')}
+              className={`px-4 py-2 rounded-xl text-xs font-bold transition-all ${
+                viewMode === 'EN_ATTENTE'
+                  ? 'bg-terracotta-600 text-white shadow-xs'
+                  : 'bg-sand-100 text-sahel-800 hover:bg-sand-200'
+              }`}
+            >
+              En attente de vérification ({pendingAnnonces.length})
+            </button>
+            <button
+              type="button"
+              onClick={() => setViewMode('TOUTES')}
+              className={`px-4 py-2 rounded-xl text-xs font-bold transition-all ${
+                viewMode === 'TOUTES'
+                  ? 'bg-terracotta-600 text-white shadow-xs'
+                  : 'bg-sand-100 text-sahel-800 hover:bg-sand-200'
+              }`}
+            >
+              Toutes les annonces & Statuts de publication
+            </button>
+          </div>
+          <span className="text-xs text-sahel-600">
+            Transitions administratives autorisées : <strong>DISPONIBLE &harr; SUSPENDUE</strong>
+          </span>
+        </div>
+
         {/* Content list */}
-        {isLoading ? (
+        {isCurrentListLoading ? (
           <div className="space-y-4">
             <Skeleton variant="card" className="h-32" />
             <Skeleton variant="card" className="h-32" />
             <Skeleton variant="card" className="h-32" />
           </div>
-        ) : pendingAnnonces.length === 0 ? (
+        ) : displayedAnnonces.length === 0 ? (
           <Card className="p-12 text-center space-y-4 border border-sand-300 bg-sand-50">
             <CheckCircle2 className="w-12 h-12 text-emerald-600 mx-auto" />
-            <h3 className="font-display font-bold text-lg text-sahel-900">Toutes les demandes ont été traitées !</h3>
+            <h3 className="font-display font-bold text-lg text-sahel-900">
+              {viewMode === 'EN_ATTENTE'
+                ? 'Toutes les demandes ont été traitées !'
+                : 'Aucune annonce disponible dans cette vue'}
+            </h3>
             <p className="text-xs text-sahel-600 max-w-md mx-auto">
-              Aucune annonce n'est actuellement en attente de vérification.
+              {viewMode === 'EN_ATTENTE'
+                ? "Aucune annonce n'est actuellement en attente de vérification."
+                : "Aucune annonce active ou suspendue n'a été trouvée."}
             </p>
           </Card>
         ) : (
           <div className="grid grid-cols-1 gap-6">
-            {pendingAnnonces.map((annonce) => {
+            {displayedAnnonces.map((annonce) => {
               const docs = annonce.documentsVerification || [];
               const missingTypes = getMissingDocLabels(docs);
               const isComplete = missingTypes.length === 0;
+              const currentStatut: StatutPub = annonce.statutPublication || 'DISPONIBLE';
+              const selectedTarget: StatutPub =
+                statusTargetByAnnonce[annonce.id] ||
+                (currentStatut === 'SUSPENDUE' ? 'DISPONIBLE' : 'SUSPENDUE');
+              const statusError = statusErrorByAnnonce[annonce.id];
+              const isStatusUpdating = statusPendingAnnonceId === annonce.id;
 
               return (
                 <Card key={annonce.id} className="overflow-hidden border border-sand-300 hover:shadow-warm-hover transition-all">
@@ -251,7 +400,19 @@ export const AdminVerificationPage: React.FC = () => {
                       <div className="flex-1 space-y-4">
                         <div className="flex flex-wrap items-center justify-between gap-2">
                           <div>
-                            <h3 className="font-display font-bold text-lg text-sahel-900">{annonce.titre}</h3>
+                            <div className="flex flex-wrap items-center gap-2">
+                              <h3 className="font-display font-bold text-lg text-sahel-900">{annonce.titre}</h3>
+                              {renderStatutPublicationBadge(currentStatut)}
+                              {annonce.statutVerification === 'VERIFIEE' && (
+                                <Badge variant="success">Vérifiée</Badge>
+                              )}
+                              {annonce.statutVerification === 'EN_ATTENTE' && (
+                                <Badge variant="warning">Vérification : EN_ATTENTE</Badge>
+                              )}
+                              {annonce.statutVerification === 'REJETEE' && (
+                                <Badge variant="rose">Vérification : REJETEE</Badge>
+                              )}
+                            </div>
                             <div className="flex flex-wrap items-center gap-3 text-xs text-sahel-700 mt-1">
                               <span><strong>Ville :</strong> {annonce.ville} ({annonce.quartier})</span>
                               <span>
@@ -289,6 +450,96 @@ export const AdminVerificationPage: React.FC = () => {
                             <span>Toutes les catégories obligatoires de pièces ont été transmises.</span>
                           </div>
                         )}
+
+                        {/* Administrative Publication Status Control Panel (CA3-004) */}
+                        <div className="p-3.5 rounded-xl bg-white border border-sand-300 space-y-3">
+                          <div className="flex flex-wrap items-center justify-between gap-2">
+                            <div className="text-xs font-bold text-sahel-900 flex items-center gap-2">
+                              <span>Gestion administrative du statut de publication</span>
+                              {renderStatutPublicationBadge(currentStatut)}
+                            </div>
+                            <div className="flex flex-wrap items-center gap-2">
+                              {currentStatut === 'DISPONIBLE' && (
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  className="border-rose-300 text-rose-700 hover:bg-rose-50 text-xs"
+                                  isLoading={isStatusUpdating}
+                                  onClick={() => handleChangerStatutAnnonce(annonce, 'SUSPENDUE')}
+                                >
+                                  <Ban className="w-3.5 h-3.5 mr-1" />
+                                  Suspendre l'annonce
+                                </Button>
+                              )}
+                              {currentStatut === 'SUSPENDUE' && (
+                                <Button
+                                  variant="primary"
+                                  size="sm"
+                                  className="bg-emerald-600 hover:bg-emerald-700 text-white text-xs"
+                                  isLoading={isStatusUpdating}
+                                  onClick={() => handleChangerStatutAnnonce(annonce, 'DISPONIBLE')}
+                                >
+                                  <RotateCcw className="w-3.5 h-3.5 mr-1" />
+                                  Réactiver l'annonce
+                                </Button>
+                              )}
+                            </div>
+                          </div>
+
+                          <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 items-center pt-1">
+                            <select
+                              aria-label={`Statut de publication cible pour ${annonce.titre}`}
+                              value={selectedTarget}
+                              onChange={(e) =>
+                                setStatusTargetByAnnonce((prev) => ({
+                                  ...prev,
+                                  [annonce.id]: e.target.value as StatutPub,
+                                }))
+                              }
+                              disabled={isStatusUpdating}
+                              className="px-3 py-1.5 rounded-xl border border-sand-300 text-xs bg-sand-50 text-sahel-900 focus:outline-none focus:ring-1 focus:ring-terracotta-500"
+                            >
+                              <option value="DISPONIBLE">DISPONIBLE (Publiée)</option>
+                              <option value="SUSPENDUE">SUSPENDUE (Suspension admin)</option>
+                              <option value="RESERVEE">RESERVEE</option>
+                              <option value="LOUEE">LOUEE</option>
+                              <option value="VENDUE">VENDUE</option>
+                            </select>
+                            <input
+                              type="text"
+                              value={statusMotifByAnnonce[annonce.id] || ''}
+                              onChange={(e) =>
+                                setStatusMotifByAnnonce((prev) => ({
+                                  ...prev,
+                                  [annonce.id]: e.target.value,
+                                }))
+                              }
+                              disabled={isStatusUpdating}
+                              placeholder="Motif de la décision (optionnel)..."
+                              maxLength={500}
+                              className="px-3 py-1.5 rounded-xl border border-sand-300 text-xs bg-white text-sahel-900 focus:outline-none focus:ring-1 focus:ring-terracotta-500"
+                            />
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              isLoading={isStatusUpdating}
+                              onClick={() => handleChangerStatutAnnonce(annonce, selectedTarget)}
+                              className="text-xs justify-center"
+                            >
+                              Appliquer le statut
+                            </Button>
+                          </div>
+
+                          {statusError && (
+                            <div
+                              role="alert"
+                              className="p-2.5 rounded-xl bg-rose-50 border border-rose-200 text-xs text-rose-800 flex items-center gap-2"
+                            >
+                              <AlertTriangle className="w-4 h-4 text-rose-600 shrink-0" />
+                              <span>{statusError}</span>
+                            </div>
+                          )}
+                        </div>
 
                         {/* Submitted Documents List with Authenticated Preview */}
                         <div className="p-3.5 rounded-xl bg-sand-50 border border-sand-200 space-y-2.5">

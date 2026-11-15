@@ -3,7 +3,9 @@ import { Client, IFrame } from '@stomp/stompjs';
 import { useAuthStore } from '../store/useAuthStore';
 import { MessageChatDTO } from '../types';
 import { messagerieService } from '../services/messagerie.service';
-import { API_BASE_URL } from '../services/api';
+import { refreshSessionToken } from '../services/api';
+import { resolveWsUrl } from '../lib/env';
+import { getErrorMessage } from '../lib/errors';
 
 export function useConversationSocket(conversationId: string | undefined) {
   const { accessToken } = useAuthStore();
@@ -21,28 +23,37 @@ export function useConversationSocket(conversationId: string | undefined) {
       const history = await messagerieService.listerMessages(id);
       setMessages(history);
       setError(null);
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error('Erreur chargement historique messages:', err);
-      setError(err?.message || 'Erreur lors du chargement de la conversation');
+      setError(getErrorMessage(err, 'Erreur lors du chargement de la conversation'));
     }
   }, []);
 
   useEffect(() => {
     if (!conversationId || !accessToken) {
-      setMessages([]);
-      setIsConnected(false);
-      setIsConnecting(false);
       return;
     }
 
-    // Load initial history
-    fetchMessagesHistory(conversationId);
+    let cancelled = false;
+    let consecutiveFailures = 0;
+    void Promise.resolve().then(() => {
+      if (cancelled) return;
+      setIsConnecting(true);
+      void fetchMessagesHistory(conversationId);
+    });
 
-    // Build WS URL from API_BASE_URL or window location fallback
-    const wsBaseUrl = API_BASE_URL.replace(/^http/, 'ws');
-    const wsUrl = `${wsBaseUrl}/ws`;
+    const wsUrl = resolveWsUrl('/ws');
 
-    setIsConnecting(true);
+    const tryRefreshAccessToken = async (): Promise<string | null> => {
+      if (!useAuthStore.getState().refreshToken) {
+        return null;
+      }
+      try {
+        return await refreshSessionToken();
+      } catch {
+        return null;
+      }
+    };
 
     const client = new Client({
       brokerURL: wsUrl,
@@ -53,7 +64,19 @@ export function useConversationSocket(conversationId: string | undefined) {
       heartbeatIncoming: 10000,
       heartbeatOutgoing: 10000,
 
+      beforeConnect: async () => {
+        const latestToken = useAuthStore.getState().accessToken;
+        if (!latestToken) {
+          await client.deactivate();
+          return;
+        }
+        client.connectHeaders = {
+          Authorization: latestToken.startsWith('Bearer ') ? latestToken : `Bearer ${latestToken}`,
+        };
+      },
+
       onConnect: () => {
+        consecutiveFailures = 0;
         setIsConnected(true);
         setIsConnecting(false);
         setIsOffline(false);
@@ -80,15 +103,58 @@ export function useConversationSocket(conversationId: string | undefined) {
       },
 
       onStompError: (frame: IFrame) => {
-        console.warn('Erreur STOMP broker:', frame.headers['message']);
-        setError(frame.headers['message'] || 'Erreur de connexion messagerie');
+        const msg = frame.headers['message'] || 'Erreur de connexion messagerie';
+        console.warn('Erreur STOMP broker:', msg);
+        setError(msg);
         setIsConnected(false);
+        setIsConnecting(false);
         setIsOffline(true);
+        const lower = msg.toLowerCase();
+        if (
+          lower.includes('désactivé') ||
+          lower.includes('expir') ||
+          lower.includes('révoqu') ||
+          lower.includes('revoqu') ||
+          lower.includes('invalide') ||
+          lower.includes('non authentifi') ||
+          lower.includes('unauthorized')
+        ) {
+          void (async () => {
+            const refreshed = await tryRefreshAccessToken();
+            if (refreshed && !cancelled) {
+              client.connectHeaders = {
+                Authorization: refreshed.startsWith('Bearer ') ? refreshed : `Bearer ${refreshed}`,
+              };
+              return;
+            }
+            await client.deactivate();
+            void useAuthStore.getState().logout();
+          })();
+        }
       },
 
-      onWebSocketClose: () => {
+      onWebSocketClose: (event) => {
         setIsConnected(false);
         setIsOffline(true);
+        consecutiveFailures += 1;
+        const closeEvent = event as CloseEvent | undefined;
+        const policyViolation = closeEvent?.code === 1008;
+        if (policyViolation || consecutiveFailures >= 3) {
+          void (async () => {
+            const refreshed = await tryRefreshAccessToken();
+            if (refreshed && !cancelled) {
+              consecutiveFailures = 0;
+              client.connectHeaders = {
+                Authorization: refreshed.startsWith('Bearer ') ? refreshed : `Bearer ${refreshed}`,
+              };
+              return;
+            }
+            if (policyViolation) {
+              await client.deactivate();
+              void useAuthStore.getState().logout();
+            }
+          })();
+        }
       },
 
       onWebSocketError: (event) => {
@@ -102,12 +168,15 @@ export function useConversationSocket(conversationId: string | undefined) {
     stompClientRef.current = client;
 
     return () => {
+      cancelled = true;
       if (stompClientRef.current) {
         stompClientRef.current.deactivate();
         stompClientRef.current = null;
       }
     };
   }, [conversationId, accessToken, fetchMessagesHistory]);
+
+  const hasActiveSession = Boolean(conversationId && accessToken);
 
   const sendMessage = useCallback(
     async (contenu: string): Promise<boolean> => {
@@ -138,11 +207,11 @@ export function useConversationSocket(conversationId: string | undefined) {
   );
 
   return {
-    messages,
-    isConnected,
-    isConnecting,
-    isOffline,
-    error,
+    messages: hasActiveSession ? messages : [],
+    isConnected: hasActiveSession ? isConnected : false,
+    isConnecting: hasActiveSession ? isConnecting : false,
+    isOffline: hasActiveSession ? isOffline : false,
+    error: hasActiveSession ? error : null,
     sendMessage,
     refetchHistory: () => conversationId && fetchMessagesHistory(conversationId),
   };

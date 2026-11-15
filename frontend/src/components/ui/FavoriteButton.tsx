@@ -7,6 +7,7 @@ import { apiFetch } from '../../services/api';
 import { useAuthStore } from '../../store/useAuthStore';
 import { toast } from 'sonner';
 import { cn } from '../../lib/cn';
+import { AnnonceDTO, PageResponse } from '../../types';
 
 interface FavoriteButtonProps {
   annonceId: string;
@@ -42,21 +43,21 @@ export const FavoriteButton: React.FC<FavoriteButtonProps> = ({
       await queryClient.cancelQueries({ queryKey: ['favoris'] });
 
       // Snapshot previous data for rollback
-      const previousAnnonce = queryClient.getQueryData(['annonce', annonceId]);
-      const previousAnnonces = queryClient.getQueriesData({ queryKey: ['annonces'] });
+      const previousAnnonce = queryClient.getQueryData<AnnonceDTO>(['annonce', annonceId]);
+      const previousAnnonces = queryClient.getQueriesData<PageResponse<AnnonceDTO>>({ queryKey: ['annonces'] });
 
       // Optimistically update the single annonce query
-      queryClient.setQueryData(['annonce', annonceId], (old: any) => {
+      queryClient.setQueryData<AnnonceDTO>(['annonce', annonceId], (old) => {
         if (!old) return old;
         return { ...old, estFavori: !estFavori };
       });
 
       // Optimistically update annonces list queries
-      queryClient.setQueriesData({ queryKey: ['annonces'] }, (old: any) => {
+      queryClient.setQueriesData<PageResponse<AnnonceDTO>>({ queryKey: ['annonces'] }, (old) => {
         if (!old?.content) return old;
         return {
           ...old,
-          content: old.content.map((a: any) =>
+          content: old.content.map((a) =>
             a.id === annonceId ? { ...a, estFavori: !estFavori } : a
           ),
         };
@@ -70,11 +71,11 @@ export const FavoriteButton: React.FC<FavoriteButtonProps> = ({
         queryClient.setQueryData(['annonce', annonceId], context.previousAnnonce);
       }
       if (context?.previousAnnonces) {
-        context.previousAnnonces.forEach(([queryKey, data]: [any, any]) => {
+        context.previousAnnonces.forEach(([queryKey, data]) => {
           queryClient.setQueryData(queryKey, data);
         });
       }
-      toast.error(estFavori ? 'Impossible de retirer des favoris' : 'Impossible d\'ajouter aux favoris');
+      toast.error(estFavori ? 'Impossible de retirer des favoris' : "Impossible d'ajouter aux favoris");
     },
     onSettled: () => {
       // Refetch to ensure consistency

@@ -7,6 +7,7 @@ import { apiFetch } from '../services/api';
 import { AuthResponseDTO } from '../types';
 import { useAuthStore } from '../store/useAuthStore';
 import { toast } from 'sonner';
+import { getErrorMessage } from '../lib/errors';
 
 import { PatternClaustra } from '../components/ui/PatternClaustra';
 
@@ -18,8 +19,9 @@ export const LoginPage: React.FC = () => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
+  const [showResetInfo, setShowResetInfo] = useState(false);
 
-  const fromLocation = (location.state as any)?.from;
+  const fromLocation = (location.state as { from?: string } | null)?.from;
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -48,9 +50,8 @@ export const LoginPage: React.FC = () => {
       } else {
         navigate('/dashboard');
       }
-    } catch (err: any) {
-      const msg = err.message || 'Identifiants incorrects';
-      toast.error(msg);
+    } catch (err: unknown) {
+      toast.error(getErrorMessage(err, 'Identifiants incorrects'));
     } finally {
       setLoading(false);
     }
@@ -129,10 +130,34 @@ export const LoginPage: React.FC = () => {
                 leftIcon={<Lock className="w-4 h-4" />}
               />
               <div className="text-right">
-                <a href="#reset" className="text-xs text-terracotta-600 hover:underline font-medium">
+                <button
+                  type="button"
+                  onClick={() => setShowResetInfo(!showResetInfo)}
+                  className="text-xs text-terracotta-600 hover:underline font-medium focus:outline-none"
+                >
                   Mot de passe oublié ?
-                </a>
+                </button>
               </div>
+              {showResetInfo && (
+                <div className="mt-2 p-3 bg-amber-50 border border-amber-200 rounded-lg text-xs text-amber-800 space-y-1">
+                  <div className="font-semibold flex items-center justify-between">
+                    <span>Réinitialisation du mot de passe</span>
+                    <button
+                      type="button"
+                      onClick={() => setShowResetInfo(false)}
+                      className="text-amber-600 hover:text-amber-900 font-bold ml-2"
+                      aria-label="Fermer"
+                    >
+                      ×
+                    </button>
+                  </div>
+                  <p>
+                    L'envoi automatique de courriel nécessite un serveur SMTP de production.
+                    Dans cette version universitaire, veuillez contacter l'administrateur E-Courtier à{' '}
+                    <span className="font-mono font-semibold">support@ecourtier.sn</span> pour réinitialiser vos identifiants.
+                  </p>
+                </div>
+              )}
             </div>
 
             <Button

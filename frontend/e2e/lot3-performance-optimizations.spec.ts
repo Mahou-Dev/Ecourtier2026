@@ -215,7 +215,9 @@ test.describe('Lot 3 / 3B — Optimisations des performances frontend & Sécuris
       await page.goto(`/annonce/${ANNONCE_ID_1}`);
 
       // Vérifie que les variables globales de préchargement ont été injectées
-      const prefetchId = await page.evaluate(() => (window as any).__PREFETCHED_ANNONCE_ID__);
+      const prefetchId = await page.evaluate(
+        () => (window as unknown as { __PREFETCHED_ANNONCE_ID__?: string }).__PREFETCHED_ANNONCE_ID__
+      );
       expect(prefetchId).toBe(ANNONCE_ID_1);
       expect(apiCalled).toBe(true);
 

@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useState } from 'react';
 import { Modal } from '../ui/Modal';
 import { Button } from '../ui/Button';
 import { Input } from '../ui/Input';
@@ -6,8 +6,10 @@ import { apiFetch } from '../../services/api';
 import { AnnonceDTO } from '../../types';
 import { toast } from 'sonner';
 import { useReferences } from '../../hooks/useReferences';
-import { LocationPickerMap, isInsideSenegal } from '../map/LocationPickerMap';
-import { getEquipementMeta, getProximiteMeta } from '../ui/ReferenceIcons';
+import { LocationPickerMap } from '../map/LocationPickerMap';
+import { isInsideSenegal } from '../../lib/geo';
+import { getEquipementMeta, getProximiteMeta } from '../../lib/referenceMeta';
+import { getErrorMessage, getErrorStatus } from '../../lib/errors';
 import { Check } from 'lucide-react';
 
 interface EditAnnonceModalProps {
@@ -23,50 +25,54 @@ export const EditAnnonceModal: React.FC<EditAnnonceModalProps> = ({
   onSuccess,
   annonce,
 }) => {
+  if (!isOpen || !annonce) return null;
+
+  return (
+    <EditAnnonceForm
+      key={`${annonce.id}-${annonce.version ?? 'nv'}`}
+      isOpen={isOpen}
+      onClose={onClose}
+      onSuccess={onSuccess}
+      annonce={annonce}
+    />
+  );
+};
+
+interface EditAnnonceFormProps {
+  isOpen: boolean;
+  onClose: () => void;
+  onSuccess: () => void;
+  annonce: AnnonceDTO;
+}
+
+const EditAnnonceForm: React.FC<EditAnnonceFormProps> = ({
+  isOpen,
+  onClose,
+  onSuccess,
+  annonce,
+}) => {
   const { data: references } = useReferences();
 
-  const [titre, setTitre] = useState('');
-  const [description, setDescription] = useState('');
-  const [prix, setPrix] = useState<number>(0);
-  const [superficie, setSuperficie] = useState<number>(0);
-  const [nombrePieces, setNombrePieces] = useState<number>(1);
-  const [etage, setEtage] = useState<number | undefined>(undefined);
-  const [quartier, setQuartier] = useState('');
-  const [ville, setVille] = useState('Dakar');
-  const [type, setType] = useState<'STUDIO' | 'APPARTEMENT' | 'VILLA'>('APPARTEMENT');
-  const [modeTransaction, setModeTransaction] = useState<'LOCATION' | 'VENTE'>('LOCATION');
-  const [latitude, setLatitude] = useState<number>(14.7167);
-  const [longitude, setLongitude] = useState<number>(-17.4677);
-  const [meuble, setMeuble] = useState(false);
-  const [animauxAcceptes, setAnimauxAcceptes] = useState(false);
-  const [confirmationAutomatique, setConfirmationAutomatique] = useState(true);
-  const [selectedEquipements, setSelectedEquipements] = useState<string[]>([]);
-  const [selectedProximites, setSelectedProximites] = useState<string[]>([]);
+  const [titre, setTitre] = useState(annonce.titre || '');
+  const [description, setDescription] = useState(annonce.description || '');
+  const [prix, setPrix] = useState<number>(annonce.prix || 0);
+  const [superficie, setSuperficie] = useState<number>(annonce.superficie || 0);
+  const [nombrePieces, setNombrePieces] = useState<number>(annonce.nombrePieces || 1);
+  const [etage, setEtage] = useState<number | undefined>(annonce.etage);
+  const [quartier, setQuartier] = useState(annonce.quartier || '');
+  const [ville, setVille] = useState(annonce.ville || 'Dakar');
+  const [type, setType] = useState<'STUDIO' | 'APPARTEMENT' | 'VILLA' | 'CHAMBRE'>(annonce.type || 'APPARTEMENT');
+  const [modeTransaction, setModeTransaction] = useState<'LOCATION' | 'VENTE'>(annonce.modeTransaction || 'LOCATION');
+  const [latitude, setLatitude] = useState<number>(annonce.latitude || 14.7167);
+  const [longitude, setLongitude] = useState<number>(annonce.longitude || -17.4677);
+  const [meuble, setMeuble] = useState(annonce.meuble || false);
+  const [animauxAcceptes, setAnimauxAcceptes] = useState(annonce.animauxAcceptes || false);
+  const [confirmationAutomatique, setConfirmationAutomatique] = useState(annonce.confirmationAutomatique ?? true);
+  const [selectedEquipements, setSelectedEquipements] = useState<string[]>(annonce.equipements || []);
+  const [selectedProximites, setSelectedProximites] = useState<string[]>(annonce.proximites || []);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  useEffect(() => {
-    if (annonce) {
-      setTitre(annonce.titre || '');
-      setDescription(annonce.description || '');
-      setPrix(annonce.prix || 0);
-      setSuperficie(annonce.superficie || 0);
-      setNombrePieces(annonce.nombrePieces || 1);
-      setEtage(annonce.etage);
-      setQuartier(annonce.quartier || '');
-      setVille(annonce.ville || 'Dakar');
-      setType(annonce.type || 'APPARTEMENT');
-      setModeTransaction(annonce.modeTransaction || 'LOCATION');
-      setLatitude(annonce.latitude || 14.7167);
-      setLongitude(annonce.longitude || -17.4677);
-      setMeuble(annonce.meuble || false);
-      setAnimauxAcceptes(annonce.animauxAcceptes || false);
-      setConfirmationAutomatique(annonce.confirmationAutomatique ?? true);
-      setSelectedEquipements(annonce.equipements || []);
-      setSelectedProximites(annonce.proximites || []);
-    }
-  }, [annonce]);
-
-  if (!annonce) return null;
+  const hasValidVersion = typeof annonce.version === 'number' && Number.isFinite(annonce.version);
 
   const toggleEquipement = (code: string) => {
     setSelectedEquipements((prev) =>
@@ -82,6 +88,11 @@ export const EditAnnonceModal: React.FC<EditAnnonceModalProps> = ({
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!hasValidVersion) {
+      toast.error("Version de l'annonce absente : veuillez recharger les données avant toute modification.");
+      onSuccess();
+      return;
+    }
     if (titre.trim().length < 5) {
       toast.error('Le titre doit faire au moins 5 caractères');
       return;
@@ -119,6 +130,7 @@ export const EditAnnonceModal: React.FC<EditAnnonceModalProps> = ({
         confirmationAutomatique,
         equipements: selectedEquipements,
         proximites: selectedProximites,
+        version: annonce.version,
       };
 
       await apiFetch<AnnonceDTO>(`/api/v1/annonces/${annonce.id}`, {
@@ -129,8 +141,22 @@ export const EditAnnonceModal: React.FC<EditAnnonceModalProps> = ({
       toast.success('Annonce mise à jour avec succès');
       onSuccess();
       onClose();
-    } catch (err: any) {
-      toast.error(err.message || "Erreur lors de la modification de l'annonce");
+    } catch (err: unknown) {
+      const status = getErrorStatus(err);
+      if (status === 409) {
+        toast.error(
+          getErrorMessage(
+            err,
+            "Conflit de modification (409) : l'annonce a été modifiée par une autre session. Rechargement des dernières données..."
+          )
+        );
+        onSuccess();
+        onClose();
+      } else if (status === 400) {
+        toast.error(getErrorMessage(err, "Données invalides ou version de l'annonce manquante."));
+      } else {
+        toast.error(getErrorMessage(err, "Erreur lors de la modification de l'annonce"));
+      }
     } finally {
       setIsSubmitting(false);
     }
@@ -139,6 +165,14 @@ export const EditAnnonceModal: React.FC<EditAnnonceModalProps> = ({
   return (
     <Modal isOpen={isOpen} onClose={onClose} title="Modifier l'annonce" size="lg">
       <form onSubmit={handleSubmit} className="space-y-6">
+        {!hasValidVersion && (
+          <div
+            role="alert"
+            className="p-3 rounded-xl border border-rose-300 bg-rose-50 text-rose-900 text-xs font-medium"
+          >
+            La version de contrôle optimiste de cette annonce est absente. Fermez cette fenêtre et rechargez la liste avant d&apos;enregistrer.
+          </div>
+        )}
         
         {/* Informations générales */}
         <div className="space-y-4">
@@ -166,12 +200,15 @@ export const EditAnnonceModal: React.FC<EditAnnonceModalProps> = ({
               <select
                 className="w-full px-3 py-2 rounded-xl border border-sand-300 text-sm focus:ring-2 focus:ring-terracotta-500 outline-none"
                 value={type}
-                onChange={(e) => setType(e.target.value as any)}
+                onChange={(e) =>
+                  setType(e.target.value as 'STUDIO' | 'APPARTEMENT' | 'VILLA' | 'CHAMBRE')
+                }
               >
                 {(references?.typesBien || [
                   { valeur: 'APPARTEMENT', libelle: 'Appartement' },
                   { valeur: 'VILLA', libelle: 'Villa' },
                   { valeur: 'STUDIO', libelle: 'Studio' },
+                  { valeur: 'CHAMBRE', libelle: 'Chambre' },
                 ]).map((t) => (
                   <option key={t.valeur} value={t.valeur}>{t.libelle}</option>
                 ))}
@@ -183,7 +220,7 @@ export const EditAnnonceModal: React.FC<EditAnnonceModalProps> = ({
               <select
                 className="w-full px-3 py-2 rounded-xl border border-sand-300 text-sm focus:ring-2 focus:ring-terracotta-500 outline-none"
                 value={modeTransaction}
-                onChange={(e) => setModeTransaction(e.target.value as any)}
+                onChange={(e) => setModeTransaction(e.target.value as 'LOCATION' | 'VENTE')}
               >
                 {(references?.modesTransaction || [
                   { valeur: 'LOCATION', libelle: 'Location' },

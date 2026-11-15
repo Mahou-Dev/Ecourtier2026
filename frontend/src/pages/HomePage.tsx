@@ -275,7 +275,7 @@ export const HomePage: React.FC = () => {
               }}
             >
               <Link
-                to={`/recherche?city=${nh.city}`}
+                to={`/recherche?city=${encodeURIComponent(nh.city)}&quartier=${encodeURIComponent(nh.name)}`}
                 className="group relative h-48 rounded-xl overflow-hidden border border-argile-200 transition-all duration-300 hover:border-terracotta-400 hover:shadow-terracotta-card flex flex-col justify-end"
               >
                 <img

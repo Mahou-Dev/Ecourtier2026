@@ -31,8 +31,8 @@ export const Header: React.FC = () => {
   const favorisCount = favorisData?.totalElements || 0;
   const unreadCount = messagesUnreadCount || 0;
 
-  const handleLogout = () => {
-    logout();
+  const handleLogout = async () => {
+    await logout();
     toast.success('Déconnexion réussie');
     navigate('/');
   };
@@ -131,6 +131,18 @@ export const Header: React.FC = () => {
             >
               <ShieldCheck className="w-3.5 h-3.5 text-terracotta-500" />
               <span>Administration</span>
+            </Link>
+          )}
+
+          {utilisateur?.role === 'LOCATAIRE' && (
+            <Link
+              to="/dashboard?tab=visites"
+              className={`flex items-center gap-1.5 hover:text-terracotta-600 transition-colors ${
+                location.pathname === '/dashboard' ? 'text-terracotta-600 font-extrabold' : ''
+              }`}
+            >
+              <LayoutDashboard className="w-3.5 h-3.5 text-sahel-800" />
+              <span>Mes visites & dossiers</span>
             </Link>
           )}
 

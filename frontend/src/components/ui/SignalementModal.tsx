@@ -6,6 +6,7 @@ import { Select } from './Select';
 import { apiFetch } from '../../services/api';
 import { MotifSignalement } from '../../types';
 import { toast } from 'sonner';
+import { getErrorMessage } from '../../lib/errors';
 
 interface SignalementModalProps {
   annonceId: string;
@@ -34,8 +35,8 @@ export const SignalementModal: React.FC<SignalementModalProps> = ({
       });
       toast.success('Signalement transmis aux équipes de modération E-Courtier');
       onClose();
-    } catch (err: any) {
-      toast.error(err.message || 'Erreur lors de la transmission du signalement');
+    } catch (err: unknown) {
+      toast.error(getErrorMessage(err, 'Erreur lors de la transmission du signalement'));
     } finally {
       setIsSubmitting(false);
     }

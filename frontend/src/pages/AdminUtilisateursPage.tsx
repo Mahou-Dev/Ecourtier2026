@@ -25,6 +25,7 @@ import { Input } from '../components/ui/Input';
 import { Modal } from '../components/ui/Modal';
 import { Skeleton } from '../components/ui/Skeleton';
 import { toast } from 'sonner';
+import { getErrorMessage } from '../lib/errors';
 
 type RoleType = 'ADMIN' | 'AGENT' | 'PROPRIETAIRE' | 'LOCATAIRE';
 
@@ -92,8 +93,8 @@ export const AdminUtilisateursPage: React.FC = () => {
       setNewRole('AGENT');
       setMotDePasseTemporaire('');
     },
-    onError: (err: any) => {
-      toast.error(err.message || 'Échec de la création du compte');
+    onError: (err: unknown) => {
+      toast.error(getErrorMessage(err, 'Échec de la création du compte'));
     },
   });
 
@@ -105,8 +106,8 @@ export const AdminUtilisateursPage: React.FC = () => {
       queryClient.invalidateQueries({ queryKey: ['admin-utilisateurs'] });
       setRoleTarget(null);
     },
-    onError: (err: any) => {
-      toast.error(err.message || 'Impossible de modifier le rôle');
+    onError: (err: unknown) => {
+      toast.error(getErrorMessage(err, 'Impossible de modifier le rôle'));
     },
   });
 
@@ -121,8 +122,8 @@ export const AdminUtilisateursPage: React.FC = () => {
       );
       queryClient.invalidateQueries({ queryKey: ['admin-utilisateurs'] });
     },
-    onError: (err: any) => {
-      toast.error(err.message || 'Impossible de modifier le statut du compte');
+    onError: (err: unknown) => {
+      toast.error(getErrorMessage(err, 'Impossible de modifier le statut du compte'));
     },
   });
 
@@ -130,7 +131,7 @@ export const AdminUtilisateursPage: React.FC = () => {
 
   const users = data?.content || [];
 
-  const getRoleBadgeVariant = (role: RoleType) => {
+  const getRoleBadgeVariant = (role: RoleType): 'terracotta' | 'ocher' | 'sahel' | 'neutral' => {
     switch (role) {
       case 'ADMIN':
         return 'terracotta';
@@ -161,7 +162,7 @@ export const AdminUtilisateursPage: React.FC = () => {
       await navigator.clipboard.writeText(createdResult.motDePasseTemporaire);
       setCopiedPassword(true);
       toast.success('Mot de passe temporaire copié dans le presse-papiers');
-    } catch (_) {
+    } catch {
       toast.info('Sélectionnez et copiez le mot de passe affiché.');
     }
   };
@@ -306,7 +307,7 @@ export const AdminUtilisateursPage: React.FC = () => {
                         <div className="text-[11px] text-charcoal-500">{u.telephone}</div>
                       </td>
                       <td className="py-3.5 px-4">
-                        <Badge variant={getRoleBadgeVariant(u.role) as any}>{u.role}</Badge>
+                        <Badge variant={getRoleBadgeVariant(u.role)}>{u.role}</Badge>
                       </td>
                       <td className="py-3.5 px-4">
                         {isActif ? (
@@ -374,7 +375,7 @@ export const AdminUtilisateursPage: React.FC = () => {
                         <p className="text-[11px] text-charcoal-500">{u.telephone}</p>
                       </div>
                       <div className="flex flex-col items-end gap-1 shrink-0">
-                        <Badge variant={getRoleBadgeVariant(u.role) as any}>{u.role}</Badge>
+                        <Badge variant={getRoleBadgeVariant(u.role)}>{u.role}</Badge>
                         {isActif ? <Badge variant="success">Actif</Badge> : <Badge variant="rose">Inactif</Badge>}
                       </div>
                     </div>
@@ -474,7 +475,7 @@ export const AdminUtilisateursPage: React.FC = () => {
               </div>
               <div>
                 <span className="text-charcoal-500">Rôle attribué :</span>{' '}
-                <Badge variant={getRoleBadgeVariant(createdResult.utilisateur.role) as any}>
+                <Badge variant={getRoleBadgeVariant(createdResult.utilisateur.role)}>
                   {createdResult.utilisateur.role}
                 </Badge>
               </div>

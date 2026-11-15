@@ -69,7 +69,7 @@ export const App: React.FC = () => {
   return (
     <QueryClientProvider client={queryClient}>
       <Router>
-        <div className="min-h-screen flex flex-col bg-sand-100 selection:bg-terracotta-200 selection:text-terracotta-900 font-body antialiased">
+        <div className="min-h-screen w-full max-w-[100vw] overflow-x-hidden flex flex-col bg-sand-100 selection:bg-terracotta-200 selection:text-terracotta-900 font-body antialiased">
           <Header />
           <main className="flex-1 flex flex-col">
             <AnimatedRoutes />
