@@ -1,0 +1,78 @@
+name: E-Courtier CD Release & Packaging (Staging Gate)
+
+on:
+  push:
+    tags:
+      - "v*.*.*"
+  workflow_dispatch:
+    inputs:
+      target_environment:
+        description: "Environnement cible de validation (aucun déploiement prod automatique)"
+        required: true
+        default: "staging"
+        type: choice
+        options:
+          - staging
+          - validation
+
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  build-release-artifacts:
+    name: Packaging reproductible Backend JAR, Frontend SPA & Contrat OpenAPI
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup JDK 21 & Node 20
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+          cache: maven
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Packaging JAR Spring Boot & vérification contrat OpenAPI
+        run: |
+          mvn -B -f backend/pom.xml test -Dtest=OpenApiContractIntegrationTest
+          mvn -B -f backend/pom.xml package -DskipTests
+
+      - name: Packaging Frontend production
+        run: |
+          npm --prefix frontend ci
+          npm --prefix frontend run build
+
+      - name: Upload artefacts de release signables
+        uses: actions/upload-artifact@v4
+        with:
+          name: ecourtier-release-${{ github.sha }}
+          path: |
+            backend/target/*.jar
+            !backend/target/*-plain.jar
+            frontend/dist/
+            docs/openapi.json
+
+  staging-validation-gate:
+    name: Porte de déploiement Staging (Validation manuelle requise)
+    needs: build-release-artifacts
+    runs-on: ubuntu-latest
+    environment:
+      name: ${{ github.event.inputs.target_environment || 'staging' }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Build images Docker taguées SHA (vérification sans push non autorisé)
+        run: |
+          docker build -t ecourtier-backend:${{ github.sha }} ./backend
+          docker build -t ecourtier-frontend:${{ github.sha }} ./frontend
+          echo "Images construites localement pour validation staging : ecourtier-backend:${{ github.sha }} / ecourtier-frontend:${{ github.sha }}"
+          echo "Aucun déploiement automatique en production déclenché (approbation & secret registry requis)."

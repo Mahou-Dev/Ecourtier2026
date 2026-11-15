@@ -1,0 +1,237 @@
+name: E-Courtier CI Pipeline
+
+on:
+  pull_request:
+    branches: [main, develop]
+  push:
+    branches: [main, develop]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  prechecks:
+    name: 1. Précontrôles structure, Flyway & secrets
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Vérification structure projet & migrations Flyway séquentielles
+        run: |
+          test -f backend/pom.xml
+          test -f frontend/package.json
+          test -f docs/openapi.json
+          test -f backend/src/main/resources/static/openapi.json
+          cmp -s docs/openapi.json backend/src/main/resources/static/openapi.json || {
+            echo "ERREUR: docs/openapi.json et backend/src/main/resources/static/openapi.json divergent"
+            exit 1
+          }
+          # Vérifier l'unicité des préfixes de versions Flyway V1..Vn
+          dups=$(ls backend/src/main/resources/db/migration/V*.sql | xargs -n1 basename | cut -d'_' -f1 | sort | uniq -d)
+          if [ -n "$dups" ]; then
+            echo "ERREUR: Préfixes Flyway en doublon: $dups"
+            exit 1
+          fi
+          echo "Migrations Flyway validées: $(ls backend/src/main/resources/db/migration/V*.sql | wc -l) fichiers"
+
+      - name: Contrôle absence de fichiers sensibles suivis & scan basique de secrets
+        run: |
+          forbidden=$(git ls-files | grep -iE '(^|/)\.env($|\.)|secret|\.pem$|\.p12$|\.jks$|\.key$' | grep -vE '\.env\.example$' || true)
+          if [ -n "$forbidden" ]; then
+            echo "ERREUR: Fichiers sensibles suivis par Git :"
+            echo "$forbidden"
+            exit 1
+          fi
+          if git grep -nE "BEGIN (RSA|EC|OPENSSH) PRIVATE KEY|gsk_[A-Za-z0-9]{20,}" -- . ':!.github/workflows/ci.yml'; then
+            echo "ERREUR: Clé privée ou secret réel détecté dans les fichiers suivis"
+            exit 1
+          fi
+
+  backend-unit-and-security:
+    name: 2. Backend Java 21, Tests & JaCoCo (>= 60%)
+    needs: prechecks
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup JDK 21 (Temurin)
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+          cache: maven
+
+      - name: Compilation, suite complète & vérification seuil JaCoCo (>= 60%)
+        run: |
+          mvn -B -f backend/pom.xml test jacoco:check -Djacoco.skip=false
+
+      - name: Archive rapport JaCoCo
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: backend-jacoco-report
+          path: backend/target/site/jacoco/
+          if-no-files-found: warn
+
+  postgres16-flyway-integration:
+    name: 3. Base de données PostgreSQL 16 & Flyway (V1..V20)
+    needs: prechecks
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_DB: ecourtier_ci
+          POSTGRES_USER: ecourtier_ci
+          POSTGRES_PASSWORD: ci_pg16_ephemeral_password
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd="pg_isready -U ecourtier_ci -d ecourtier_ci"
+          --health-interval=5s
+          --health-timeout=5s
+          --health-retries=10
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup JDK 21 (Temurin)
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+          cache: maven
+
+      - name: Tests Testcontainers PostgreSQL 16 (Flyway V1..V20, verrous & index)
+        run: |
+          mvn -B -f backend/pom.xml test -Decourtier.test.pg16=true -Dtest=FlywayFreshMigrationIntegrationTest,Postgres16Phase3IntegrationTest
+
+  frontend-quality:
+    name: 4. Frontend Node 20, ESLint, TypeScript & Build Vite
+    needs: prechecks
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Installation reproductible (npm ci)
+        run: npm --prefix frontend ci
+
+      - name: Lint ESLint strict (--max-warnings 0)
+        run: npm --prefix frontend run lint
+
+      - name: Vérification typage TypeScript
+        run: npx --prefix frontend tsc -p frontend/tsconfig.json --noEmit
+
+      - name: Build production Vite + PWA
+        run: npm --prefix frontend run build
+
+      - name: Archive build dist frontend
+        uses: actions/upload-artifact@v4
+        with:
+          name: frontend-dist
+          path: frontend/dist/
+
+  e2e-playwright:
+    name: 5. Tests E2E Playwright (Backend réel + Frontend)
+    needs: [backend-unit-and-security, frontend-quality]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup JDK 21 & Node 20
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+          cache: maven
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Installation dépendances frontend & navigateur Chromium Playwright
+        run: |
+          npm --prefix frontend ci
+          npx --prefix frontend playwright install --with-deps chromium
+
+      - name: Build frontend pointant sur backend E2E (127.0.0.1:18080)
+        env:
+          VITE_API_BASE_URL: http://127.0.0.1:18080
+        run: npm --prefix frontend run build
+
+      - name: Exécution tests E2E Playwright sur backend Spring Boot réel
+        env:
+          CI: "true"
+          ADMIN_BOOTSTRAP_PASSWORD: "AdminPass123!"
+          ADMIN_BOOTSTRAP_EMAIL: "admin@ecourtier.sn"
+          ECOURTIER_CORS_ALLOWED_ORIGINS: http://127.0.0.1:4173,http://localhost:4173
+          PLAYWRIGHT_BASE_URL: http://127.0.0.1:4173
+        run: |
+          mvn -B -f backend/pom.xml spring-boot:test-run \
+            -Dspring-boot.run.profiles=test \
+            -Dspring-boot.run.arguments="--server.port=18080" > backend-e2e.log 2>&1 &
+          BPID=$!
+          npx --prefix frontend vite preview --outDir frontend/dist --host 127.0.0.1 --port 4173 --strictPort > frontend-e2e.log 2>&1 &
+          VPID=$!
+          trap "kill $BPID $VPID 2>/dev/null || true" EXIT
+
+          for i in $(seq 1 60); do
+            if curl -sf http://127.0.0.1:18080/api/v1/health >/dev/null && curl -sf http://127.0.0.1:4173 >/dev/null; then
+              break
+            fi
+            sleep 2
+          done
+          curl -sf http://127.0.0.1:18080/api/v1/health
+          npx --prefix frontend playwright test --config frontend/playwright.config.ts e2e/phase2-security-ui.spec.ts e2e/phase3-real-backend.spec.ts
+
+      - name: Archive logs & captures en cas d'échec E2E
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-failure-diagnostics
+          path: |
+            backend-e2e.log
+            frontend-e2e.log
+            frontend/test-results/
+          if-no-files-found: ignore
+
+  docker-validate:
+    name: 6. Validation Dockerfiles & Docker Compose
+    needs: [backend-unit-and-security, frontend-quality]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Validation syntaxique docker-compose.yml et docker-compose.prod.yml
+        env:
+          POSTGRES_PASSWORD: ci_dummy_pg_password_check
+          JWT_SECRET: ci_dummy_jwt_secret_key_for_compose_config_validation_only_64chars
+          ADMIN_BOOTSTRAP_PASSWORD: ci_dummy_admin_password
+        run: |
+          docker compose -f docker-compose.yml config -q
+          docker compose -f docker-compose.prod.yml config -q
+
+      - name: Construction image production Backend
+        run: docker build -t ecourtier-backend:ci ./backend
+
+      - name: Construction image production Frontend (Nginx non-root)
+        run: docker build --build-arg VITE_API_BASE_URL=http://localhost:8080 -t ecourtier-frontend:ci ./frontend

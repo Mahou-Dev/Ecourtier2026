@@ -30,8 +30,8 @@ services:
       SPRING_DATASOURCE_URL: jdbc:postgresql://db:5432/${POSTGRES_DB:-ecourtier_db}
       SPRING_DATASOURCE_USERNAME: ${POSTGRES_USER:-ecourtier_user}
       SPRING_DATASOURCE_PASSWORD: ${POSTGRES_PASSWORD:-ecourtier_secure_pass_2026}
-      IA_PROVIDER: ${IA_PROVIDER:-gemini}
-      ADMIN_BOOTSTRAP_PASSWORD: ${ADMIN_BOOTSTRAP_PASSWORD:-AdminPass123!}
+      IA_PROVIDER: ${IA_PROVIDER:-groq}
+      ADMIN_BOOTSTRAP_PASSWORD: ${ADMIN_BOOTSTRAP_PASSWORD:-}
     ports:
       - "${BACKEND_PORT:-8080}:8080"
     volumes:
@@ -46,7 +46,7 @@ services:
   frontend:
     build:
       context: ./frontend
-      dockerfile: Dockerfile
+      dockerfile: Dockerfile.dev
     container_name: ecourtier-frontend
     restart: unless-stopped
     environment:

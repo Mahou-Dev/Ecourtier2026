@@ -1,347 +1,291 @@
-# 🇸🇳 E-Courtier Sénégal — Plateforme Immobilière Sécurisée
+# 🇸🇳 E-Courtier Sénégal — Plateforme Immobilière Sécurisée & Intelligente
 
 [![Spring Boot](https://img.shields.io/badge/Spring%20Boot-3.4.3-brightgreen.svg)](https://spring.io/projects/spring-boot)
-[![React](https://img.shields.io/badge/React-18.3.1-blue.svg)](https://react.dev/)
-[![Docker](https://img.shields.io/badge/Docker-Compose-blue)](https://www.docker.com/)
+[![Java](https://img.shields.io/badge/Java-21%20LTS-orange.svg)](https://adoptium.net/)
+[![React](https://img.shields.io/badge/React-19.0.0-blue.svg)](https://react.dev/)
+[![TypeScript](https://img.shields.io/badge/TypeScript-5.7-blue.svg)](https://www.typescriptlang.org/)
+[![Vite](https://img.shields.io/badge/Vite-6.2-purple.svg)](https://vitejs.dev/)
+[![PostgreSQL](https://img.shields.io/badge/PostgreSQL-16.15-blue.svg)](https://www.postgresql.org/)
+[![Flyway](https://img.shields.io/badge/Flyway-V1..V20-red.svg)](https://flywaydb.org/)
+[![JaCoCo](https://img.shields.io/badge/JaCoCo%20Line%20Coverage-86.85%25-brightgreen.svg)](backend/pom.xml)
+[![Playwright](https://img.shields.io/badge/Playwright%20E2E-10%2F10%20Pass-green.svg)](frontend/playwright.config.ts)
+[![CI/CD](https://img.shields.io/badge/GitHub%20Actions-CI%2FCD%20Ready-brightgreen.svg)](.github/workflows/ci.yml)
 [![License](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 
-E-Courtier Sénégal est une plateforme web immobilière sécurisée et transparente adaptée aux usages et réalités géographiques du marché sénégalais (Dakar, Thiès, Ziguinchor, Saly, Mbour, Saint-Louis).
+**E-Courtier Sénégal** est une plateforme web immobilière intelligente, sécurisée et adaptée aux réalités socio-économiques et géographiques du Sénégal (Dakar, Thiès, Ziguinchor, Saly, Mbour, Saint-Louis).  
+Développée dans le cadre d'un projet de fin d'études de **Licence 3 Ingénierie Informatique (2026)**, l'application résout les problématiques majeures du secteur locatif et transactionnel sénégalais : arnaques aux faux baux, doubles réservations, paiements sauvages de cautions non protégées et absence de vérification cadastrale.
 
 ---
 
-## 📋 Table des Matières
-1. [Description & Objectifs](#1-description--objectifs)
-2. [Architecture Technique & Stack](#2-architecture-technique--stack)
-3. [Diagrammes UML (Mermaid)](#3-diagrammes-uml-mermaid)
-4. [Comptes de Démonstration & Sécurité](#4-comptes-de-démonstration--sécurité)
-5. [Installation & Démarrage Rapide](#5-installation--démarrage-rapide)
-6. [Documentation API (OpenAPI & Postman)](#6-documentation-api-openapi--postman)
-7. [Couverture de Tests (JaCoCo)](#7-couverture-de-tests-jacoco)
-8. [Sécurité & Audit de Conformité](#8-sécurité--audit-de-conformité)
-9. [Spécificités du Marché Sénégalais](#9-spécificités-du-marché-sénégalais)
+## 📋 TABLE DES MATIÈRES
+
+1. [Problématiques & Solutions E-Courtier](#1-problématiques--solutions-e-courtier)
+2. [Architecture Technique & Stack Technologique](#2-architecture-technique--stack-technologique)
+3. [Dossier de Modélisation UML 2.5 (9 Modèles)](#3-dossier-de-modélisation-uml-25)
+4. [Pratique CI/CD & Pipeline Automatisé](#4-pratique-cicd--pipeline-automatisé)
+5. [Politique de Sécurité & Garde-Fous](#5-politique-de-sécurité--garde-fous)
+6. [Statut Réel des Intégrations (Transparence & Exclusion Wave)](#6-statut-réel-des-intégrations-transparence--exclusion-wave)
+7. [Installation & Démarrage Rapide](#7-installation--démarrage-rapide)
+8. [Campagne de Tests & Preuves de Non-Régression](#8-campagne-de-tests--preuves-de-non-régression)
+9. [Documentation des API (OpenAPI 3.0.1 & Swagger)](#9-documentation-des-api-openapi-301--swagger)
+10. [Guide de Démonstration Reproductible (Soutenance)](#10-guide-de-démonstration-reproductible-soutenance)
+11. [Comptes de Démonstration Pré-configurés](#11-comptes-de-démonstration-pré-configurés)
+12. [Déploiement en Production Cloud (Render & Docker Prod)](#12-déploiement-en-production-cloud-render--docker-prod)
 
 ---
 
-## 1. Description & Objectifs
+## 1. PROBLÉMATIQUES & SOLUTIONS E-COURTIER
 
-La recherche de logement au Sénégal fait souvent face à plusieurs défis :
-- Risques de fausses annonces et de double réservation.
-- Risques liés au versement direct de la caution et du premier loyer avant la signature effective du bail.
-- Absences de vérifications parcelles/NICAD et titres fonciers.
-- Retards dans la prise de rendez-vous de visite.
-
-**E-Courtier Sénégal** apporte des solutions concrètes :
-- **Vérification Administrative Stricte** : Téléversement des titres fonciers, baux précédents et pièces d'identité par les propriétaires, contrôlés par l'administration.
-- **Séquestre Automatisé (Wave Sandbox)** : Consignation sous séquestre de la caution + premier loyer en LOCATION, ou de l'acompte de réservation (10 % du prix) en VENTE, majorés des frais de dossier plateforme (5 000 FCFA). Les fonds sont libérés en faveur du bailleur/vendeur dès la double signature effective, la plateforme retenant les frais de dossier.
-- **Bail numérique avec double signature électronique** : Consentement mutuel horodaté des deux parties avec génération automatique d'un document récapitulatif PDF (contrat de bail en LOCATION, récapitulatif de réservation d'achat en VENTE).
-- **Assistant IA Immobilier Localisé** : Extraction intelligente des besoins en langage naturel (Wolof/Français), recommandations personnalisées et shortlist instantanée.
+| Défi Immobilier au Sénégal | Solution Technologique Apportée par E-Courtier |
+| :--- | :--- |
+| **Arnaques aux fausses annonces & usurpations** | Audit documentaire préalable des titres fonciers et baux (`DocumentVerificationEntity`), attribution contrôlée du **Badge Vérifié** par l'administration. |
+| **Versement sauvage de la caution avant signature** | **Séquestre numérique automatisé** : les fonds (caution + 1er loyer + 5 000 FCFA de frais) sont consignés sur un compte séquestre tiers de confiance avant tout engagement. |
+| **Litiges sur les conditions du bail** | **Génération atomique du contrat de bail officiel** (OpenPDF) avec horodatage certifié en heure de Dakar (`Africa/Dakar`) et double signature électronique mutuelle. |
+| **Recherche fastidieuse & barrière de la langue** | **Assistant IA Samba** : dialogue en langage naturel (Français et Wolof), extraction intelligente de critères et génération instantanée d'une shortlist de biens. |
+| **Concurrence & modifications simultanées** | **Verrouillage optimiste `@Version`** : détection et rejet immédiat des conflits d'édition concurrente (HTTP 409 Conflict). |
+| **Connexion instable ou zones blanches** | **Application Web Progressive (PWA)** avec Service Worker Workbox (61 ressources pré-cachées pour navigation fluide hors-ligne). |
 
 ---
 
-## 2. Architecture Technique & Stack
+## 2. ARCHITECTURE TECHNIQUE & STACK TECHNOLOGIQUE
 
 ```mermaid
 graph TD
-    Client[Navigateur Web / PWA React] -->|HTTPS / REST API| Backend[Spring Boot 3.4 API REST]
-    Backend -->|JPA / Hibernate| Postgres[(PostgreSQL 16 DB)]
-    Backend -->|Storage Local / Magic Bytes| Uploads[/Fichiers Médias & Documents/]
-    Backend -->|LangChain4j / Gemini REST| LLM[Services LLM IA Assistant]
+    User([Utilisateur / Locataire / Bailleur]) -->|HTTPS 443 / WSS| Nginx[Conteneur Nginx 1.27 Unprivileged (Port 8080)]
+    Nginx -->|Fichiers Statiques| SPA[Client SPA React 19 / TypeScript / Vite 6]
+    Nginx -->|Reverse-Proxy /api/v1| Spring[Backend Spring Boot 3.4.3 / Java 21 LTS]
+    Nginx -->|Reverse-Proxy /ws-ecourtier| WSServer[Serveur STOMP WebSocket]
+    Spring -->|JDBC HikariPool :5432| Postgres[(Base PostgreSQL 16.15 / Flyway V1..V20)]
+    Spring -->|Stockage Sécurisé Non-Root| FS[/app/uploads : Photos, Titres & Baux PDF/]
+    Spring -->|Requêtes sortantes HTTPS| Groq[API Cloud Groq : Llama-3.3-70b-versatile]
 ```
 
-- **Backend** : Java 21, Spring Boot 3.4.3, Spring Security, Spring Data JPA, Bean Validation, Bucket4j Rate Limiting, JaCoCo.
-- **Frontend** : React 18, Vite, TanStack Query (React Query v5), Lucide React, CSS Modern System, PWA ready.
-- **Base de Données** : PostgreSQL 16 Alpine avec contraintes `CHECK` strictes et Flyway Migrations (V1 à V11).
-- **Conteneurisation** : Docker & Docker Compose (`backend`, `frontend`, `db`).
+- **Backend** : Java 21 LTS, Spring Boot 3.4.3, Spring Security 6 (Filtre JWT sans état + vérification de `token_version`), Spring Data JPA, Hibernate 6, OpenPDF 2.0.2, Flyway 10, Bucket4j Bounded Rate Limiting.
+- **Frontend** : React 19.0.0, TypeScript 5.7, Vite 6.2, Tailwind CSS 3.4, TanStack React Query v5, Zustand, Lucide React, Leaflet 1.9, vite-plugin-pwa (Workbox).
+- **Base de Données** : PostgreSQL 16.15 avec 20 migrations Flyway séquentielles, contraintes d'intégrité, index partiels (`uq_transactions_annonce_active`) et table de verrous multi-instances (`scheduler_locks`).
+- **Conteneurisation** : Docker multi-stage durci (utilisateurs non-root : UID 101 pour Nginx, UID 1000 pour Spring Boot).
 
 ---
 
-## 3. Diagrammes UML (Mermaid)
+## 3. DOSSIER DE MODÉLISATION UML 2.5
 
-### 3.1 Diagramme des Cas d'Utilisation (Use Cases)
+L'ensemble des modèles UML est disponible dans le répertoire [`ECOURTIER_UML_DELIVERABLES/`](ECOURTIER_UML_DELIVERABLES/) au format source PlantUML (`.puml`) et rendus vectoriels haute fidélité (`.svg`) :
 
-```mermaid
-usecaseDiagram
-    actor Locataire as "Locataire"
-    actor Proprio as "Propriétaire"
-    actor Agent as "Agent Immob. / Admin"
-
-    package "Plateforme E-Courtier Sénégal" {
-        usecase UC1 as "Rechercher Annonces (Filtres & Proximité)"
-        usecase UC2 as "Discuter avec l'Assistant IA"
-        usecase UC3 as "Demander un RDV de Visite"
-        usecase UC4 as "Publier & Gérer ses Annonces"
-        usecase UC5 as "Téléverser Titre Foncier / NICAD"
-        usecase UC6 as "Valider la Vérification Cadastrale"
-        usecase UC7 as "Payer la Caution en Séquestre"
-        usecase UC8 as "Signer Numériquement le Bail"
-        usecase UC9 as "Laisser un Avis (post-visite)"
-        usecase UC10 as "Signaler une Annonce Suspecte"
-    }
-
-    Locataire --> UC1
-    Locataire --> UC2
-    Locataire --> UC3
-    Locataire --> UC7
-    Locataire --> UC8
-    Locataire --> UC9
-    Locataire --> UC10
-
-    Proprio --> UC4
-    Proprio --> UC5
-    Proprio --> UC8
-
-    Agent --> UC6
-    Agent --> UC10
-```
+| N° | Diagramme | Fichier Source | Rendu Vectoriel Web | Description Technique |
+| :---: | :--- | :--- | :--- | :--- |
+| **01** | **Cas d'Utilisation** | [`use_cases_ecourtier.puml`](ECOURTIER_UML_DELIVERABLES/use_cases_ecourtier.puml) | [`svg/use_cases_ecourtier.svg`](ECOURTIER_UML_DELIVERABLES/svg/use_cases_ecourtier.svg) | Modélisation des rôles Visiteur, Locataire, Propriétaire et Administrateur. |
+| **02** | **Classes Métier** | [`class_diagram_domain.puml`](ECOURTIER_UML_DELIVERABLES/class_diagram_domain.puml) | [`svg/class_diagram_domain.svg`](ECOURTIER_UML_DELIVERABLES/svg/class_diagram_domain.svg) | Entités JPA complètes, champs, enums, cardinalités et verrou optimiste `@Version`. |
+| **03** | **Séquence Auth & JWT** | [`sequence_auth_jwt_rotation.puml`](ECOURTIER_UML_DELIVERABLES/sequence_auth_jwt_rotation.puml) | [`svg/sequence_auth_jwt_rotation.svg`](ECOURTIER_UML_DELIVERABLES/svg/sequence_auth_jwt_rotation.svg) | Rotation stricte des Refresh Tokens, détection de rejeu et révocation de session. |
+| **04** | **Séquence Séquestre** | [`sequence_escrow_lifecycle.puml`](ECOURTIER_UML_DELIVERABLES/sequence_escrow_lifecycle.puml) | [`svg/sequence_escrow_lifecycle.svg`](ECOURTIER_UML_DELIVERABLES/svg/sequence_escrow_lifecycle.svg) | Blocage des fonds Wave Sandbox et déblocage automatique après double signature. |
+| **05** | **Séquence Bail PDF** | [`sequence_bail_pdf_signature.puml`](ECOURTIER_UML_DELIVERABLES/sequence_bail_pdf_signature.puml) | [`svg/sequence_bail_pdf_signature.svg`](ECOURTIER_UML_DELIVERABLES/svg/sequence_bail_pdf_signature.svg) | Écriture atomique temporaire `.pdf.tmp` et reprise automatique par scheduler. |
+| **06** | **Architecture Composants** | [`component_architecture.puml`](ECOURTIER_UML_DELIVERABLES/component_architecture.puml) | [`svg/component_architecture.svg`](ECOURTIER_UML_DELIVERABLES/svg/component_architecture.svg) | Découplage C4 Level 2 : SPA React, passerelle sécurité, services et persistance. |
+| **07** | **Topologie Déploiement** | [`deployment_topology.puml`](ECOURTIER_UML_DELIVERABLES/deployment_topology.puml) | [`svg/deployment_topology.svg`](ECOURTIER_UML_DELIVERABLES/svg/deployment_topology.svg) | Conteneurs durcis, utilisateurs non-root et isolation du port PostgreSQL 5432. |
+| **08** | **Machine à États** | [`state_machine_annonces_transactions.puml`](ECOURTIER_UML_DELIVERABLES/state_machine_annonces_transactions.puml) | [`svg/state_machine_annonces_transactions.svg`](ECOURTIER_UML_DELIVERABLES/svg/state_machine_annonces_transactions.svg) | Automates d'états : Annonces (`DISPONIBLE`/`SUSPENDUE`) et Séquestre (`BLOQUE`/`LIBERE`). |
+| **09** | **Architecture CI/CD** | [`cicd_pipeline_architecture.puml`](ECOURTIER_UML_DELIVERABLES/cicd_pipeline_architecture.puml) | [`svg/cicd_pipeline_architecture.svg`](ECOURTIER_UML_DELIVERABLES/svg/cicd_pipeline_architecture.svg) | Pipeline GitHub Actions en 6 phases avec barrière manuelle de livraison Staging. |
 
 ---
 
-### 3.2 Diagramme de Classes Métier (Domain Model)
+## 4. PRATIQUE CI/CD & PIPELINE AUTOMATISÉ
 
-```mermaid
-classDiagram
-    class UtilisateurEntity {
-        +UUID id
-        +String nom
-        +String prenom
-        +String email
-        +String motDePasse
-        +String telephone
-        +Role role
-        +Boolean actif
-    }
+Le dépôt intègre deux pipelines automatisés GitHub Actions :
 
-    class AnnonceEntity {
-        +UUID id
-        +String titre
-        +String description
-        +TypeBien type
-        +ModeTransaction modeTransaction
-        +BigDecimal prix
-        +Double superficie
-        +Integer nombrePieces
-        +Integer etage
-        +String quartier
-        +String ville
-        +StatutVerification statutVerification
-        +StatutPublication statutPublication
-        +Boolean meuble
-        +Boolean supprime
-    }
-
-    class DocumentVerificationEntity {
-        +UUID id
-        +TypeDocumentVerification typeDocument
-        +String url
-        +StatutDocument statut
-    }
-
-    class TransactionEntity {
-        +UUID id
-        +BigDecimal montantCaution
-        +StatutSequestre statutSequestre
-        +StatutBail statutBail
-        +LocalDateTime dateSignatureLocataire
-        +LocalDateTime dateSignatureProprietaire
-    }
-
-    class AvisEntity {
-        +UUID id
-        +Integer note
-        +String commentaire
-        +LocalDateTime dateCreation
-    }
-
-    UtilisateurEntity "1" -- "*" AnnonceEntity : possède
-    AnnonceEntity "1" -- "*" DocumentVerificationEntity : contient
-    AnnonceEntity "1" -- "*" TransactionEntity : concerne
-    AnnonceEntity "1" -- "*" AvisEntity : reçoit
-    UtilisateurEntity "1" -- "*" AvisEntity : rédige
-```
+1. **Intégration Continue (CI)** — [`.github/workflows/ci.yml`](.github/workflows/ci.yml) :
+   - **Étape 1 : Précontrôles & Sécurité** : Vérification d'arborescence, unicité stricte des préfixes Flyway V1 à V20, scan anti-fuite de secrets (`git ls-files`).
+   - **Étape 2 : Backend Java 21** : Compilation Maven, 395 tests unitaires et d'intégration, vérification bloquante JaCoCo (seuil minimum 60% de lignes couvertes).
+   - **Étape 3 : Base de données PostgreSQL 16 réelle** : Exécution Testcontainers sur schéma vierge des 20 migrations Flyway, vérification des index partiels et des verrous de concurrence.
+   - **Étape 4 : Frontend Node 20 & Qualité** : Linter ESLint strict (`--max-warnings 0`), typage TypeScript (`tsc --noEmit`), build Vite PWA (61 ressources pré-cachées).
+   - **Étape 5 : Tests de Bout en Bout Playwright** : Démarrage conjoint du backend réel (port 18080) et du preview Vite (port 4173), exécution des 10 scénarios E2E.
+   - **Étape 6 : Validation des Conteneurs Docker** : Validation syntaxique Docker Compose (`dev` et `prod`), construction des images de production.
+2. **Livraison Continue (CD)** — [`.github/workflows/cd-release.yml`](.github/workflows/cd-release.yml) :
+   - Packaging et signature des artefacts (JAR Spring Boot, bundle Nginx SPA, contrat OpenAPI 3.0.1).
+   - Barrière manuelle d'approbation avant tout déploiement sur l'environnement Staging.
 
 ---
 
-### 3.3 Diagramme de Séquence (Séquestre & Signature de Bail)
+## 5. POLITIQUE DE SÉCURITÉ & GARDE-FOUS
 
-```mermaid
-sequenceDiagram
-    autonumber
-    actor Locataire
-    actor Proprio
-    participant API as Backend Spring Boot
-    participant DB as Base PostgreSQL
-
-    Locataire->>API: POST /api/v1/annonces/{id}/transactions (Initie réserv.)
-    Note over API: Calcul serveur déterministe :<br/>LOCATION : caution + 1er loyer + 5 000 FCFA frais<br/>VENTE : acompte (10 % du prix, arrondi au franc) + 5 000 FCFA frais
-    API->>DB: Sauvegarde Transaction (statutSequestre = INITIALISE)
-    Locataire->>API: POST /api/v1/transactions/{id}/paiement-caution
-    Note over API: Paiement simulé Wave Sandbox<br/>Montant total séquestre consigné
-    API->>DB: MAJ statutSequestre = BLOQUE
-    Proprio->>API: POST /api/v1/transactions/{id}/bail/signer (Propriétaire / Vendeur)
-    API->>DB: Enregistre dateSignatureProprietaire, statutBail = SIGNE_PROPRIETAIRE
-    Locataire->>API: POST /api/v1/transactions/{id}/bail/signer (Locataire / Acheteur)
-    API->>DB: Enregistre dateSignatureLocataire, statutBail = SIGNE_COMPLET
-    Note over API: Déclenchement automatique de libération :<br/>LOCATION : bailleur reçoit (Caution + 1er loyer) ; VENTE : vendeur reçoit l'acompte (10 %)<br/>Plateforme conserve les frais de dossier (5 000 FCFA)
-    API->>DB: MAJ statutSequestre = LIBERE, Annonce = LOUEE/VENDUE
-    API-->>Locataire: Document récapitulatif PDF horodaté & séquestre libéré
-```
+1. **Authentification & Double Token** : Access Token JWT courte durée (15 min) avec claim `tv` (version de jeton) couplé à un Refresh Token opaque 256 bits haché en SHA-256 (7 jours).
+2. **Révocation Instantanée** : La déconnexion, le changement de mot de passe ou la désactivation d'un compte incrémente `token_version` en base, invalidant immédiatement tous les JWT en circulation et coupant les sessions WebSocket STOMP sans attendre l'expiration naturelle.
+3. **Protection Anti-Rejeu (Replay Attack)** : Toute réutilisation d'un Refresh Token déjà consommé entraîne l'invalidation automatique de toute la famille de jetons et la déconnexion d'urgence.
+4. **Anti-Brute-Force & Rate Limiting Bounded** : Limitation en mémoire bornée (`BoundedRateLimiterSupport`, capacité maximale 10 000 entrées) sur `/connexion`, `/rafraichir-token` et `/chat` pour prémunir le serveur contre l'épuisement mémoire.
+5. **Contrôle Strict en Production (`ProductionConfigurationValidator`)** : En profil `prod`, démarrage bloqué si le secret JWT fait moins de 32 caractères, s'il fait partie d'une liste de secrets triviaux connus, ou si la base de données pointe vers H2.
+6. **Suppression Logique & Isolation** : Les annonces avec `supprime = true` sont totalement invisibles des recherches publiques et de l'API utilisateur.
 
 ---
 
-## 4. Comptes de Démonstration & Sécurité
+## 6. STATUT RÉEL DES INTÉGRATIONS (TRANSPARENCE & EXCLUSION WAVE)
 
-> [!CAUTION]
-> **AVERTISSEMENT STRICT DE SÉCURITÉ**  
-> Les comptes ci-dessous et le processeur `DataSeedRunner` sont **strictement réservés à l'environnement de développement local (`--spring.profiles.active=dev`)**.  
-> Ils ne doivent **JAMAIS** exister sur un environnement de production réel. En profil `prod`, le runner de seed est complètement désactivé par l'annotation `@Profile("dev")` et une garde explicite.
+Conformément à la déontologie d'audit et aux consignes du projet :
+- **Intégration Wave Money** : **TOTALEMENT EXCLUE DU PÉRIMÈTRE DE MODIFICATION**.
+  - Le système de paiement séquestre fonctionne à travers l'implémentation de simulation sandbox **`WaveClientMock.java`**.
+  - **Aucun appel réseau réel n'est effectué vers l'infrastructure de production Wave**.
+  - Aucune clé secrète Wave de production n'est stockée ni manipulée.
+  - Tous les flux financiers sont rigoureusement vérifiés et modélisés en environnement de démonstration sandbox.
+- **Assistant IA Samba** : Intégration hybride avec client HTTP direct vers l'API Cloud **Groq (Llama-3.3-70b-versatile)** protégée par un rate limiter et doublée d'un moteur d'extraction heuristique local (`RuleBasedCriteriaExtractor.java`) en cas d'indisponibilité réseau.
+- **Rappels SMS de Visite** : Enregistrés en base de données et tracés pour démonstration via `rappelSmsEnvoye = true` sans surcoût d'opérateur télécom externe.
 
-Tous les mots de passe de démonstration respectent la politique de sécurité (minimum 8 caractères, au moins une majuscule et un chiffre) :
+---
 
-| Rôle | Email | Mot de Passe |
-| :--- | :--- | :--- |
-| **Admin System** | `admin@ecourtier.sn` | `AdminPass123!` |
-| **Agent Agréé** | `agent@ecourtier.sn` | `AgentPass123!` |
-| **Propriétaire** | `proprio.demo@ecourtier.sn` | `ProprioPass123!` |
-| **Locataire** | `locataire.demo@ecourtier.sn` | `LocatairePass123!` |
-
-### 4.1 Rôle Agent Immobilier & Mandat Implicite
-
-Dans E-Courtier, les comptes ayant le rôle **AGENT** (courtier agréé) sont créés exclusivement par l'administrateur de la plateforme via la route `POST /api/v1/admin/utilisateurs` et l'interface `/admin/utilisateurs` (les inscriptions publiques ne permettent pas de s'auto-attribuer le statut d'agent).
-
-- **Mandat implicite** : Un agent immobilier agit en tant que mandataire pour les biens qu'il publie (il dispose des mêmes prérogatives qu'un propriétaire pour la création, la modification, le téléversement des pièces justificatives et le suivi des visites, sans nécessiter de module formel de gestion de mandats).
-- **Transparence publique** : Le rôle de l'auteur (`auteurRole`) est exposé dans tous les DTO d'annonces (`AnnonceResponseDTO`), et les fiches détaillées ainsi que les cartes de recherche affichent le badge distinctif **« Publié par un agent immobilier »**.
-
-## 5. Installation & Démarrage Rapide
+## 7. INSTALLATION & DÉMARRAGE RAPIDE
 
 ### Préréquis
 - Docker Desktop & Docker Compose v2+
 - Git
+- JDK 21 & Node.js 20+ (uniquement en cas de développement hors Docker)
 
-### Démarrage en une seule commande
+### Option A — Démarrage en Conteneurs de Développement (Recommandé)
 
 ```bash
 git clone https://github.com/Mahou-Dev/Ecourtier2026.git
 cd Ecourtier2026
 
-# Démarrer l'ensemble des services (PostgreSQL, Backend Spring Boot, Frontend Vite)
-docker compose up --build -d
+# Démarrer la stack de développement complète
+docker compose up --build
 ```
+- **Frontend SPA (Vite Hot-Reload)** : `http://localhost:3000`
+- **Backend API Spring Boot** : `http://localhost:8080`
+- **Swagger UI** : `http://localhost:8080/swagger-ui.html`
+- **Documentation OpenAPI JSON** : `http://localhost:8080/openapi.json`
 
-Accès aux services :
-- **Frontend App** : `http://localhost:3000`
-- **Backend API REST** : `http://localhost:8080`
-- **Documentation Swagger UI** : `http://localhost:8080/swagger-ui.html`
-- **Spécification OpenAPI JSON** : `http://localhost:8080/openapi.json`
+### Option B — Démarrage en Conteneurs Durcis de Production
 
----
-
-## 6. Documentation API (OpenAPI & Postman)
-
-- **Spécification OpenAPI 3.0** : Disponible dans [`docs/openapi.json`](docs/openapi.json) et embarquée sous `/openapi.json`.
-- **Collection Postman v2.1** : Fichier [`docs/E-Courtier.postman_collection.json`](docs/E-Courtier.postman_collection.json).
-  - Inclut le script de test automatique sur `POST /api/v1/auth/connexion` extrait et définit automatiquement la variable `{{accessToken}}` pour toutes les requêtes sécurisées de la collection.
-
----
-
-## 7. Couverture de Tests (JaCoCo)
-
-La couverture de code par tests automatisés sur l'ensemble du backend dépasse les **60% exigés** par le cahier des charges.
-
-Pour exécuter le rapport JaCoCo localement :
 ```bash
-cd backend
-mvn test jacoco:report
+# Générer un secret JWT sécurisé pour le test
+export POSTGRES_PASSWORD="MonMotDePassePostgresSecurise2026!"
+export JWT_SECRET="uneCleSecreteTresLongueEtEntropiqueDeProduction2026_Minimum64Caracteres!"
+export ADMIN_BOOTSTRAP_PASSWORD="MonSuperMotDePasseAdmin2026!"
+
+docker compose -f docker-compose.prod.yml up --build -d
+```
+- **Application Web Sécurisée (Nginx Non-Root)** : `http://localhost:8080`
+
+---
+
+## 8. CAMPAGNE DE TESTS & PREUVES DE NON-RÉGRESSION
+
+Toutes les suites de tests sont automatisées, reproductibles et s'exécutent en local comme en intégration continue :
+
+### 8.1 Tests Backend & Couverture JaCoCo
+
+```bash
+mvn -f backend/pom.xml test jacoco:check
+```
+- **Résultat Lot 5 :** `395 tests exécutés, 0 échec, 0 erreur`.
+- **Couverture de code JaCoCo :** **86.85% de lignes couvertes** (seuil requis >= 60%).
+
+### 8.2 Tests de Persistance PostgreSQL 16 (Testcontainers)
+
+```bash
+mvn -f backend/pom.xml test -Decourtier.test.pg16=true -Dapi.version=1.44 -Dtest=FlywayFreshMigrationIntegrationTest,Postgres16Phase3IntegrationTest
+```
+- **Validation :** 20 migrations Flyway appliquées avec succès sur moteur PostgreSQL 16.15 officiel.
+
+### 8.3 Contrôles Frontend (Lint & Types)
+
+```bash
+# Contrôle ESLint strict (zéro avertissement toléré)
+npm --prefix frontend run lint
+
+# Vérification du typage statique TypeScript
+npx --prefix frontend tsc -p frontend/tsconfig.json --noEmit
+
+# Build de production Vite & PWA
+npm --prefix frontend run build
+```
+
+### 8.4 Tests de Bout en Bout E2E Playwright
+
+```bash
+# Exécution de la suite complète E2E sur backend réel
+bash .github/scripts/run_e2e_local.sh # ou via le script de test
+npx --prefix frontend playwright test --config frontend/playwright.config.ts e2e/phase2-security-ui.spec.ts e2e/phase3-real-backend.spec.ts
+```
+- **Résultat Lot 5 :** `10/10 tests passés avec succès` (séquestre Wave, double signature, révocation, lock 409).
+
+---
+
+## 9. DOCUMENTATION DES API (OPENAPI 3.0.1 & SWAGGER)
+
+Le contrat d'API REST est formalisé selon la spécification **OpenAPI 3.0.1** :
+- Fichier racine : [`docs/openapi.json`](docs/openapi.json)
+- Fichier embarqué backend : `backend/src/main/resources/static/openapi.json`
+- **Synchronisation vérifiée :** Test d'intégration automatisé `OpenApiContractIntegrationTest.java` garantissant l'égalité stricte des sommes de contrôle SHA-256.
+- Interface interactive Swagger UI : accessible sur `http://localhost:8080/swagger-ui.html` en local.
+
+---
+
+## 10. GUIDE DE DÉMONSTRATION REPRODUCTIBLE (SOUTENANCE)
+
+Voici le scénario fluide et sans accroc recommandé pour la soutenance devant le jury :
+
+```text
+SCÉNARIO DÉMONSTRATION EN 7 ÉTAPES CLÉS (DURÉE : 12-15 MINUTES)
+
+1. Découverte Visiteur & Recherche Avancée :
+   - Accéder à la page d'accueil (http://localhost:3000).
+   - Explorer la carte interactive Leaflet (quartiers Almadies, Mermoz, Fann).
+   - Appliquer des filtres combinés : Appartement, Budget 200 000 - 500 000 FCFA, Meublé.
+
+2. Interaction avec l'Assistant IA Samba :
+   - Ouvrir la bulle de chat en bas à droite.
+   - Poser une question en langage naturel : « Je cherche un studio meublé à Dakar avec parking pour 300 000 FCFA ».
+   - Observer l'extraction des critères par le modèle IA et l'affichage de la shortlist ciblée.
+
+3. Connexion Locataire & Prise de Rendez-vous :
+   - Se connecter avec le compte locataire de démo (locataire.demo@ecourtier.sn / LocatairePass123!).
+   - Choisir une annonce, sélectionner une date de visite et valider la demande.
+   - Observer la création du rendez-vous et le traçage du rappel SMS.
+
+4. Initiation de Transaction & Paiement du Séquestre :
+   - Depuis la fiche détaillée, cliquer sur « Louer ce bien / Démarrer le dossier ».
+   - Constater le détail des montants calculés côté serveur : Caution + Premier Loyer + 5 000 FCFA.
+   - Cliquer sur « Payer le séquestre (Wave Sandbox) ».
+   - Observer le changement immédiat d'état vers 'SÉQUESTRE BLOQUÉ' et le déverrouillage de la signature.
+
+5. Double Signature du Bail Électronique & Génération PDF :
+   - Signer en tant que Locataire (validation horodatée en heure de Dakar).
+   - Ouvrir une session Propriétaire (proprio.demo@ecourtier.sn / ProprioPass123!) dans un autre onglet.
+   - Le propriétaire signe à son tour le bail.
+   - Observer le déclenchement immédiat de la libération des fonds (statut 'LIBÉRÉ') et le passage de l'annonce à 'LOUÉE'.
+   - Télécharger et ouvrir le document officiel PDF généré par OpenPDF.
+
+6. Démonstration de Robustesse Concurrente (@Version Lock) :
+   - Tenter de modifier simultanément la même annonce depuis deux fenêtres.
+   - Constater le rejet élégant HTTP 409 Conflict sur la seconde sauvegarde avec invitation à actualiser.
+
+7. Espace Administration & Contrôle :
+   - Se connecter en Administrateur (admin@ecourtier.sn / AdminPass123!).
+   - Consulter la page de vérification des documents légaux (titres fonciers).
+   - Suspendre puis réactiver une annonce (vérification de la machine à états CA3-004).
+   - Consulter le tableau de bord financier avec le volume séquestré et les commissions perçues.
 ```
 
 ---
 
-## 8. Sécurité & Audit de Conformité
+## 11. COMPTES DE DÉMONSTRATION PRÉ-CONFIGURÉS
 
-1. **Anti-Énumération & Rate Limiting** : Endpoint `/api/v1/auth/connexion` protégé par `LoginRateLimiterService` (5 essais max par IP/Email puis blocage HTTP 429).
-2. **Inspection Binaire (Magic Bytes)** : Vérification stricte des en-têtes binaires sur les téléversements d'images (`JPEG`, `PNG`, `WEBP`) empêchant le renommage de scripts malveillants.
-3. **Protection des Documents de Vérification** : Accès au fichier physique restreint exclusivement au propriétaire de l'annonce et aux administrateurs (HTTP 403 pour les tiers).
-4. **Suppression Logique (Soft-Delete)** : Exclusions systématiques des annonces avec `supprime = true` sur la recherche publique.
-5. **Double-Signature de Bail** : Verrouillage irrévocable empêchant la modification de bail après signature finale.
-6. **DataSeed Protection** : Runner strictement annoté `@Profile("dev")`.
+> [!NOTE]  
+> Ces comptes sont injectés automatiquement en environnement de développement (`--spring.profiles.active=dev`) par `DemoDataSeederService.java`. En environnement `prod`, ce service est **strictement désactivé**.
 
----
-
-## 9. Spécificités du Marché Sénégalais & Règles de Séquestre
-
-- **Fonctionnement du Séquestre Implémenté (Wave Sandbox & Bail numérique avec double signature électronique)** :
-  - **LOCATION** :
-    - `montantCaution` = 1 mois de loyer (égal au loyer mensuel affiché sur l'annonce).
-    - `montantPremierLoyer` = 1 mois de loyer (premier mois de loyer).
-    - `fraisDossier` = Frais fixes de dossier de la plateforme (`5 000 FCFA`).
-    - `montantTotalSequestre` = `montantCaution + montantPremierLoyer + 5 000 FCFA` (consignés via paiement simulé Wave Sandbox).
-    - **Libération** : Dès la double signature du bail numérique (`SIGNE_COMPLET`), la caution et le premier loyer (`montantVerseProprietaire = montantCaution + montantPremierLoyer`) sont libérés pour le propriétaire, tandis que la plateforme retient les `5 000 FCFA` de frais de dossier. Le PDF généré porte la mention « *Document récapitulatif généré par la plateforme* ».
-  - **VENTE** :
-    - `montantPremierLoyer` = `0 FCFA` (sans objet pour les ventes).
-    - `montantCaution` = Acompte de réservation = `prix × ecourtier.vente.acompte-pourcentage / 100` (défaut `10 %`, arrondi au franc via `HALF_UP`).
-    - `fraisDossier` = `5 000 FCFA` forfaitaires.
-    - `montantTotalSequestre` = `acompte + 5 000 FCFA`.
-    - **Libération** : À la double signature électronique, l'acompte (`montantCaution`) est libéré pour le vendeur, la plateforme conserve les `5 000 FCFA` de frais de dossier, l'annonce passe au statut `VENDUE`, et un PDF intitulé « *RÉCAPITULATIF DE RÉSERVATION D'ACHAT* » est généré avec la mention « *Document récapitulatif généré par la plateforme ; il ne constitue pas un acte de vente* ».
-  - **Calcul serveur exclusif** : Tous les montants sont calculés côté serveur dans `TransactionService` à partir du prix de l'annonce en base ; toute valeur transmise par le client est ignorée.
-- **Référentiel Géographique Local** : Prise en compte fine des quartiers phares de Dakar (Almadies, Mermoz, Sacré-Cœur, Médina, Fann), Thiès (Dixième), Ziguinchor (Boucotte, Nema), Saly, Mbour, Saint-Louis.
-- **Proximités Stratégiques** : BRT (Bus Rapid Transit), UCAD, Plage, Écoles, Hôpitaux.
-
----
-
-## 10. 🚀 Déploiement en Production sur Render (render.com)
-
-Le projet E-Courtier Sénégal est prêt pour un déploiement cloud automatisé sur **Render (render.com)** via Infrastructure as Code (Blueprint `render.yaml`).
-
-### 10.1 Architecture du Blueprint Render (`render.yaml`)
-
-Le fichier `render.yaml` à la racine du dépôt définit 3 services isolés :
-1. **Base de Données PostgreSQL Gérée (`ecourtier-db`)** : Plan Free, région Frankfurt (`frankfurt`).
-2. **Backend Web Service (`ecourtier-backend`)** : Runtime Docker multi-stage (`backend/Dockerfile`), standalone JAR Java 21.
-3. **Frontend Static Site (`ecourtier-frontend`)** : Build Command `npm run build`, Publish Directory `dist`, Root Directory `frontend`.
-
-### 10.2 Variables d'Environnement de Production (Dashboard Render)
-
-| Variable | Service | Source / Valeur | Description |
+| Rôle Utilisateur | Adresse Email | Mot de Passe | Prérogatives |
 | :--- | :--- | :--- | :--- |
-| `SPRING_PROFILES_ACTIVE` | Backend | `prod` | Active les optimisations de prod (seed auto désactivé) |
-| `SPRING_DATASOURCE_URL` | Backend | `fromDatabase(ecourtier-db, connectionString)` | URL JDBC de la base PostgreSQL |
-| `SPRING_DATASOURCE_USERNAME` | Backend | `fromDatabase(ecourtier-db, user)` | Utilisateur PostgreSQL |
-| `SPRING_DATASOURCE_PASSWORD` | Backend | `fromDatabase(ecourtier-db, password)` | Mot de passe PostgreSQL |
-| `JWT_SECRET` | Backend | Auto-généré (64+ chars) | Clé de signature HMAC des jetons JWT |
-| `IA_API_KEY` | Backend | Saisie manuelle | Clé API Google Gemini |
-| `ADMIN_BOOTSTRAP_EMAIL` | Backend | `admin@ecourtier.sn` | Email du compte admin initial |
-| `ADMIN_BOOTSTRAP_PASSWORD` | Backend | Saisie manuelle forte | Mot de passe administrateur prod (ex: `P@sswordProd2026!`) |
-| `ECOURTIER_CORS_ALLOWED_ORIGINS` | Backend | `fromService(ecourtier-frontend, url)` | Origine autorisée pour CORS |
-| `ECOURTIER_RDV_RAPPEL_CRON` | Backend | `0 0 9 * * *` (optionnel) | Expression cron du rappel quotidien des visites (zone `Africa/Dakar`) |
-| `ECOURTIER_VENTE_ACOMPTE_POURCENTAGE` | Backend | `10` (optionnel) | Pourcentage d'acompte de réservation appliqué en mode `VENTE` |
-| `VITE_API_BASE_URL` | Frontend | `fromService(ecourtier-backend, url)` | URL du backend pour le client React |
+| **Administrateur** | `admin@ecourtier.sn` | `AdminPass123!` | Audit documents fonciers, modération utilisateurs, stats financières. |
+| **Agent Immobilier** | `agent@ecourtier.sn` | `AgentPass123!` | Dépôt de mandats, gestion d'annonces avec badge « Agent agréé ». |
+| **Propriétaire Démo** | `proprio.demo@ecourtier.sn` | `ProprioPass123!` | Publication de biens, acceptation de visites, signature de bail, encaissement. |
+| **Locataire Démo** | `locataire.demo@ecourtier.sn` | `LocatairePass123!` | Favoris, réservation de visites, consignation séquestre, signature bail. |
 
-> [!IMPORTANT]
-> **Mot de Passe Bootstrap Admin en Production** : Le mot de passe dev `AdminPass123!` ne doit **JAMAIS** être réutilisé en production. Définissez un mot de passe fort via la variable `ADMIN_BOOTSTRAP_PASSWORD` dans le dashboard Render.
+---
 
-### 10.3 Procédure Post-Déploiement : Peuplement Manuel de Démonstration
+## 12. DÉPLOIEMENT EN PRODUCTION CLOUD (RENDER & DOCKER PROD)
 
-En environnement de production, `DataSeedRunner` est désactivé (`@Profile("dev")`). Pour alimenter la base de données vide lors du premier déploiement :
+Le projet intègre un blueprint Infrastructure as Code [`render.yaml`](render.yaml) configuré pour un déploiement clé en main sur la plateforme **Render** :
+1. **Service Web Backend** : image Docker Java 21 non-root, validation automatique des secrets au démarrage.
+2. **Site Statique Frontend** : bundle Nginx SPA avec routage HTML5 et politique de sécurité HSTS/CSP.
+3. **Base de Données Managée** : PostgreSQL 16 isolé avec sauvegarde automatique.
 
-1. **Connexion Administrateur** :
-   ```bash
-   curl -X POST https://ecourtier-backend.onrender.com/api/v1/auth/connexion \
-     -H "Content-Type: application/json" \
-     -d '{"email": "admin@ecourtier.sn", "motDePasse": "<VOTRE_ADMIN_BOOTSTRAP_PASSWORD>"}'
-   ```
-2. **Déclenchement du Seed Idempotent** :
-   ```bash
-   curl -X POST https://ecourtier-backend.onrender.com/api/v1/admin/seed-demo \
-     -H "Authorization: Bearer <TOKEN_ADMIN_OBTENU>"
-   ```
-   *L'endpoint `POST /api/v1/admin/seed-demo` vérifie qu'aucune annonce n'existe avant d'insérer les annonces et comptes de démo. Toute tentative ultérieure renverra une confirmation idempotente sans réinsérer de doublons.*
+---
 
-### 10.4 URLs Déployées & Avertissement Démarrage à Froid
+## 📄 LICENCE & MENTIONS ACADÉMIQUES
 
-- **Frontend App** : `https://ecourtier-frontend.onrender.com`
-- **Backend Service** : `https://ecourtier-backend.onrender.com`
-- **Swagger UI** : `https://ecourtier-backend.onrender.com/swagger-ui.html`
-
-> [!WARNING]
-> **Délai de Démarrage à Froid (Cold Start)**  
-> Sur le plan gratuit de Render, le service Web s'endort après 15 minutes d'inactivité. Le tout premier appel API après une période de sommeil peut nécessiter **30 à 60 secondes** le temps d'instancier le conteneur Docker Java 21. Les appels suivants répondent instantanément.
-
+Projet réalisé dans le cadre de la Licence 3 Ingénierie Informatique (2026).  
+Code distribué sous licence MIT. Tous droits réservés pour les marques et référentiels officiels de l'État du Sénégal.

@@ -34,6 +34,12 @@ services:
         value: admin@ecourtier.sn
       - key: ADMIN_BOOTSTRAP_PASSWORD
         sync: false
+      - key: IA_ENABLED
+        value: "true"
+      - key: IA_PROVIDER
+        value: groq
+      - key: GROQ_API_KEY
+        sync: false
       - key: IA_API_KEY
         sync: false
       - key: ECOURTIER_CORS_ALLOWED_ORIGINS
@@ -43,7 +49,7 @@ services:
   - type: web
     name: ecourtier-frontend
     runtime: static
-    buildCommand: npm run build
+    buildCommand: npm ci && npm run build
     staticPublishPath: dist
     rootDir: frontend
     routes:

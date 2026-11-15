@@ -1,0 +1,62 @@
+services:
+  db:
+    image: postgres:16-alpine
+    container_name: ecourtier-db-prod
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-ecourtier_db}
+      POSTGRES_USER: ${POSTGRES_USER:-ecourtier_user}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD est obligatoire en production}
+    volumes:
+      - pgdata_prod:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-ecourtier_user} -d ${POSTGRES_DB:-ecourtier_db}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: ecourtier-backend-prod
+    restart: unless-stopped
+    environment:
+      SPRING_PROFILES_ACTIVE: prod
+      SPRING_DATASOURCE_URL: jdbc:postgresql://db:5432/${POSTGRES_DB:-ecourtier_db}
+      SPRING_DATASOURCE_USERNAME: ${POSTGRES_USER:-ecourtier_user}
+      SPRING_DATASOURCE_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD est obligatoire en production}
+      JWT_SECRET: ${JWT_SECRET:?JWT_SECRET est obligatoire en production}
+      ECOURTIER_CORS_ALLOWED_ORIGINS: ${ECOURTIER_CORS_ALLOWED_ORIGINS:-http://localhost:8080}
+      IA_ENABLED: ${IA_ENABLED:-true}
+      IA_PROVIDER: ${IA_PROVIDER:-groq}
+      GROQ_API_KEY: ${GROQ_API_KEY:-}
+      ADMIN_BOOTSTRAP_EMAIL: ${ADMIN_BOOTSTRAP_EMAIL:-admin@ecourtier.sn}
+      ADMIN_BOOTSTRAP_PASSWORD: ${ADMIN_BOOTSTRAP_PASSWORD:-}
+    ports:
+      - "${BACKEND_PORT:-8080}:8080"
+    volumes:
+      - uploads_prod:/app/uploads
+    depends_on:
+      db:
+        condition: service_healthy
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      args:
+        VITE_API_BASE_URL: ${VITE_API_BASE_URL:-http://localhost:8080}
+    container_name: ecourtier-frontend-prod
+    restart: unless-stopped
+    ports:
+      - "${FRONTEND_PORT:-3000}:8080"
+    depends_on:
+      backend:
+        condition: service_healthy
+
+volumes:
+  pgdata_prod:
+    driver: local
+  uploads_prod:
+    driver: local
