@@ -70,6 +70,7 @@ public class AnnonceMapper {
                 .statutVerification(entity.getStatutVerification())
                 .statutPublication(entity.getStatutPublication())
                 .dateCreation(entity.getDateCreation())
+                .version(entity.getVersion())
                 .auteurRole(entity.getUtilisateur() != null ? entity.getUtilisateur().getRole() : null)
                 .auteur(utilisateurMapper.toResponseDTO(entity.getUtilisateur()))
                 .photos(photos)

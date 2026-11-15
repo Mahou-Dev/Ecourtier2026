@@ -1,6 +1,9 @@
 package com.ecourtier.common.controller;
 
 import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.responses.ApiResponse;
+import io.swagger.v3.oas.annotations.responses.ApiResponses;
+import io.swagger.v3.oas.annotations.security.SecurityRequirements;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import org.springframework.core.io.Resource;
 import org.springframework.core.io.UrlResource;
@@ -37,7 +40,13 @@ public class UploadController {
     }
 
     @GetMapping("/annonces/{id}/{filename:.+}")
+    @SecurityRequirements
     @Operation(summary = "Consulter une photo d'annonce téléversée", description = "Servir une photo d'annonce publique.")
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "Fichier image retourné"),
+            @ApiResponse(responseCode = "400", description = "Segment de chemin invalide ou non autorisé"),
+            @ApiResponse(responseCode = "404", description = "Photo introuvable")
+    })
     public ResponseEntity<Resource> getPhoto(
             @PathVariable String id,
             @PathVariable String filename

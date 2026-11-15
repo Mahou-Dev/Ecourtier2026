@@ -20,6 +20,7 @@ import lombok.NoArgsConstructor;
 import lombok.Setter;
 
 import java.time.LocalDateTime;
+import java.time.ZoneId;
 import java.util.UUID;
 
 @Entity
@@ -57,7 +58,7 @@ public class AvisEntity {
     @PrePersist
     public void prePersist() {
         if (dateCreation == null) {
-            dateCreation = LocalDateTime.now();
+            dateCreation = LocalDateTime.now(ZoneId.of("Africa/Dakar"));
         }
     }
 }

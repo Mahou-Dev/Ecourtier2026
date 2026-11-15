@@ -6,6 +6,7 @@ import jakarta.persistence.*;
 import lombok.*;
 
 import java.time.LocalDateTime;
+import java.time.ZoneId;
 import java.util.UUID;
 
 @Entity
@@ -37,7 +38,7 @@ public class FavoriEntity {
     @PrePersist
     public void prePersist() {
         if (dateAjout == null) {
-            dateAjout = LocalDateTime.now();
+            dateAjout = LocalDateTime.now(ZoneId.of("Africa/Dakar"));
         }
     }
 }

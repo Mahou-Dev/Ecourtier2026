@@ -19,9 +19,9 @@ import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
-import org.hibernate.annotations.CreationTimestamp;
 
 import java.time.LocalDateTime;
+import java.time.ZoneId;
 import java.util.UUID;
 
 @Entity
@@ -60,14 +60,13 @@ public class RendezVousEntity {
     @Builder.Default
     private Boolean rappelEnvoye = false;
 
-    @CreationTimestamp
     @Column(name = "date_creation", nullable = false, updatable = false)
     private LocalDateTime dateCreation;
 
     @PrePersist
     protected void onCreate() {
         if (dateCreation == null) {
-            dateCreation = LocalDateTime.now();
+            dateCreation = LocalDateTime.now(ZoneId.of("Africa/Dakar"));
         }
         if (rappelEnvoye == null) {
             rappelEnvoye = false;

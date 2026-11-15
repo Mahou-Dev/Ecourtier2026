@@ -8,10 +8,13 @@ import com.ecourtier.domain.utilisateur.dto.UtilisateurResponseDTO;
 import com.ecourtier.domain.utilisateur.entity.Role;
 import com.ecourtier.domain.utilisateur.service.UtilisateurManagementService;
 import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.responses.ApiResponse;
+import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import org.springdoc.core.annotations.ParameterObject;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
@@ -46,11 +49,16 @@ public class AdminUtilisateurController {
             summary = "Lister les utilisateurs avec pagination et filtres (ADMIN)",
             description = "Retourne la liste paginée des comptes utilisateurs avec filtrage optionnel par rôle, statut actif/inactif et recherche textuelle (nom, prénom, email, téléphone)."
     )
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "Page d'utilisateurs retournée"),
+            @ApiResponse(responseCode = "401", description = "Authentification JWT requise ou compte désactivé"),
+            @ApiResponse(responseCode = "403", description = "Accès réservé au rôle ADMIN")
+    })
     public ResponseEntity<Page<UtilisateurResponseDTO>> listerTousLesUtilisateurs(
             @RequestParam(required = false) Role role,
             @RequestParam(required = false) Boolean actif,
             @RequestParam(required = false) String recherche,
-            @PageableDefault(size = 20, sort = "dateCreation", direction = Sort.Direction.DESC) Pageable pageable
+            @ParameterObject @PageableDefault(size = 20, sort = "dateCreation", direction = Sort.Direction.DESC) Pageable pageable
     ) {
         return ResponseEntity.ok(utilisateurManagementService.listerUtilisateurs(role, actif, recherche, pageable));
     }
@@ -61,6 +69,13 @@ public class AdminUtilisateurController {
             summary = "Créer un compte utilisateur avec mot de passe temporaire (ADMIN)",
             description = "Permet à un administrateur de créer un compte (AGENT, PROPRIETAIRE, LOCATAIRE ou ADMIN) avec un mot de passe temporaire conforme à la politique de sécurité, retourné une seule fois."
     )
+    @ApiResponses({
+            @ApiResponse(responseCode = "201", description = "Compte utilisateur créé avec succès"),
+            @ApiResponse(responseCode = "400", description = "Données de création invalides"),
+            @ApiResponse(responseCode = "401", description = "Authentification JWT requise ou compte désactivé"),
+            @ApiResponse(responseCode = "403", description = "Accès réservé au rôle ADMIN"),
+            @ApiResponse(responseCode = "409", description = "Email ou téléphone déjà utilisé")
+    })
     public ResponseEntity<AdminCreateUtilisateurResponseDTO> creerUtilisateur(
             @Valid @RequestBody AdminCreateUtilisateurRequestDTO request
     ) {
@@ -74,6 +89,13 @@ public class AdminUtilisateurController {
             summary = "Modifier le rôle d'un utilisateur (ADMIN)",
             description = "Change le rôle d'un compte utilisateur. Empêche un administrateur de se retirer son propre rôle ADMIN et garantit le maintien d'au moins un ADMIN actif."
     )
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "Rôle modifié et sessions existantes révoquées"),
+            @ApiResponse(responseCode = "400", description = "Requête invalide ou retrait du dernier ADMIN actif interdit"),
+            @ApiResponse(responseCode = "401", description = "Authentification JWT requise ou compte désactivé"),
+            @ApiResponse(responseCode = "403", description = "Accès réservé au rôle ADMIN"),
+            @ApiResponse(responseCode = "404", description = "Utilisateur introuvable")
+    })
     public ResponseEntity<UtilisateurResponseDTO> changerRole(
             @PathVariable UUID id,
             @Valid @RequestBody ChangeRoleRequestDTO request,
@@ -88,6 +110,13 @@ public class AdminUtilisateurController {
             summary = "Activer ou désactiver un compte utilisateur (ADMIN)",
             description = "Active ou suspend immédiatement un compte utilisateur (y compris le rejet immédiat des jetons JWT actifs et du refresh). Empêche l'auto-désactivation et protège le dernier ADMIN actif."
     )
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "Statut du compte modifié (sessions et WebSockets révoqués en cas de désactivation)"),
+            @ApiResponse(responseCode = "400", description = "Auto-désactivation ou désactivation du dernier ADMIN actif interdite"),
+            @ApiResponse(responseCode = "401", description = "Authentification JWT requise ou compte désactivé"),
+            @ApiResponse(responseCode = "403", description = "Accès réservé au rôle ADMIN"),
+            @ApiResponse(responseCode = "404", description = "Utilisateur introuvable")
+    })
     public ResponseEntity<UtilisateurResponseDTO> changerStatut(
             @PathVariable UUID id,
             @Valid @RequestBody ChangeStatutRequestDTO request,

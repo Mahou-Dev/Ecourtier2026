@@ -9,6 +9,7 @@ import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.validation.constraints.DecimalMax;
 import jakarta.validation.constraints.DecimalMin;
 import jakarta.validation.constraints.Min;
+import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Positive;
 import jakarta.validation.constraints.Size;
 import lombok.AllArgsConstructor;
@@ -72,4 +73,8 @@ public class AnnonceUpdateDTO {
     private StatutPublication statutPublication;
     private Set<Equipement> equipements;
     private Set<ProximiteTag> proximites;
+
+    @NotNull(message = "La version de l'annonce est obligatoire pour enregistrer une modification")
+    @Schema(description = "Version courante de l'annonce pour le verrouillage optimiste (@Version)", requiredMode = Schema.RequiredMode.REQUIRED, example = "0")
+    private Long version;
 }

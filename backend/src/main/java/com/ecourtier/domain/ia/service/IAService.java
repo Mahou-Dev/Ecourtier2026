@@ -7,6 +7,7 @@ import com.ecourtier.domain.annonce.entity.StatutVerification;
 import com.ecourtier.domain.annonce.mapper.AnnonceMapper;
 import com.ecourtier.domain.annonce.repository.AnnonceRepository;
 import com.ecourtier.domain.annonce.repository.AnnonceSpecification;
+import com.ecourtier.domain.ia.client.GroqClientService;
 import com.ecourtier.domain.ia.dto.ConversationCreateResponseDTO;
 import com.ecourtier.domain.ia.dto.ConversationHistoryResponseDTO;
 import com.ecourtier.domain.ia.dto.CriteresExtraitsDTO;
@@ -27,12 +28,27 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.jpa.domain.Specification;
+import jakarta.servlet.http.Cookie;
+import jakarta.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpServletResponse;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.ResponseCookie;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
 
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
+import java.security.SecureRandom;
+import java.time.Clock;
+import java.time.Duration;
+import java.time.LocalDateTime;
+import java.time.ZoneId;
 import java.util.ArrayList;
+import java.util.HexFormat;
 import java.util.List;
 import java.util.UUID;
 
@@ -41,6 +57,8 @@ import java.util.UUID;
 @RequiredArgsConstructor
 public class IAService {
 
+    private static final ZoneId DAKAR_ZONE = ZoneId.of("Africa/Dakar");
+
     private final ConversationIARepository conversationIARepository;
     private final MessageIARepository messageIARepository;
     private final UtilisateurRepository utilisateurRepository;
@@ -48,17 +66,110 @@ public class IAService {
     private final AnnonceMapper annonceMapper;
     private final LlmExtractionService llmExtractionService;
     private final ObjectMapper objectMapper;
+    private final GroqClientService groqClientService;
+
+    @Autowired(required = false)
+    private Clock clock = Clock.system(DAKAR_ZONE);
+
+    void setClock(Clock clock) {
+        this.clock = clock != null ? clock : Clock.system(DAKAR_ZONE);
+    }
+
+    private LocalDateTime now() {
+        return LocalDateTime.now(clock != null ? clock : Clock.system(DAKAR_ZONE));
+    }
+
+    public static final String IA_SESSION_COOKIE_NAME = "ecourtier_ia_session";
+    public static final String IA_SESSION_HEADER_NAME = "X-IA-Session-Token";
+    public static final int IA_SESSION_DURATION_DAYS = 7;
+
+    public static String generateSecureToken() {
+        byte[] bytes = new byte[32];
+        new SecureRandom().nextBytes(bytes);
+        return HexFormat.of().formatHex(bytes);
+    }
+
+    public static String hashToken(String token) {
+        if (token == null || token.isBlank()) return null;
+        try {
+            MessageDigest md = MessageDigest.getInstance("SHA-256");
+            byte[] digest = md.digest(token.trim().getBytes(StandardCharsets.UTF_8));
+            return HexFormat.of().formatHex(digest);
+        } catch (NoSuchAlgorithmException e) {
+            throw new IllegalStateException("Algorithme SHA-256 indisponible", e);
+        }
+    }
+
+    public static String extractSessionToken(HttpServletRequest request) {
+        if (request == null) return null;
+        if (request.getCookies() != null) {
+            for (Cookie cookie : request.getCookies()) {
+                if (IA_SESSION_COOKIE_NAME.equals(cookie.getName())) {
+                    String val = cookie.getValue();
+                    if (val != null && !val.isBlank()) {
+                        return val.trim();
+                    }
+                }
+            }
+        }
+        String headerToken = request.getHeader(IA_SESSION_HEADER_NAME);
+        if (headerToken != null && !headerToken.isBlank()) {
+            return headerToken.trim();
+        }
+        return null;
+    }
 
     @Transactional
     public ConversationCreateResponseDTO creerConversation(String userEmail) {
+        return creerConversation(userEmail, (HttpServletRequest) null, (HttpServletResponse) null);
+    }
+
+    @Transactional
+    public ConversationCreateResponseDTO creerConversation(String userEmail, String sessionToken) {
+        return creerConversationInternal(userEmail, sessionToken, null, false);
+    }
+
+    @Transactional
+    public ConversationCreateResponseDTO creerConversation(String userEmail, HttpServletRequest request, HttpServletResponse response) {
+        String sessionToken = extractSessionToken(request);
+        return creerConversationInternal(userEmail, sessionToken, response, request != null && request.isSecure());
+    }
+
+    private ConversationCreateResponseDTO creerConversationInternal(String userEmail, String sessionToken, HttpServletResponse response, boolean isSecure) {
         UtilisateurEntity user = null;
-        if (userEmail != null && !userEmail.trim().isEmpty() && !"anonymousUser".equals(userEmail)) {
+        boolean isAuthentifie = (userEmail != null && !userEmail.trim().isEmpty() && !"anonymousUser".equals(userEmail));
+        if (isAuthentifie) {
             user = utilisateurRepository.findByEmail(userEmail).orElse(null);
+        }
+
+        String sessionTokenHash = null;
+        LocalDateTime expiration = null;
+
+        if (user == null) {
+            if (sessionToken == null || sessionToken.isBlank()) {
+                sessionToken = generateSecureToken();
+            }
+
+            if (response != null) {
+                ResponseCookie cookie = ResponseCookie.from(IA_SESSION_COOKIE_NAME, sessionToken)
+                        .httpOnly(true)
+                        .secure(isSecure)
+                        .path("/api/v1/ia")
+                        .maxAge(Duration.ofDays(IA_SESSION_DURATION_DAYS))
+                        .sameSite("Lax")
+                        .build();
+                response.addHeader(HttpHeaders.SET_COOKIE, cookie.toString());
+            }
+
+            sessionTokenHash = hashToken(sessionToken);
+            expiration = now().plusDays(IA_SESSION_DURATION_DAYS);
         }
 
         ConversationIAEntity conv = ConversationIAEntity.builder()
                 .utilisateur(user)
-                .dateCreation(java.time.LocalDateTime.now())
+                .sessionTokenHash(sessionTokenHash)
+                .sessionExpiration(expiration)
+                .dateCreation(now())
                 .build();
 
         ConversationIAEntity saved = conversationIARepository.save(conv);
@@ -70,10 +181,20 @@ public class IAService {
 
     @Transactional
     public MessageIaResponseDTO envoyerMessage(UUID conversationId, MessageUserRequestDTO request, String userEmail) {
+        return envoyerMessage(conversationId, request, userEmail, (String) null);
+    }
+
+    @Transactional
+    public MessageIaResponseDTO envoyerMessage(UUID conversationId, MessageUserRequestDTO request, String userEmail, HttpServletRequest httpRequest) {
+        return envoyerMessage(conversationId, request, userEmail, extractSessionToken(httpRequest));
+    }
+
+    @Transactional
+    public MessageIaResponseDTO envoyerMessage(UUID conversationId, MessageUserRequestDTO request, String userEmail, String sessionToken) {
         ConversationIAEntity conv = conversationIARepository.findById(conversationId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Conversation IA introuvable"));
 
-        verifierAccesConversation(conv, userEmail);
+        verifierAccesConversation(conv, userEmail, sessionToken);
 
         if (request == null || request.getMessage() == null || request.getMessage().isBlank()) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Le message ne peut pas être vide");
@@ -141,16 +262,21 @@ public class IAService {
                 .role(RoleMessageIA.UTILISATEUR)
                 .contenu(request.getMessage())
                 .criteresExtraits(criteresJson)
-                .dateEnvoi(java.time.LocalDateTime.now())
+                .dateEnvoi(now())
                 .build();
         messageIARepository.save(userMessage);
 
         List<AnnonceResponseDTO> annoncesSuggeres = new ArrayList<>();
-        String textReponse;
+        String textReponse = null;
 
         // 3. Traiter la relance ou chercher dans la base
         if (criteres.getQuestionDeRelance() != null && !criteres.getQuestionDeRelance().trim().isEmpty()) {
-            textReponse = "Pour affiner ma recherche, " + criteres.getQuestionDeRelance();
+            if (criteres.getConfiance() != null && criteres.getConfiance() == 0.0) {
+                // Demande hors domaine / recentrage
+                textReponse = criteres.getQuestionDeRelance();
+            } else {
+                textReponse = "Pour affiner ma recherche, " + criteres.getQuestionDeRelance();
+            }
         } else {
             java.math.BigDecimal budgetMin = (criteres.getBudgetMin() != null && criteres.getBudgetMin().compareTo(java.math.BigDecimal.ZERO) > 0) ? criteres.getBudgetMin() : null;
             java.math.BigDecimal budgetMax = (criteres.getBudgetMax() != null && criteres.getBudgetMax().compareTo(java.math.BigDecimal.ZERO) > 0) ? criteres.getBudgetMax() : null;
@@ -185,25 +311,38 @@ public class IAService {
                     .map(annonceMapper::toResponseDTO)
                     .toList();
 
-            if (annoncesSuggeres.isEmpty()) {
-                textReponse = "J'ai bien analysé votre demande. Malheureusement, aucune annonce correspondant exactement à ces critères n'a été trouvée. Vous pouvez essayer d'élargir votre zone ou votre budget.";
-            } else {
-                StringBuilder sb = new StringBuilder("J'ai trouvé ")
-                        .append(annoncesSuggeres.size())
-                        .append(" annonce(s) correspondant à votre recherche");
-                if (criteres.getQuartier() != null) {
-                    sb.append(" à ").append(criteres.getQuartier());
+            // Tentative de génération conversationnelle via Groq
+            if (groqClientService != null && groqClientService.isConfigured()) {
+                textReponse = groqClientService.generateConversationalResponse(
+                        request.getMessage(),
+                        criteres,
+                        annoncesSuggeres,
+                        null
+                );
+            }
+
+            // Fallback déterministe si Groq n'a pas répondu ou indisponible
+            if (textReponse == null || textReponse.isBlank()) {
+                if (annoncesSuggeres.isEmpty()) {
+                    textReponse = "J'ai bien analysé votre demande. Malheureusement, aucune annonce correspondant exactement à ces critères n'a été trouvée. Vous pouvez essayer d'élargir votre zone ou votre budget.";
+                } else {
+                    StringBuilder sb = new StringBuilder("J'ai trouvé ")
+                            .append(annoncesSuggeres.size())
+                            .append(" annonce(s) correspondant à votre recherche");
+                    if (criteres.getQuartier() != null) {
+                        sb.append(" à ").append(criteres.getQuartier());
+                    }
+                    if (criteres.getBudgetMax() != null) {
+                        sb.append(" pour un budget max de ").append(criteres.getBudgetMax()).append(" FCFA");
+                    }
+                    sb.append(" :");
+                    textReponse = sb.toString();
                 }
-                if (criteres.getBudgetMax() != null) {
-                    sb.append(" pour un budget max de ").append(criteres.getBudgetMax()).append(" FCFA");
-                }
-                sb.append(" :");
-                textReponse = sb.toString();
             }
         }
 
         // 4. Enregistrer le message de l'assistant
-        java.time.LocalDateTime nowAssistant = java.time.LocalDateTime.now();
+        java.time.LocalDateTime nowAssistant = now();
         MessageIAEntity assistantMessage = MessageIAEntity.builder()
                 .conversation(conv)
                 .role(RoleMessageIA.ASSISTANT)
@@ -226,15 +365,25 @@ public class IAService {
 
     @Transactional(readOnly = true)
     public ConversationHistoryResponseDTO obtenirHistorique(UUID conversationId) {
-        return obtenirHistorique(conversationId, null);
+        return obtenirHistorique(conversationId, null, (String) null);
     }
 
     @Transactional(readOnly = true)
     public ConversationHistoryResponseDTO obtenirHistorique(UUID conversationId, String userEmail) {
+        return obtenirHistorique(conversationId, userEmail, (String) null);
+    }
+
+    @Transactional(readOnly = true)
+    public ConversationHistoryResponseDTO obtenirHistorique(UUID conversationId, String userEmail, HttpServletRequest httpRequest) {
+        return obtenirHistorique(conversationId, userEmail, extractSessionToken(httpRequest));
+    }
+
+    @Transactional(readOnly = true)
+    public ConversationHistoryResponseDTO obtenirHistorique(UUID conversationId, String userEmail, String sessionToken) {
         ConversationIAEntity conv = conversationIARepository.findById(conversationId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Conversation IA introuvable"));
 
-        verifierAccesConversation(conv, userEmail);
+        verifierAccesConversation(conv, userEmail, sessionToken);
 
         List<MessageIAEntity> messages = messageIARepository.findByConversationIdOrderByDateEnvoiAsc(conversationId);
 
@@ -254,7 +403,7 @@ public class IAService {
                 .build();
     }
 
-    private void verifierAccesConversation(ConversationIAEntity conv, String userEmail) {
+    public void verifierAccesConversation(ConversationIAEntity conv, String userEmail, String sessionToken) {
         if (conv.getUtilisateur() != null) {
             String ownerEmail = conv.getUtilisateur().getEmail();
             if (userEmail == null || userEmail.trim().isEmpty() || "anonymousUser".equals(userEmail)
@@ -262,6 +411,37 @@ public class IAService {
                 throw new ResponseStatusException(
                         HttpStatus.FORBIDDEN,
                         "Accès refusé : cette conversation appartient à un autre utilisateur"
+                );
+            }
+        } else {
+            // Conversation anonyme : preuve de possession obligatoire
+            if (conv.getSessionTokenHash() == null || conv.getSessionTokenHash().isBlank()) {
+                throw new ResponseStatusException(
+                        HttpStatus.FORBIDDEN,
+                        "Accès refusé : conversation anonyme non vérifiée (absence de preuve de possession)"
+                );
+            }
+
+            if (conv.getSessionExpiration() != null && conv.getSessionExpiration().isBefore(now())) {
+                throw new ResponseStatusException(
+                        HttpStatus.FORBIDDEN,
+                        "Accès refusé : session de conversation anonyme expirée"
+                );
+            }
+
+            if (sessionToken == null || sessionToken.isBlank()) {
+                throw new ResponseStatusException(
+                        HttpStatus.FORBIDDEN,
+                        "Accès refusé : preuve de possession requise pour cette conversation anonyme"
+                );
+            }
+
+            String incomingHash = hashToken(sessionToken);
+            if (!MessageDigest.isEqual(incomingHash.getBytes(StandardCharsets.UTF_8),
+                                      conv.getSessionTokenHash().getBytes(StandardCharsets.UTF_8))) {
+                throw new ResponseStatusException(
+                        HttpStatus.FORBIDDEN,
+                        "Accès refusé : preuve de possession invalide pour cette conversation anonyme"
                 );
             }
         }
@@ -291,10 +471,10 @@ public class IAService {
         }
         String qLower = question.toLowerCase();
         boolean mentionsBudget = qLower.contains("budget") || qLower.contains("prix");
-        boolean mentionsType = qLower.contains("type") || qLower.contains("appartement") || qLower.contains("villa") || qLower.contains("studio");
+        boolean mentionsType = qLower.contains("type") || qLower.contains("appartement") || qLower.contains("villa") || qLower.contains("studio") || qLower.contains("chambre");
         boolean mentionsQuartier = qLower.contains("quartier") || qLower.contains("zone") || qLower.contains("secteur") || qLower.contains("localisation");
         boolean mentionsVille = qLower.contains("ville");
-        boolean mentionsPieces = qLower.contains("pièce") || qLower.contains("piece") || qLower.contains("chambre");
+        boolean mentionsPieces = qLower.contains("pièce") || qLower.contains("piece") || qLower.contains("nombre de pièces") || qLower.contains("nombre de pieces");
         boolean mentionsEtage = qLower.contains("étage") || qLower.contains("etage");
         boolean mentionsMeuble = qLower.contains("meubl");
         boolean mentionsAnimaux = qLower.contains("anim") || qLower.contains("chat") || qLower.contains("chien");

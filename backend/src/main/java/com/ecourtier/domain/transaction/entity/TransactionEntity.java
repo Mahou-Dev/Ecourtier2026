@@ -20,10 +20,10 @@ import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
-import org.hibernate.annotations.CreationTimestamp;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
+import java.time.ZoneId;
 import java.util.UUID;
 
 @Entity
@@ -102,9 +102,32 @@ public class TransactionEntity {
     @Column(name = "pdf_bail_path", length = 500)
     private String pdfBailPath;
 
-    @CreationTimestamp
     @Column(name = "date_creation", nullable = false, updatable = false)
     private LocalDateTime dateCreation;
+
+    @Column(name = "date_expiration")
+    private LocalDateTime dateExpiration;
+
+    @Column(name = "date_cloture")
+    private LocalDateTime dateCloture;
+
+    @Column(name = "motif_cloture", length = 500)
+    private String motifCloture;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "statut_document_bail", nullable = false, length = 30)
+    @Builder.Default
+    private StatutDocumentBail statutDocumentBail = StatutDocumentBail.NON_GENERE;
+
+    @Column(name = "pdf_bail_erreur", length = 1000)
+    private String pdfBailErreur;
+
+    @Column(name = "pdf_bail_tentatives", nullable = false)
+    @Builder.Default
+    private Integer pdfBailTentatives = 0;
+
+    @Column(name = "pdf_bail_derniere_tentative")
+    private LocalDateTime pdfBailDerniereTentative;
 
     @Column(name = "dossier_actif", nullable = false)
     @Builder.Default
@@ -118,7 +141,7 @@ public class TransactionEntity {
     @PrePersist
     protected void onCreate() {
         if (dateCreation == null) {
-            dateCreation = LocalDateTime.now();
+            dateCreation = LocalDateTime.now(ZoneId.of("Africa/Dakar"));
         }
         if (fraisDossier == null) {
             fraisDossier = BigDecimal.valueOf(5000);
@@ -131,6 +154,12 @@ public class TransactionEntity {
         }
         if (statutBail == null) {
             statutBail = StatutBail.NON_SIGNE;
+        }
+        if (statutDocumentBail == null) {
+            statutDocumentBail = StatutDocumentBail.NON_GENERE;
+        }
+        if (pdfBailTentatives == null) {
+            pdfBailTentatives = 0;
         }
         if (dossierActif == null) {
             dossierActif = Boolean.TRUE;

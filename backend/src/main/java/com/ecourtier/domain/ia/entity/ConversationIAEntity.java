@@ -18,9 +18,9 @@ import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
-import org.hibernate.annotations.CreationTimestamp;
 
 import java.time.LocalDateTime;
+import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
@@ -42,14 +42,19 @@ public class ConversationIAEntity {
     @JoinColumn(name = "utilisateur_id")
     private UtilisateurEntity utilisateur;
 
-    @CreationTimestamp
     @Column(name = "date_creation", nullable = false, updatable = false)
     private LocalDateTime dateCreation;
+
+    @Column(name = "session_token_hash", length = 64)
+    private String sessionTokenHash;
+
+    @Column(name = "session_expiration")
+    private LocalDateTime sessionExpiration;
 
     @jakarta.persistence.PrePersist
     protected void onCreate() {
         if (dateCreation == null) {
-            dateCreation = LocalDateTime.now();
+            dateCreation = LocalDateTime.now(ZoneId.of("Africa/Dakar"));
         }
     }
 

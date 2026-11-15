@@ -96,6 +96,30 @@ public class AnnonceSpecification {
             Boolean includeIndisponibles,
             String auteurEmail
     ) {
+        return filterAnnonces(
+                budgetMin, budgetMax, types, modeTransaction, superficieMin,
+                nombrePieces, quartier, ville, meuble, animauxAcceptes,
+                statutVerification, proximites, includeIndisponibles, auteurEmail, null
+        );
+    }
+
+    public static Specification<AnnonceEntity> filterAnnonces(
+            BigDecimal budgetMin,
+            BigDecimal budgetMax,
+            List<TypeBien> types,
+            ModeTransaction modeTransaction,
+            Double superficieMin,
+            Integer nombrePieces,
+            String quartier,
+            String ville,
+            Boolean meuble,
+            Boolean animauxAcceptes,
+            StatutVerification statutVerification,
+            List<ProximiteTag> proximites,
+            Boolean includeIndisponibles,
+            String auteurEmail,
+            String q
+    ) {
         return (root, query, criteriaBuilder) -> {
             List<Predicate> predicates = new ArrayList<>();
 
@@ -184,6 +208,17 @@ public class AnnonceSpecification {
                 if (query != null) {
                     query.distinct(true);
                 }
+            }
+
+            // 13. Recherche textuelle libre (titre, description, quartier, ville)
+            if (q != null && !q.trim().isEmpty()) {
+                String pattern = "%" + q.trim().toLowerCase() + "%";
+                predicates.add(criteriaBuilder.or(
+                        criteriaBuilder.like(criteriaBuilder.lower(root.get("titre")), pattern),
+                        criteriaBuilder.like(criteriaBuilder.lower(root.get("description")), pattern),
+                        criteriaBuilder.like(criteriaBuilder.lower(root.get("quartier")), pattern),
+                        criteriaBuilder.like(criteriaBuilder.lower(root.get("ville")), pattern)
+                ));
             }
 
             return criteriaBuilder.and(predicates.toArray(new Predicate[0]));

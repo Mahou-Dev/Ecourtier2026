@@ -2,6 +2,8 @@ package com.ecourtier.common.controller;
 
 import com.ecourtier.common.service.DemoDataSeederService;
 import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.responses.ApiResponse;
+import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
@@ -25,6 +27,11 @@ public class AdminSeedController {
     @PostMapping("/seed-demo")
     @PreAuthorize("hasRole('ADMIN')")
     @Operation(summary = "Initialiser les données de démonstration en production", description = "Déclenche le peuplement manuel de la base avec des annonces et comptes de démo. Endpoint idempotent : ignoré si la base contient déjà des annonces.")
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "Résultat de l'initialisation des données de démonstration retourné"),
+            @ApiResponse(responseCode = "401", description = "Authentification JWT requise ou compte désactivé"),
+            @ApiResponse(responseCode = "403", description = "Accès réservé au rôle ADMIN")
+    })
     public ResponseEntity<Map<String, Object>> seedDemoData() {
         boolean seeded = demoDataSeederService.seedDemoData();
         if (seeded) {

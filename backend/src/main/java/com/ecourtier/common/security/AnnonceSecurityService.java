@@ -30,7 +30,7 @@ public class AnnonceSecurityService {
 
         String currentUserEmail = authentication.getName();
 
-        AnnonceEntity annonce = annonceRepository.findByIdAndSupprimeFalse(annonceId)
+        AnnonceEntity annonce = annonceRepository.findById(annonceId)
                 .orElse(null);
 
         if (annonce == null || annonce.getUtilisateur() == null) {

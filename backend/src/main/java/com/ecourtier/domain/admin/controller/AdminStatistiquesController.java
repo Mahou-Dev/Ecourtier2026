@@ -3,6 +3,8 @@ package com.ecourtier.domain.admin.controller;
 import com.ecourtier.domain.admin.dto.AdminStatistiquesDTO;
 import com.ecourtier.domain.admin.service.AdminStatistiquesService;
 import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.responses.ApiResponse;
+import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
@@ -25,6 +27,11 @@ public class AdminStatistiquesController {
     @GetMapping
     @PreAuthorize("hasRole('ADMIN')")
     @Operation(summary = "Obtenir toutes les métriques de la plateforme", description = "Endpoint unique agrégeant les métriques d'utilisateurs, d'annonces, d'activité commerciale, de modération et de l'assistant IA pour le tableau de bord administrateur.")
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "Métriques agrégées du tableau de bord retournées"),
+            @ApiResponse(responseCode = "401", description = "Authentification JWT requise ou compte désactivé"),
+            @ApiResponse(responseCode = "403", description = "Accès réservé au rôle ADMIN")
+    })
     public ResponseEntity<AdminStatistiquesDTO> obtenirStatistiques(
             @RequestParam(name = "periode", required = false, defaultValue = "30j") String periode
     ) {

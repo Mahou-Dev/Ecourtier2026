@@ -22,6 +22,7 @@ import org.hibernate.annotations.OnDelete;
 import org.hibernate.annotations.OnDeleteAction;
 
 import java.time.LocalDateTime;
+import java.time.ZoneId;
 import java.util.UUID;
 
 @Entity
@@ -67,7 +68,7 @@ public class NotificationSmsEntity {
     @PrePersist
     public void prePersist() {
         if (dateCreation == null) {
-            dateCreation = LocalDateTime.now();
+            dateCreation = LocalDateTime.now(ZoneId.of("Africa/Dakar"));
         }
         if (statut == null || statut.isBlank()) {
             statut = "SIMULE";

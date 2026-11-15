@@ -58,4 +58,6 @@ public interface RendezVousRepository extends JpaRepository<RendezVousEntity, UU
             LocalDateTime startRange,
             LocalDateTime endRange
     );
+
+    List<RendezVousEntity> findByAnnonceIdAndStatutIn(UUID annonceId, List<StatutRendezVous> statuts);
 }

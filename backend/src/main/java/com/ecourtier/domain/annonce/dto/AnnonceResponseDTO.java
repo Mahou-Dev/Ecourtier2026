@@ -48,6 +48,7 @@ public class AnnonceResponseDTO {
     private StatutVerification statutVerification;
     private StatutPublication statutPublication;
     private LocalDateTime dateCreation;
+    private Long version;
 
     @Schema(description = "Rôle de l'auteur de l'annonce (PROPRIETAIRE, AGENT, ADMIN)")
     private Role auteurRole;

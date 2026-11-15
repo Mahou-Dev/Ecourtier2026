@@ -4,6 +4,8 @@ import com.ecourtier.domain.utilisateur.dto.ChangerMotDePasseRequestDTO;
 import com.ecourtier.domain.utilisateur.dto.UtilisateurResponseDTO;
 import com.ecourtier.domain.utilisateur.service.UtilisateurManagementService;
 import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.responses.ApiResponse;
+import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
@@ -34,6 +36,10 @@ public class UtilisateurCompteController {
             summary = "Consulter le profil de l'utilisateur connecté",
             description = "Retourne les informations du compte actuellement authentifié."
     )
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "Profil de l'utilisateur connecté retourné"),
+            @ApiResponse(responseCode = "401", description = "Authentification JWT requise ou compte désactivé")
+    })
     public ResponseEntity<UtilisateurResponseDTO> obtenirMonProfil(Authentication authentication) {
         return ResponseEntity.ok(utilisateurManagementService.obtenirProfilCourant(authentication.getName()));
     }
@@ -44,6 +50,11 @@ public class UtilisateurCompteController {
             summary = "Modifier le mot de passe de l'utilisateur connecté",
             description = "Vérifie l'ancien mot de passe et enregistre le nouveau mot de passe conforme à la politique de sécurité (8 caractères minimum, une majuscule et un chiffre)."
     )
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "Mot de passe modifié et anciennes sessions révoquées"),
+            @ApiResponse(responseCode = "400", description = "Ancien mot de passe incorrect ou nouveau mot de passe invalide"),
+            @ApiResponse(responseCode = "401", description = "Authentification JWT requise ou compte désactivé")
+    })
     public ResponseEntity<Map<String, String>> changerMotDePasse(
             @Valid @RequestBody ChangerMotDePasseRequestDTO request,
             Authentication authentication

@@ -20,13 +20,21 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
 
 import java.security.SecureRandom;
+import java.time.LocalDateTime;
+import java.time.ZoneId;
 import java.util.UUID;
 import java.util.regex.Pattern;
+
+import com.ecourtier.common.security.WebSocketSessionRegistry;
+import com.ecourtier.domain.utilisateur.repository.RefreshTokenRepository;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 @Service
 @RequiredArgsConstructor
 public class UtilisateurManagementService {
 
+    private static final ZoneId DAKAR_ZONE = ZoneId.of("Africa/Dakar");
     private static final Pattern PASSWORD_POLICY = Pattern.compile("^(?=.*[A-Z])(?=.*\\d).{8,}$");
     private static final String UPPER = "ABCDEFGHJKLMNPQRSTUVWXYZ";
     private static final String LOWER = "abcdefghijkmnopqrstuvwxyz";
@@ -38,6 +46,8 @@ public class UtilisateurManagementService {
     private final UtilisateurRepository utilisateurRepository;
     private final UtilisateurMapper utilisateurMapper;
     private final PasswordEncoder passwordEncoder;
+    private final RefreshTokenRepository refreshTokenRepository;
+    private final WebSocketSessionRegistry webSocketSessionRegistry;
 
     @Transactional(readOnly = true)
     public Page<UtilisateurResponseDTO> listerUtilisateurs(
@@ -110,8 +120,20 @@ public class UtilisateurManagementService {
             }
         }
 
+        Role previousRole = target.getRole();
         target.setRole(nouveauRole);
         UtilisateurEntity saved = utilisateurRepository.save(target);
+
+        if (previousRole != nouveauRole) {
+            utilisateurRepository.incrementTokenVersion(target.getId());
+            refreshTokenRepository.revokeAllActiveByUtilisateurId(
+                    target.getId(),
+                    LocalDateTime.now(DAKAR_ZONE),
+                    AuthService.REVOCATION_ROLE_CHANGED
+            );
+            disconnectUserAfterCommit(target.getEmail());
+            saved = utilisateurRepository.findById(target.getId()).orElse(saved);
+        }
         return utilisateurMapper.toResponseDTO(saved);
     }
 
@@ -138,8 +160,19 @@ public class UtilisateurManagementService {
         }
 
         target.setActif(actif);
-        UtilisateurEntity saved = utilisateurRepository.save(target);
-        return utilisateurMapper.toResponseDTO(saved);
+        utilisateurRepository.save(target);
+
+        if (!actif) {
+            utilisateurRepository.incrementTokenVersion(target.getId());
+            refreshTokenRepository.revokeAllActiveByUtilisateurId(
+                    target.getId(),
+                    LocalDateTime.now(DAKAR_ZONE),
+                    AuthService.REVOCATION_USER_DISABLED
+            );
+            disconnectUserAfterCommit(target.getEmail());
+        }
+        UtilisateurEntity updated = utilisateurRepository.findById(target.getId()).orElse(target);
+        return utilisateurMapper.toResponseDTO(updated);
     }
 
     @Transactional(readOnly = true)
@@ -167,6 +200,26 @@ public class UtilisateurManagementService {
 
         user.setMotDePasse(passwordEncoder.encode(request.getNouveauMotDePasse()));
         utilisateurRepository.save(user);
+        utilisateurRepository.incrementTokenVersion(user.getId());
+        refreshTokenRepository.revokeAllActiveByUtilisateurId(
+                user.getId(),
+                LocalDateTime.now(DAKAR_ZONE),
+                AuthService.REVOCATION_PASSWORD_CHANGED
+        );
+        disconnectUserAfterCommit(user.getEmail());
+    }
+
+    private void disconnectUserAfterCommit(String email) {
+        if (TransactionSynchronizationManager.isSynchronizationActive()) {
+            TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+                @Override
+                public void afterCommit() {
+                    webSocketSessionRegistry.disconnectUser(email);
+                }
+            });
+        } else {
+            webSocketSessionRegistry.disconnectUser(email);
+        }
     }
 
     private String genererMotDePasseTemporaireConforme() {

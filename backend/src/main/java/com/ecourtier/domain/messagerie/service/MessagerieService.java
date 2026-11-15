@@ -21,7 +21,11 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
 
+import org.springframework.beans.factory.annotation.Autowired;
+
+import java.time.Clock;
 import java.time.LocalDateTime;
+import java.time.ZoneId;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -40,14 +44,32 @@ public class MessagerieService {
     private final MessagerieMapper messagerieMapper;
     private final ConversationSecurityService conversationSecurityService;
 
+    private static final ZoneId DAKAR_ZONE = ZoneId.of("Africa/Dakar");
+
+    @Autowired(required = false)
+    private Clock clock = Clock.system(DAKAR_ZONE);
+
+    void setClock(Clock clock) {
+        if (clock != null) {
+            this.clock = clock;
+        }
+    }
+
+    private LocalDateTime now() {
+        return LocalDateTime.now(clock != null ? clock : Clock.system(DAKAR_ZONE));
+    }
+
     private static final Pattern SCRIPT_PATTERN = Pattern.compile("(?i)<script.*?>.*?</script.*?>|<script.*?>|javascript:|onload=");
 
     @Transactional
     public ConversationResponseDTO initierConversation(UUID annonceId, String locataireEmail) {
         UtilisateurEntity locataire = utilisateurRepository.findByEmail(locataireEmail)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Utilisateur locataire non trouvé"));
+        if (!locataire.isActif()) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Le compte utilisateur est désactivé");
+        }
 
-        AnnonceEntity annonce = annonceRepository.findById(annonceId)
+        AnnonceEntity annonce = annonceRepository.findByIdAndSupprimeFalse(annonceId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Annonce non trouvée"));
 
         UtilisateurEntity proprietaire = annonce.getUtilisateur();
@@ -70,7 +92,7 @@ public class MessagerieService {
                     .annonce(annonce)
                     .locataire(locataire)
                     .proprietaire(proprietaire)
-                    .dateCreation(LocalDateTime.now())
+                    .dateCreation(now())
                     .build();
 
             ConversationChatEntity saved = conversationChatRepository.save(conversation);
@@ -107,6 +129,10 @@ public class MessagerieService {
         UtilisateurEntity expediteur = utilisateurRepository.findByEmail(expediteurEmail)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Expéditeur non trouvé"));
 
+        if (!expediteur.isActif()) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Le compte utilisateur est désactivé");
+        }
+
         ConversationChatEntity conversation = conversationChatRepository.findById(conversationId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Conversation non trouvée"));
 
@@ -114,7 +140,7 @@ public class MessagerieService {
                 .conversation(conversation)
                 .expediteur(expediteur)
                 .contenu(contenu)
-                .dateEnvoi(LocalDateTime.now())
+                .dateEnvoi(now())
                 .lu(false)
                 .build();
 
@@ -124,8 +150,7 @@ public class MessagerieService {
 
     @Transactional(readOnly = true)
     public List<ConversationResponseDTO> listerMesConversations(String userEmail) {
-        UtilisateurEntity user = utilisateurRepository.findByEmail(userEmail)
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Utilisateur non trouvé"));
+        UtilisateurEntity user = requireActiveUser(userEmail);
 
         List<ConversationChatEntity> conversations = conversationChatRepository.findAllByUserId(user.getId());
         if (conversations.isEmpty()) {
@@ -144,6 +169,7 @@ public class MessagerieService {
         if (!conversationSecurityService.isParticipant(conversationId, userEmail)) {
             throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Accès refusé à cette conversation");
         }
+        requireActiveUser(userEmail);
 
         return messageChatRepository.findByConversationIdOrderByDateEnvoiAsc(conversationId, pageable)
                 .map(messagerieMapper::toMessageResponseDTO);
@@ -154,6 +180,7 @@ public class MessagerieService {
         if (!conversationSecurityService.isParticipant(conversationId, userEmail)) {
             throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Accès refusé à cette conversation");
         }
+        requireActiveUser(userEmail);
 
         return messageChatRepository.findByConversationIdOrderByDateEnvoiAsc(conversationId)
                 .stream()
@@ -167,16 +194,14 @@ public class MessagerieService {
             throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Accès refusé à cette conversation");
         }
 
-        UtilisateurEntity user = utilisateurRepository.findByEmail(userEmail)
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Utilisateur non trouvé"));
+        UtilisateurEntity user = requireActiveUser(userEmail);
 
         messageChatRepository.markMessagesAsRead(conversationId, user.getId());
     }
 
     @Transactional(readOnly = true)
     public long compterMessagesNonLus(String userEmail) {
-        UtilisateurEntity user = utilisateurRepository.findByEmail(userEmail)
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Utilisateur non trouvé"));
+        UtilisateurEntity user = requireActiveUser(userEmail);
 
         return messageChatRepository.countTotalUnreadMessagesForUser(user.getId());
     }
@@ -190,10 +215,18 @@ public class MessagerieService {
         ConversationChatEntity conversation = conversationChatRepository.findById(conversationId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Conversation non trouvée"));
 
-        UtilisateurEntity user = utilisateurRepository.findByEmail(userEmail)
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Utilisateur non trouvé"));
+        UtilisateurEntity user = requireActiveUser(userEmail);
 
         return mapToConversationDTO(conversation, user.getId());
+    }
+
+    private UtilisateurEntity requireActiveUser(String userEmail) {
+        UtilisateurEntity user = utilisateurRepository.findByEmail(userEmail)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Utilisateur non trouvé"));
+        if (!user.isActif()) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Le compte utilisateur est désactivé");
+        }
+        return user;
     }
 
     private Map<UUID, Long> chargerComptesNonLusParConversation(UUID userId) {

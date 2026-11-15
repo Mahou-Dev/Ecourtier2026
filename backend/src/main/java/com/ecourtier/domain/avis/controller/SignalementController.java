@@ -6,10 +6,13 @@ import com.ecourtier.domain.avis.dto.TraiterSignalementDTO;
 import com.ecourtier.domain.avis.entity.StatutSignalement;
 import com.ecourtier.domain.avis.service.SignalementService;
 import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.responses.ApiResponse;
+import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import org.springdoc.core.annotations.ParameterObject;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
@@ -39,6 +42,13 @@ public class SignalementController {
     @PreAuthorize("isAuthenticated()")
     @SecurityRequirement(name = "bearerAuth")
     @Operation(summary = "Signaler une annonce", description = "Signaler une annonce suspecte ou frauduleuse (accessible à tout utilisateur connecté).")
+    @ApiResponses({
+            @ApiResponse(responseCode = "201", description = "Signalement enregistré"),
+            @ApiResponse(responseCode = "400", description = "Motif invalide ou auto-signalement"),
+            @ApiResponse(responseCode = "401", description = "Authentification JWT requise"),
+            @ApiResponse(responseCode = "404", description = "Annonce introuvable"),
+            @ApiResponse(responseCode = "409", description = "Annonce déjà signalée par cet utilisateur")
+    })
     public ResponseEntity<SignalementResponseDTO> creerSignalement(
             @PathVariable UUID id,
             @Valid @RequestBody SignalementCreateDTO request,
@@ -52,9 +62,14 @@ public class SignalementController {
     @PreAuthorize("hasRole('ADMIN')")
     @SecurityRequirement(name = "bearerAuth")
     @Operation(summary = "Lister les signalements", description = "Accès administrateur avec filtrage optionnel par statut.")
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "Liste paginée des signalements"),
+            @ApiResponse(responseCode = "401", description = "Authentification JWT requise"),
+            @ApiResponse(responseCode = "403", description = "Accès strictement réservé à l'administrateur")
+    })
     public ResponseEntity<Page<SignalementResponseDTO>> listerSignalements(
             @RequestParam(required = false) StatutSignalement statut,
-            @PageableDefault(size = 20, sort = "dateCreation", direction = Sort.Direction.DESC) Pageable pageable
+            @ParameterObject @PageableDefault(size = 20, sort = "dateCreation", direction = Sort.Direction.DESC) Pageable pageable
     ) {
         Page<SignalementResponseDTO> result = signalementService.listerSignalements(statut, pageable);
         return ResponseEntity.ok(result);
@@ -64,6 +79,14 @@ public class SignalementController {
     @PreAuthorize("hasRole('ADMIN')")
     @SecurityRequirement(name = "bearerAuth")
     @Operation(summary = "Traiter un signalement", description = "Modérer un signalement et éventuellement suspendre l'annonce associée.")
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "Signalement modéré avec succès"),
+            @ApiResponse(responseCode = "400", description = "Statut de traitement invalide"),
+            @ApiResponse(responseCode = "401", description = "Authentification JWT requise"),
+            @ApiResponse(responseCode = "403", description = "Accès strictement réservé à l'administrateur"),
+            @ApiResponse(responseCode = "404", description = "Signalement introuvable"),
+            @ApiResponse(responseCode = "409", description = "Suspension impossible (annonce supprimée ou transaction BLOQUE active)")
+    })
     public ResponseEntity<SignalementResponseDTO> traiterSignalement(
             @PathVariable UUID id,
             @Valid @RequestBody TraiterSignalementDTO request

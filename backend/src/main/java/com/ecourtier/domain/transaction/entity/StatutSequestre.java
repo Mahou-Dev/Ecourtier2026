@@ -4,5 +4,7 @@ public enum StatutSequestre {
     INITIALISE,
     BLOQUE,
     LIBERE,
-    REMBOURSE
+    REMBOURSE,
+    ANNULE,
+    EXPIRE
 }

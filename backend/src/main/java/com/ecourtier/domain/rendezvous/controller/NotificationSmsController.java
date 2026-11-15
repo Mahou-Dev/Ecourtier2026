@@ -3,9 +3,12 @@ package com.ecourtier.domain.rendezvous.controller;
 import com.ecourtier.domain.rendezvous.dto.NotificationSmsResponseDTO;
 import com.ecourtier.domain.rendezvous.service.NotificationSmsService;
 import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.responses.ApiResponse;
+import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
+import org.springdoc.core.annotations.ParameterObject;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
@@ -32,8 +35,12 @@ public class NotificationSmsController {
             summary = "Lister mes SMS simulés (paginé)",
             description = "Retourne la liste paginée des notifications SMS simulées (demande, confirmation, annulation, rappel) adressées à l'utilisateur connecté."
     )
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "Page de notifications SMS retournée"),
+            @ApiResponse(responseCode = "401", description = "Authentification JWT requise ou compte désactivé")
+    })
     public ResponseEntity<Page<NotificationSmsResponseDTO>> listerMesSms(
-            @PageableDefault(size = 20, sort = "dateCreation", direction = Sort.Direction.DESC) Pageable pageable,
+            @ParameterObject @PageableDefault(size = 20, sort = "dateCreation", direction = Sort.Direction.DESC) Pageable pageable,
             Authentication authentication
     ) {
         return ResponseEntity.ok(notificationSmsService.obtenirMesSms(authentication.getName(), pageable));

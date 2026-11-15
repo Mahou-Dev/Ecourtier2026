@@ -1,9 +1,10 @@
 package com.ecourtier.domain.ia.service;
 
+import com.ecourtier.domain.ia.client.GroqClientService;
 import com.ecourtier.domain.ia.dto.CriteresExtraitsDTO;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
@@ -17,34 +18,71 @@ import java.util.Map;
 
 @Service
 @Slf4j
-@RequiredArgsConstructor
 public class LlmExtractionService {
 
     private final RuleBasedCriteriaExtractor ruleBasedExtractor;
     private final ObjectMapper objectMapper;
+    private final GroqClientService groqClientService;
+
+    @Value("${ecourtier.ia.enabled:true}")
+    private boolean iaEnabled = true;
 
     @Value("${ecourtier.ia.api-key:}")
     private String apiKey;
 
-    @Value("${ecourtier.ia.provider:gemini}")
-    private String provider;
+    @Value("${ecourtier.ia.provider:groq}")
+    private String provider = "groq";
 
     @Value("${ecourtier.ia.base-url:}")
     private String baseUrl;
 
     private static final int TIMEOUT_MS = 2500; // 2.5s timeout requirement
 
+    @Autowired
+    public LlmExtractionService(RuleBasedCriteriaExtractor ruleBasedExtractor, ObjectMapper objectMapper, GroqClientService groqClientService) {
+        this.ruleBasedExtractor = ruleBasedExtractor;
+        this.objectMapper = objectMapper;
+        this.groqClientService = groqClientService;
+    }
+
+    public LlmExtractionService(RuleBasedCriteriaExtractor ruleBasedExtractor, ObjectMapper objectMapper) {
+        this(ruleBasedExtractor, objectMapper, new GroqClientService(objectMapper));
+    }
+
     public CriteresExtraitsDTO extractCriteria(String userMessage) {
         // Step 1: Sanitization & injection check
         ruleBasedExtractor.sanitizeAndValidate(userMessage);
 
-        // Step 2: Check API key availability
+        if (!iaEnabled || "none".equalsIgnoreCase(provider) || "disabled".equalsIgnoreCase(provider) || "rules".equalsIgnoreCase(provider)) {
+            log.info("[MODE DÉTERMINISTE IA] Intégration LLM externe désactivée (enabled={}, provider={}).", iaEnabled, provider);
+            return ruleBasedExtractor.extractCriteria(userMessage);
+        }
+
+        // Step 2: Route to Groq provider if selected
+        if ("groq".equalsIgnoreCase(provider)) {
+            if (groqClientService != null && groqClientService.isConfigured()) {
+                try {
+                    log.info("[MODE LLM IA] Extraction via Groq (modèle: {})", groqClientService.getEffectiveModel());
+                    CriteresExtraitsDTO result = groqClientService.extractCriteria(userMessage);
+                    if (result != null) {
+                        return result;
+                    }
+                } catch (Exception e) {
+                    log.warn("[MODE FALLBACK IA] Échec appel Groq: {}. Bascule sur le moteur de règles déterministe.", e.getMessage());
+                }
+            } else {
+                log.info("[MODE DÉMO IA] Fournisseur Groq sélectionné mais clé non configurée. Extraction par le moteur de règles déterministe.");
+            }
+            return ruleBasedExtractor.extractCriteria(userMessage);
+        }
+
+        // Step 3: Check API key availability for other providers
         if (apiKey == null || apiKey.trim().isEmpty()) {
             log.info("[MODE DÉMO IA] Clé API IA_API_KEY non configurée. Extraction par le moteur de règles déterministe.");
             return ruleBasedExtractor.extractCriteria(userMessage);
         }
 
-        // Step 3: LLM API Call with Retry on malformed JSON and immediate fallback on timeout
+        // Step 4: Other LLM API Calls with Retry on malformed JSON and immediate fallback on timeout
         int maxAttempts = 2;
         for (int attempt = 1; attempt <= maxAttempts; attempt++) {
             try {

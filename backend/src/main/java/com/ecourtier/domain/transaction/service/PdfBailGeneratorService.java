@@ -12,11 +12,14 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
 import java.awt.Color;
-import java.io.FileOutputStream;
+import java.io.OutputStream;
+import java.nio.file.AtomicMoveNotSupportedException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.nio.file.StandardCopyOption;
 import java.time.format.DateTimeFormatter;
+import java.util.UUID;
 
 @Service
 @Slf4j
@@ -28,6 +31,7 @@ public class PdfBailGeneratorService {
     private int acomptePourcentage = 10;
 
     public String generatePdfBail(TransactionEntity transaction) {
+        Path tmpPath = null;
         try {
             Path uploadPath = Paths.get(UPLOAD_DIR);
             if (!Files.exists(uploadPath)) {
@@ -40,10 +44,12 @@ public class PdfBailGeneratorService {
             String prefix = isVente ? "reservation_achat_" : "bail_";
             String filename = prefix + transaction.getId() + ".pdf";
             Path filePath = uploadPath.resolve(filename);
+            tmpPath = uploadPath.resolve("." + filename + "." + UUID.randomUUID() + ".tmp");
 
             Document document = new Document();
-            PdfWriter.getInstance(document, new FileOutputStream(filePath.toFile()));
-            document.open();
+            try (OutputStream out = Files.newOutputStream(tmpPath)) {
+                PdfWriter.getInstance(document, out);
+                document.open();
 
             Font titleFont = FontFactory.getFont(FontFactory.HELVETICA_BOLD, 17, Color.BLACK);
             Font sectionFont = FontFactory.getFont(FontFactory.HELVETICA_BOLD, 13, Color.DARK_GRAY);
@@ -107,12 +113,35 @@ public class PdfBailGeneratorService {
             document.add(new Paragraph("Statut du séquestre : " + transaction.getStatutSequestre(), bodyFont));
 
             document.close();
-            log.info("PDF récapitulatif ({}) généré avec succès à {}", isVente ? "VENTE" : "LOCATION", filePath.toAbsolutePath());
+            }
 
+            if (!Files.exists(tmpPath) || Files.size(tmpPath) <= 0L) {
+                throw new IllegalStateException("Fichier PDF généré vide ou absent : " + tmpPath);
+            }
+
+            try {
+                Files.move(tmpPath, filePath, StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE);
+            } catch (AtomicMoveNotSupportedException ex) {
+                Files.move(tmpPath, filePath, StandardCopyOption.REPLACE_EXISTING);
+            }
+
+            if (!Files.exists(filePath) || Files.size(filePath) <= 0L) {
+                throw new IllegalStateException("Fichier PDF final introuvable ou vide : " + filePath);
+            }
+
+            log.info("PDF récapitulatif ({}) généré avec succès à {}", isVente ? "VENTE" : "LOCATION", filePath.toAbsolutePath());
             return filePath.toString();
         } catch (Exception e) {
             log.error("Erreur lors de la génération du PDF récapitulatif", e);
             throw new RuntimeException("Échec de génération du PDF récapitulatif", e);
+        } finally {
+            if (tmpPath != null) {
+                try {
+                    Files.deleteIfExists(tmpPath);
+                } catch (Exception cleanupEx) {
+                    log.warn("Impossible de supprimer le fichier temporaire PDF {}: {}", tmpPath, cleanupEx.getMessage());
+                }
+            }
         }
     }
 }

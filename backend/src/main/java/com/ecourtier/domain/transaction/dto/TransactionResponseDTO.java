@@ -2,6 +2,7 @@ package com.ecourtier.domain.transaction.dto;
 
 import com.ecourtier.domain.annonce.entity.ModeTransaction;
 import com.ecourtier.domain.transaction.entity.StatutBail;
+import com.ecourtier.domain.transaction.entity.StatutDocumentBail;
 import com.ecourtier.domain.transaction.entity.StatutSequestre;
 import io.swagger.v3.oas.annotations.media.Schema;
 import lombok.AllArgsConstructor;
@@ -53,5 +54,17 @@ public class TransactionResponseDTO {
     private LocalDateTime dateSignatureProprietaire;
     private LocalDateTime dateLiberation;
     private String pdfBailPath;
+    @Schema(description = "État de génération du PDF du contrat de bail", example = "GENERE")
+    private StatutDocumentBail statutDocumentBail;
+    @Schema(description = "Dernier message d'erreur technique lors de la génération PDF (en cas d'échec)")
+    private String pdfBailErreur;
+    @Schema(description = "Nombre de tentatives de génération du PDF du bail", example = "1")
+    private Integer pdfBailTentatives;
+    @Schema(description = "Date/heure Africa/Dakar de la dernière tentative de génération PDF")
+    private LocalDateTime pdfBailDerniereTentative;
     private LocalDateTime dateCreation;
+    private Boolean dossierActif;
+    private LocalDateTime dateExpiration;
+    private LocalDateTime dateCloture;
+    private String motifCloture;
 }

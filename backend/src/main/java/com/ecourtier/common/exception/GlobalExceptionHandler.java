@@ -1,9 +1,11 @@
 package com.ecourtier.common.exception;
 
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
+import org.springframework.orm.ObjectOptimisticLockingFailureException;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.authentication.AnonymousAuthenticationToken;
 import org.springframework.security.authentication.DisabledException;
@@ -16,7 +18,9 @@ import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.server.ResponseStatusException;
 
 import java.nio.charset.StandardCharsets;
+import java.time.Clock;
 import java.time.LocalDateTime;
+import java.time.ZoneId;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -24,6 +28,14 @@ import java.util.Map;
 public class GlobalExceptionHandler {
 
     private static final MediaType APPLICATION_JSON_UTF8 = new MediaType("application", "json", StandardCharsets.UTF_8);
+    private static final ZoneId DAKAR_ZONE = ZoneId.of("Africa/Dakar");
+
+    @Autowired(required = false)
+    private Clock clock = Clock.system(DAKAR_ZONE);
+
+    private LocalDateTime now() {
+        return LocalDateTime.now(clock != null ? clock : Clock.system(DAKAR_ZONE));
+    }
 
     @ExceptionHandler(AccessDeniedException.class)
     public ResponseEntity<Map<String, Object>> handleAccessDeniedException(AccessDeniedException ex) {
@@ -32,7 +44,7 @@ public class GlobalExceptionHandler {
             throw ex;
         }
         Map<String, Object> response = new HashMap<>();
-        response.put("timestamp", LocalDateTime.now());
+        response.put("timestamp", now());
         response.put("status", HttpStatus.FORBIDDEN.value());
         response.put("error", "Accès refusé — Droits insuffisants pour cette ressource");
 
@@ -51,7 +63,7 @@ public class GlobalExceptionHandler {
         });
 
         Map<String, Object> response = new HashMap<>();
-        response.put("timestamp", LocalDateTime.now());
+        response.put("timestamp", now());
         response.put("status", HttpStatus.BAD_REQUEST.value());
         response.put("error", "Bad Request — Données d'entrée invalides");
         response.put("erreurs", errors);
@@ -64,7 +76,7 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(ResponseStatusException.class)
     public ResponseEntity<Map<String, Object>> handleResponseStatusException(ResponseStatusException ex) {
         Map<String, Object> response = new HashMap<>();
-        response.put("timestamp", LocalDateTime.now());
+        response.put("timestamp", now());
         response.put("status", ex.getStatusCode().value());
         response.put("error", ex.getReason());
 
@@ -76,7 +88,7 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(DataIntegrityViolationException.class)
     public ResponseEntity<Map<String, Object>> handleDataIntegrityViolation(DataIntegrityViolationException ex) {
         Map<String, Object> response = new HashMap<>();
-        response.put("timestamp", LocalDateTime.now());
+        response.put("timestamp", now());
         response.put("status", HttpStatus.CONFLICT.value());
         response.put("error", "Conflit d'intégrité des données (ex: adresse email ou référence déjà existante)");
 
@@ -88,7 +100,7 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(DisabledException.class)
     public ResponseEntity<Map<String, Object>> handleDisabledException(DisabledException ex) {
         Map<String, Object> response = new HashMap<>();
-        response.put("timestamp", LocalDateTime.now());
+        response.put("timestamp", now());
         response.put("status", HttpStatus.FORBIDDEN.value());
         response.put("error", "Le compte utilisateur a été désactivé");
 
@@ -100,7 +112,7 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(IllegalArgumentException.class)
     public ResponseEntity<Map<String, Object>> handleIllegalArgument(IllegalArgumentException ex) {
         Map<String, Object> response = new HashMap<>();
-        response.put("timestamp", LocalDateTime.now());
+        response.put("timestamp", now());
         response.put("status", HttpStatus.BAD_REQUEST.value());
         response.put("error", ex.getMessage());
 
@@ -112,7 +124,7 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(org.springframework.web.method.annotation.MethodArgumentTypeMismatchException.class)
     public ResponseEntity<Map<String, Object>> handleTypeMismatch(org.springframework.web.method.annotation.MethodArgumentTypeMismatchException ex) {
         Map<String, Object> response = new HashMap<>();
-        response.put("timestamp", LocalDateTime.now());
+        response.put("timestamp", now());
         response.put("status", HttpStatus.BAD_REQUEST.value());
         String paramName = ex.getName();
         Object val = ex.getValue();
@@ -126,7 +138,7 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(org.springframework.http.converter.HttpMessageNotReadableException.class)
     public ResponseEntity<Map<String, Object>> handleNotReadable(org.springframework.http.converter.HttpMessageNotReadableException ex) {
         Map<String, Object> response = new HashMap<>();
-        response.put("timestamp", LocalDateTime.now());
+        response.put("timestamp", now());
         response.put("status", HttpStatus.BAD_REQUEST.value());
         response.put("error", "Format de requête invalide ou valeur non reconnue");
 
@@ -135,10 +147,22 @@ public class GlobalExceptionHandler {
                 .body(response);
     }
 
+    @ExceptionHandler(ObjectOptimisticLockingFailureException.class)
+    public ResponseEntity<Map<String, Object>> handleOptimisticLockingFailure(ObjectOptimisticLockingFailureException ex) {
+        Map<String, Object> response = new HashMap<>();
+        response.put("timestamp", now());
+        response.put("status", HttpStatus.CONFLICT.value());
+        response.put("error", "Cette annonce ou ressource a été modifiée simultanément. Veuillez recharger avant de réessayer.");
+
+        return ResponseEntity.status(HttpStatus.CONFLICT)
+                .contentType(APPLICATION_JSON_UTF8)
+                .body(response);
+    }
+
     @ExceptionHandler(org.springframework.web.multipart.MaxUploadSizeExceededException.class)
     public ResponseEntity<Map<String, Object>> handleMaxUploadSizeExceeded(org.springframework.web.multipart.MaxUploadSizeExceededException ex) {
         Map<String, Object> response = new HashMap<>();
-        response.put("timestamp", LocalDateTime.now());
+        response.put("timestamp", now());
         response.put("status", HttpStatus.BAD_REQUEST.value());
         response.put("error", "La taille du fichier dépasse la limite maximale autorisée");
 

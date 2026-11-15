@@ -16,9 +16,9 @@ import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
-import org.hibernate.annotations.CreationTimestamp;
 
 import java.time.LocalDateTime;
+import java.time.ZoneId;
 import java.util.UUID;
 
 @Entity
@@ -51,14 +51,13 @@ public class MessageIAEntity {
     @Column(name = "nombre_annonces_suggerees")
     private Integer nombreAnnoncesSuggerees;
 
-    @CreationTimestamp
     @Column(name = "date_envoi", nullable = false, updatable = false)
     private LocalDateTime dateEnvoi;
 
     @jakarta.persistence.PrePersist
     protected void onCreate() {
         if (dateEnvoi == null) {
-            dateEnvoi = LocalDateTime.now();
+            dateEnvoi = LocalDateTime.now(ZoneId.of("Africa/Dakar"));
         }
     }
 }

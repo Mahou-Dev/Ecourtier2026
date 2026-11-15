@@ -1,12 +1,14 @@
 package com.ecourtier.common.security;
 
 import com.ecourtier.domain.utilisateur.entity.UtilisateurEntity;
+import com.ecourtier.domain.utilisateur.repository.RefreshTokenRepository;
 import com.ecourtier.domain.utilisateur.repository.UtilisateurRepository;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.lang.NonNull;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.context.SecurityContextHolder;
@@ -18,7 +20,10 @@ import org.springframework.web.filter.OncePerRequestFilter;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
+import java.time.Clock;
 import java.time.LocalDateTime;
+import java.time.ZoneId;
+import java.util.UUID;
 
 @Component
 @RequiredArgsConstructor
@@ -27,6 +32,12 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
     private final JwtService jwtService;
     private final UserDetailsService userDetailsService;
     private final UtilisateurRepository utilisateurRepository;
+
+    @Autowired(required = false)
+    private RefreshTokenRepository refreshTokenRepository;
+
+    @Autowired(required = false)
+    private Clock clock = Clock.system(ZoneId.of("Africa/Dakar"));
 
     @Override
     protected void doFilterInternal(
@@ -47,24 +58,43 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
         jwt = authHeader.substring(7);
         boolean accountDeactivated = false;
         try {
-            userEmail = jwtService.extractEmail(jwt);
+            if (!jwtService.isAccessTokenValid(jwt)) {
+                SecurityContextHolder.clearContext();
+            } else {
+                userEmail = jwtService.extractEmail(jwt);
 
-            if (userEmail != null && SecurityContextHolder.getContext().getAuthentication() == null) {
-                UserDetails userDetails = this.userDetailsService.loadUserByUsername(userEmail);
+                if (userEmail != null && SecurityContextHolder.getContext().getAuthentication() == null) {
+                    UserDetails userDetails = this.userDetailsService.loadUserByUsername(userEmail);
 
-                if (jwtService.isTokenValid(jwt, userDetails.getUsername())) {
-                    UtilisateurEntity entity = utilisateurRepository.findByEmail(userEmail).orElse(null);
-                    if (entity == null || !entity.isActif()) {
-                        accountDeactivated = true;
-                        SecurityContextHolder.clearContext();
-                    } else {
-                        UsernamePasswordAuthenticationToken authToken = new UsernamePasswordAuthenticationToken(
-                                userDetails,
-                                null,
-                                userDetails.getAuthorities()
-                        );
-                        authToken.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
-                        SecurityContextHolder.getContext().setAuthentication(authToken);
+                    if (jwtService.isAccessTokenValid(jwt, userDetails.getUsername())) {
+                        UtilisateurEntity entity = utilisateurRepository.findByEmail(userEmail).orElse(null);
+                        if (entity == null || !entity.isActif()) {
+                            accountDeactivated = true;
+                            SecurityContextHolder.clearContext();
+                        } else {
+                            Long tokenVersionClaim = jwtService.extractTokenVersion(jwt);
+                            long currentVersion = entity.getTokenVersion() != null ? entity.getTokenVersion() : 0L;
+                            UUID familyId = jwtService.extractFamilyId(jwt);
+                            LocalDateTime now = LocalDateTime.now(clock != null ? clock : Clock.system(ZoneId.of("Africa/Dakar")));
+                            boolean familyRevoked = familyId != null
+                                    && refreshTokenRepository != null
+                                    && !refreshTokenRepository.isFamilyActive(familyId, entity.getId(), now);
+
+                            if (tokenVersionClaim == null || tokenVersionClaim.longValue() != currentVersion || familyRevoked) {
+                                SecurityContextHolder.clearContext();
+                            } else {
+                                if (familyId != null) {
+                                    request.setAttribute("jwtFamilyId", familyId);
+                                }
+                                UsernamePasswordAuthenticationToken authToken = new UsernamePasswordAuthenticationToken(
+                                        userDetails,
+                                        null,
+                                        userDetails.getAuthorities()
+                                );
+                                authToken.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
+                                SecurityContextHolder.getContext().setAuthentication(authToken);
+                            }
+                        }
                     }
                 }
             }
@@ -80,7 +110,7 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
             String safePath = request.getRequestURI() != null ? request.getRequestURI().replace("\"", "") : "";
             String body = String.format(
                     "{\"timestamp\":\"%s\",\"status\":403,\"error\":\"Le compte utilisateur est désactivé\",\"path\":\"%s\"}",
-                    LocalDateTime.now(),
+                    LocalDateTime.now(ZoneId.of("Africa/Dakar")),
                     safePath
             );
             response.getOutputStream().write(body.getBytes(StandardCharsets.UTF_8));

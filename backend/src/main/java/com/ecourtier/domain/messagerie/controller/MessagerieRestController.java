@@ -4,9 +4,12 @@ import com.ecourtier.domain.messagerie.dto.ConversationResponseDTO;
 import com.ecourtier.domain.messagerie.dto.MessageResponseDTO;
 import com.ecourtier.domain.messagerie.service.MessagerieService;
 import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.responses.ApiResponse;
+import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
+import org.springdoc.core.annotations.ParameterObject;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.web.PageableDefault;
@@ -38,6 +41,12 @@ public class MessagerieRestController {
             summary = "Initier ou récupérer une conversation sur une annonce",
             description = "Ouvre un fil de discussion privé entre l'utilisateur connecté et l'auteur de l'annonce (ou retourne la conversation existante)."
     )
+    @ApiResponses({
+            @ApiResponse(responseCode = "201", description = "Conversation créée ou existante retournée"),
+            @ApiResponse(responseCode = "400", description = "Tentative de conversation avec soi-même"),
+            @ApiResponse(responseCode = "401", description = "Authentification JWT requise ou compte désactivé"),
+            @ApiResponse(responseCode = "404", description = "Annonce introuvable")
+    })
     public ResponseEntity<ConversationResponseDTO> initierConversation(
             @PathVariable("id") UUID annonceId,
             Authentication authentication
@@ -51,6 +60,10 @@ public class MessagerieRestController {
             summary = "Lister mes conversations actives",
             description = "Retourne la liste des conversations auxquelles participe l'utilisateur connecté, triées par dernier message."
     )
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "Liste des conversations retournée"),
+            @ApiResponse(responseCode = "401", description = "Authentification JWT requise ou compte désactivé")
+    })
     public ResponseEntity<List<ConversationResponseDTO>> listerMesConversations(Authentication authentication) {
         List<ConversationResponseDTO> conversations = messagerieService.listerMesConversations(authentication.getName());
         return ResponseEntity.ok(conversations);
@@ -61,6 +74,12 @@ public class MessagerieRestController {
             summary = "Consulter les métadonnées d'une conversation",
             description = "Retourne les détails d'une conversation spécifique pour l'un de ses participants."
     )
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "Métadonnées de la conversation retournées"),
+            @ApiResponse(responseCode = "401", description = "Authentification JWT requise ou compte désactivé"),
+            @ApiResponse(responseCode = "403", description = "Accès réservé aux participants de la conversation"),
+            @ApiResponse(responseCode = "404", description = "Conversation introuvable")
+    })
     public ResponseEntity<ConversationResponseDTO> obtenirConversation(
             @PathVariable("id") UUID conversationId,
             Authentication authentication
@@ -74,9 +93,15 @@ public class MessagerieRestController {
             summary = "Lister les messages d'une conversation (paginé)",
             description = "Retourne l'historique paginé des messages échangés dans la conversation (accès réservé aux participants)."
     )
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "Page de messages retournée"),
+            @ApiResponse(responseCode = "401", description = "Authentification JWT requise ou compte désactivé"),
+            @ApiResponse(responseCode = "403", description = "Accès réservé aux participants de la conversation"),
+            @ApiResponse(responseCode = "404", description = "Conversation introuvable")
+    })
     public ResponseEntity<Page<MessageResponseDTO>> listerMessagesPaging(
             @PathVariable("id") UUID conversationId,
-            @PageableDefault(size = 50) Pageable pageable,
+            @ParameterObject @PageableDefault(size = 50) Pageable pageable,
             Authentication authentication
     ) {
         Page<MessageResponseDTO> page = messagerieService.listerMessages(conversationId, pageable, authentication.getName());
@@ -88,6 +113,12 @@ public class MessagerieRestController {
             summary = "Récupérer tous les messages d'une conversation",
             description = "Retourne la liste chronologique complète des messages de la conversation pour affichage dans le tiroir de messagerie."
     )
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "Liste complète des messages retournée"),
+            @ApiResponse(responseCode = "401", description = "Authentification JWT requise ou compte désactivé"),
+            @ApiResponse(responseCode = "403", description = "Accès réservé aux participants de la conversation"),
+            @ApiResponse(responseCode = "404", description = "Conversation introuvable")
+    })
     public ResponseEntity<List<MessageResponseDTO>> listerTousLesMessages(
             @PathVariable("id") UUID conversationId,
             Authentication authentication
@@ -101,6 +132,12 @@ public class MessagerieRestController {
             summary = "Marquer les messages reçus comme lus",
             description = "Marque comme lus tous les messages non lus adressés à l'utilisateur connecté dans cette conversation."
     )
+    @ApiResponses({
+            @ApiResponse(responseCode = "204", description = "Messages marqués comme lus"),
+            @ApiResponse(responseCode = "401", description = "Authentification JWT requise ou compte désactivé"),
+            @ApiResponse(responseCode = "403", description = "Accès réservé aux participants de la conversation"),
+            @ApiResponse(responseCode = "404", description = "Conversation introuvable")
+    })
     public ResponseEntity<Void> marquerCommeLu(
             @PathVariable("id") UUID conversationId,
             Authentication authentication
@@ -114,6 +151,10 @@ public class MessagerieRestController {
             summary = "Compter le total des messages non lus",
             description = "Retourne le nombre total de messages non lus reçus par l'utilisateur connecté sur l'ensemble de ses conversations."
     )
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "Total des messages non lus retourné"),
+            @ApiResponse(responseCode = "401", description = "Authentification JWT requise ou compte désactivé")
+    })
     public ResponseEntity<Map<String, Long>> compterMessagesNonLus(Authentication authentication) {
         long count = messagerieService.compterMessagesNonLus(authentication.getName());
         return ResponseEntity.ok(Map.of("totalNonLus", count));

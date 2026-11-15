@@ -21,10 +21,12 @@ public interface FavoriRepository extends JpaRepository<FavoriEntity, UUID> {
     Optional<FavoriEntity> findByUtilisateurIdAndAnnonceId(UUID utilisateurId, UUID annonceId);
 
     @EntityGraph(attributePaths = {"annonce", "annonce.utilisateur"})
-    Page<FavoriEntity> findByUtilisateurIdOrderByDateAjoutDesc(UUID utilisateurId, Pageable pageable);
+    @Query("SELECT f FROM FavoriEntity f WHERE f.utilisateur.id = :utilisateurId AND f.annonce.supprime = false ORDER BY f.dateAjout DESC")
+    Page<FavoriEntity> findByUtilisateurIdOrderByDateAjoutDesc(@Param("utilisateurId") UUID utilisateurId, Pageable pageable);
 
-    @Query("SELECT f.annonce.id FROM FavoriEntity f WHERE f.utilisateur.id = :utilisateurId")
+    @Query("SELECT f.annonce.id FROM FavoriEntity f WHERE f.utilisateur.id = :utilisateurId AND f.annonce.supprime = false")
     List<UUID> findAnnonceIdsByUtilisateurId(@Param("utilisateurId") UUID utilisateurId);
 
-    long countByUtilisateurId(UUID utilisateurId);
+    @Query("SELECT COUNT(f) FROM FavoriEntity f WHERE f.utilisateur.id = :utilisateurId AND f.annonce.supprime = false")
+    long countByUtilisateurId(@Param("utilisateurId") UUID utilisateurId);
 }

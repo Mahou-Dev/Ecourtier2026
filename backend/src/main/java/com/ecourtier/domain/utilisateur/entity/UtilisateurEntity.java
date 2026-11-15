@@ -16,6 +16,7 @@ import lombok.NoArgsConstructor;
 import lombok.Setter;
 
 import java.time.LocalDateTime;
+import java.time.ZoneId;
 import java.util.UUID;
 
 @Entity
@@ -55,7 +56,12 @@ public class UtilisateurEntity {
     private LocalDateTime dateCreation;
 
     @Column(nullable = false)
+    @Builder.Default
     private boolean actif = true;
+
+    @Column(name = "token_version", nullable = false)
+    @Builder.Default
+    private Long tokenVersion = 0L;
 
     @Column(name = "photo_profil_url", length = 512)
     private String photoProfilUrl;
@@ -63,7 +69,10 @@ public class UtilisateurEntity {
     @PrePersist
     public void prePersist() {
         if (dateCreation == null) {
-            dateCreation = LocalDateTime.now();
+            dateCreation = LocalDateTime.now(ZoneId.of("Africa/Dakar"));
+        }
+        if (tokenVersion == null) {
+            tokenVersion = 0L;
         }
     }
 }

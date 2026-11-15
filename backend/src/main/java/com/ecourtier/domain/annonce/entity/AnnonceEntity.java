@@ -17,6 +17,7 @@ import jakarta.persistence.ManyToOne;
 import jakarta.persistence.OneToMany;
 import jakarta.persistence.PrePersist;
 import jakarta.persistence.Table;
+import jakarta.persistence.Version;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Getter;
@@ -25,6 +26,7 @@ import lombok.Setter;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
+import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
@@ -111,6 +113,11 @@ public class AnnonceEntity {
     @Builder.Default
     private boolean supprime = false;
 
+    @Version
+    @Column(name = "version", nullable = false)
+    @Builder.Default
+    private Long version = 0L;
+
     @Column(name = "date_verification")
     private LocalDateTime dateVerification;
 
@@ -149,13 +156,16 @@ public class AnnonceEntity {
     @PrePersist
     public void prePersist() {
         if (dateCreation == null) {
-            dateCreation = LocalDateTime.now();
+            dateCreation = LocalDateTime.now(ZoneId.of("Africa/Dakar"));
         }
         if (statutVerification == null) {
             statutVerification = StatutVerification.EN_ATTENTE;
         }
         if (statutPublication == null) {
             statutPublication = StatutPublication.DISPONIBLE;
+        }
+        if (version == null) {
+            version = 0L;
         }
     }
 }

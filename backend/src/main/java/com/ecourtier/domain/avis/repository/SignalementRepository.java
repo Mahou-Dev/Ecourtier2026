@@ -15,4 +15,6 @@ public interface SignalementRepository extends JpaRepository<SignalementEntity, 
     Page<SignalementEntity> findByStatut(StatutSignalement statut, Pageable pageable);
 
     Page<SignalementEntity> findAll(Pageable pageable);
+
+    boolean existsByAnnonceIdAndAuteurId(UUID annonceId, UUID auteurId);
 }

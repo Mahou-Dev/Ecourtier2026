@@ -2,44 +2,36 @@ package com.ecourtier.common.security;
 
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
-import org.springframework.web.server.ResponseStatusException;
 
 import java.time.Clock;
-import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.atomic.AtomicInteger;
 
 /**
  * Service de limitation du taux de tentatives de connexion échouées.
- * 
+ *
  * - Max 5 tentatives consécutives dans une fenêtre glissante de 15 minutes.
- * - Nettoyage efficace avec éviction paresseuse O(1) et balayage périodique borné (toutes les 60s).
- * - Borne maximale de capacité à 10 000 entrées pour éviter la saturation mémoire sous attaque de déni de service.
+ * - Éviction O(1) amortie (entrées expirées puis éviction prioritaire basse pression si capacité maximale atteinte).
  */
 @Service
 @Slf4j
 public class LoginRateLimiterService {
 
     private static final int MAX_ATTEMPTS = 5;
-    static final long WINDOW_MS = 15 * 60 * 1000L; // 15 minutes window
+    private static final int MAX_ATTEMPTS_PER_IP = 25;
+    static final long WINDOW_MS = 15 * 60 * 1000L;
     private static final int MAX_ENTRIES = 10_000;
-    private static final long CLEANUP_THROTTLE_MS = 60 * 1000L; // Balayage périodique au plus toutes les 60s
+    private static final long CLEANUP_THROTTLE_MS = 60 * 1000L;
+    private static final String RATE_LIMIT_MSG =
+            "Trop de tentatives de connexion échouées. Par mesure de sécurité, veuillez réessayer dans 15 minutes.";
 
-    private static class AttemptWindow {
-        final long windowStart;
-        final AtomicInteger attempts;
-
-        AttemptWindow(long windowStart) {
-            this.windowStart = windowStart;
-            this.attempts = new AtomicInteger(1);
-        }
-    }
-
-    private final Map<String, AttemptWindow> attemptsMap = new ConcurrentHashMap<>();
+    private final ConcurrentHashMap<String, BoundedRateLimiterSupport.AttemptWindow> attemptsMap =
+            new ConcurrentHashMap<>();
+    private final ConcurrentHashMap<String, BoundedRateLimiterSupport.AttemptWindow> ipAttemptsMap =
+            new ConcurrentHashMap<>();
+    private final Object evictionLock = new Object();
     private final Clock clock;
-    private volatile long lastCleanupTime = 0;
+    private volatile long lastCleanupTime = 0L;
 
     public LoginRateLimiterService() {
         this(Clock.systemUTC());
@@ -51,68 +43,54 @@ public class LoginRateLimiterService {
     }
 
     public void checkAndRecordAttempt(String ip, String email) {
-        String key = buildKey(ip, email);
+        String normalizedIp = BoundedRateLimiterSupport.normalizeIp(ip);
+        String key = buildKey(normalizedIp, email);
         long now = clock.millis();
 
-        // Éviction globale périodique amortie (évite le parcours O(N) à chaque tentative)
-        if (now - lastCleanupTime > CLEANUP_THROTTLE_MS || attemptsMap.size() >= MAX_ENTRIES) {
+        if (now - lastCleanupTime > CLEANUP_THROTTLE_MS
+                || attemptsMap.size() >= MAX_ENTRIES
+                || ipAttemptsMap.size() >= MAX_ENTRIES) {
             triggerPeriodicCleanup(now);
         }
 
-        // Si la carte est encore saturée, rejeter par mesure défensive
-        if (attemptsMap.size() >= MAX_ENTRIES && !attemptsMap.containsKey(key)) {
-            evictExpiredEntries(now);
-            if (attemptsMap.size() >= MAX_ENTRIES) {
-                log.warn("[LOGIN RATE LIMIT] Capacité mémoire maximale atteinte ({} entrées)", MAX_ENTRIES);
-                throw new ResponseStatusException(
-                        HttpStatus.TOO_MANY_REQUESTS,
-                        "Trop de tentatives sur le service d'authentification. Veuillez réessayer ultérieurement."
-                );
-            }
-        }
+        BoundedRateLimiterSupport.ensureCapacity(
+                ipAttemptsMap, normalizedIp, now, WINDOW_MS, MAX_ENTRIES, MAX_ATTEMPTS_PER_IP, evictionLock);
+        BoundedRateLimiterSupport.recordAttempt(
+                ipAttemptsMap, normalizedIp, now, WINDOW_MS, MAX_ATTEMPTS_PER_IP, RATE_LIMIT_MSG);
 
-        // Éviction paresseuse O(1) lors de l'accès à la clé courante
-        AttemptWindow window = attemptsMap.compute(key, (k, current) -> {
-            if (current == null || (now - current.windowStart) > WINDOW_MS) {
-                return new AttemptWindow(now);
-            } else {
-                if (current.attempts.get() >= MAX_ATTEMPTS) {
-                    throw new ResponseStatusException(
-                            HttpStatus.TOO_MANY_REQUESTS,
-                            "Trop de tentatives de connexion échouées. Par mesure de sécurité, veuillez réessayer dans 15 minutes."
-                    );
-                }
-                current.attempts.incrementAndGet();
-                return current;
-            }
-        });
-
-        // Double check threshold
-        if (window.attempts.get() > MAX_ATTEMPTS) {
-            throw new ResponseStatusException(
-                    HttpStatus.TOO_MANY_REQUESTS,
-                    "Trop de tentatives de connexion échouées. Par mesure de sécurité, veuillez réessayer dans 15 minutes."
-            );
-        }
+        BoundedRateLimiterSupport.ensureCapacity(
+                attemptsMap, key, now, WINDOW_MS, MAX_ENTRIES, MAX_ATTEMPTS, evictionLock);
+        BoundedRateLimiterSupport.recordAttempt(
+                attemptsMap, key, now, WINDOW_MS, MAX_ATTEMPTS, RATE_LIMIT_MSG);
     }
 
     public void resetAttempts(String ip, String email) {
-        attemptsMap.remove(buildKey(ip, email));
+        String normalizedIp = BoundedRateLimiterSupport.normalizeIp(ip);
+        attemptsMap.remove(buildKey(normalizedIp, email));
+        ipAttemptsMap.computeIfPresent(normalizedIp, (ignored, window) -> {
+            if (window.attempts.decrementAndGet() <= 0) {
+                return null;
+            }
+            return window;
+        });
     }
 
     public void evictExpiredEntries() {
-        evictExpiredEntries(clock.millis());
+        long now = clock.millis();
+        BoundedRateLimiterSupport.evictExpired(attemptsMap, now, WINDOW_MS);
+        BoundedRateLimiterSupport.evictExpired(ipAttemptsMap, now, WINDOW_MS);
     }
 
-    private synchronized void triggerPeriodicCleanup(long now) {
-        if (now - lastCleanupTime > CLEANUP_THROTTLE_MS || attemptsMap.size() >= MAX_ENTRIES) {
-            evictExpiredEntries(now);
-            lastCleanupTime = now;
+    private void triggerPeriodicCleanup(long now) {
+        if (now - lastCleanupTime > CLEANUP_THROTTLE_MS) {
+            synchronized (evictionLock) {
+                if (now - lastCleanupTime > CLEANUP_THROTTLE_MS) {
+                    BoundedRateLimiterSupport.evictExpired(attemptsMap, now, WINDOW_MS);
+                    BoundedRateLimiterSupport.evictExpired(ipAttemptsMap, now, WINDOW_MS);
+                    lastCleanupTime = now;
+                }
+            }
         }
-    }
-
-    private void evictExpiredEntries(long now) {
-        attemptsMap.entrySet().removeIf(e -> (now - e.getValue().windowStart) > WINDOW_MS);
     }
 
     public int getTrackedEntriesCount() {
@@ -120,6 +98,7 @@ public class LoginRateLimiterService {
     }
 
     private String buildKey(String ip, String email) {
-        return (ip != null ? ip.trim() : "unknown") + ":" + (email != null ? email.trim().toLowerCase() : "unknown");
+        return BoundedRateLimiterSupport.normalizeIp(ip) + ":"
+                + (email != null ? email.trim().toLowerCase() : "unknown");
     }
 }

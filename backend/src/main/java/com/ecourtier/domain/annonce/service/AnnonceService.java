@@ -1,9 +1,14 @@
 package com.ecourtier.domain.annonce.service;
 
+import org.springframework.beans.factory.annotation.Autowired;
+
+import java.time.Clock;
 import java.time.LocalDateTime;
+import java.time.ZoneId;
 import com.ecourtier.common.service.FileStorageService;
 import com.ecourtier.domain.annonce.dto.AnnonceCreateDTO;
 import com.ecourtier.domain.annonce.dto.AnnonceResponseDTO;
+import com.ecourtier.domain.annonce.dto.AnnonceStatutUpdateDTO;
 import com.ecourtier.domain.annonce.dto.AnnonceUpdateDTO;
 import com.ecourtier.domain.annonce.dto.DocumentVerificationResponseDTO;
 import com.ecourtier.domain.annonce.dto.OrdrePhotosDTO;
@@ -25,6 +30,11 @@ import com.ecourtier.domain.annonce.repository.AnnonceSpecification;
 import com.ecourtier.domain.annonce.repository.DocumentVerificationRepository;
 import com.ecourtier.domain.annonce.repository.PhotoAnnonceRepository;
 import com.ecourtier.domain.favori.repository.FavoriRepository;
+import com.ecourtier.domain.rendezvous.entity.StatutRendezVous;
+import com.ecourtier.domain.rendezvous.repository.RendezVousRepository;
+import com.ecourtier.domain.transaction.entity.StatutSequestre;
+import com.ecourtier.domain.transaction.entity.TransactionEntity;
+import com.ecourtier.domain.transaction.repository.TransactionRepository;
 import com.ecourtier.domain.utilisateur.entity.UtilisateurEntity;
 import com.ecourtier.domain.utilisateur.repository.UtilisateurRepository;
 import lombok.RequiredArgsConstructor;
@@ -33,6 +43,8 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.domain.Specification;
 import org.springframework.http.HttpStatus;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
@@ -57,6 +69,26 @@ public class AnnonceService {
     private final FileStorageService fileStorageService;
     private final AnnonceMapper annonceMapper;
     private final FavoriRepository favoriRepository;
+    private final TransactionRepository transactionRepository;
+    private final AnnonceStatutStateMachine annonceStatutStateMachine;
+
+    @Autowired(required = false)
+    private RendezVousRepository rendezVousRepository;
+
+    private static final ZoneId DAKAR_ZONE = ZoneId.of("Africa/Dakar");
+
+    @Autowired(required = false)
+    private Clock clock = Clock.system(DAKAR_ZONE);
+
+    void setClock(Clock clock) {
+        if (clock != null) {
+            this.clock = clock;
+        }
+    }
+
+    private LocalDateTime now() {
+        return LocalDateTime.now(clock != null ? clock : Clock.system(DAKAR_ZONE));
+    }
 
     @Transactional
     public AnnonceResponseDTO creerAnnonce(AnnonceCreateDTO dto, String userEmail) {
@@ -109,8 +141,29 @@ public class AnnonceService {
 
     @Transactional
     public AnnonceResponseDTO modifierAnnonce(UUID id, AnnonceUpdateDTO dto) {
-        AnnonceEntity annonce = annonceRepository.findByIdAndSupprimeFalse(id)
+        return modifierAnnonce(id, dto, isCurrentUserAdmin());
+    }
+
+    @Transactional
+    public AnnonceResponseDTO modifierAnnonce(UUID id, AnnonceUpdateDTO dto, boolean isAdmin) {
+        if (dto == null || dto.getVersion() == null) {
+            throw new ResponseStatusException(
+                    HttpStatus.BAD_REQUEST,
+                    "La version de l'annonce est obligatoire pour enregistrer une modification."
+            );
+        }
+
+        AnnonceEntity annonce = annonceRepository.findByIdAndSupprimeFalseForUpdate(id)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Annonce introuvable ou supprimée"));
+
+        if (!java.util.Objects.equals(dto.getVersion(), annonce.getVersion())) {
+            throw new ResponseStatusException(
+                    HttpStatus.CONFLICT,
+                    "Cette annonce a été modifiée par un autre utilisateur. Veuillez recharger l'annonce avant d'enregistrer vos modifications."
+            );
+        }
+
+        annonceStatutStateMachine.assertModifierAnnonceStatutAutorise(annonce, dto.getStatutPublication(), isAdmin);
 
         Double effectiveLat = dto.getLatitude() != null ? dto.getLatitude() : annonce.getLatitude();
         Double effectiveLon = dto.getLongitude() != null ? dto.getLongitude() : annonce.getLongitude();
@@ -122,6 +175,10 @@ public class AnnonceService {
             log.info("[ANO-08] Invalidation du statut de vérification pour l'annonce {}: passage de VERIFIEE à EN_ATTENTE suite à modification substantielle.", id);
             annonce.setStatutVerification(StatutVerification.EN_ATTENTE);
             annonce.setDateVerification(null);
+        }
+
+        if (dto.getStatutPublication() != null && dto.getStatutPublication() != annonce.getStatutPublication()) {
+            appliquerTransitionPublicationAdminSurAnnonce(annonce, dto.getStatutPublication(), "Modification administrative via édition");
         }
 
         if (dto.getTitre() != null) annonce.setTitre(dto.getTitre());
@@ -140,11 +197,11 @@ public class AnnonceService {
         if (dto.getAnimauxAcceptes() != null) annonce.setAnimauxAcceptes(dto.getAnimauxAcceptes());
         if (dto.getConfirmationAutomatique() != null) annonce.setConfirmationAutomatique(dto.getConfirmationAutomatique());
         if (dto.getLienVisite360() != null) annonce.setLienVisite360(dto.getLienVisite360());
-        if (dto.getStatutPublication() != null) annonce.setStatutPublication(dto.getStatutPublication());
         if (dto.getEquipements() != null) annonce.setEquipements(dto.getEquipements());
         if (dto.getProximites() != null) annonce.setProximites(dto.getProximites());
 
         AnnonceEntity updated = annonceRepository.save(annonce);
+        annonceRepository.flush();
         return annonceMapper.toResponseDTO(updated);
     }
 
@@ -203,12 +260,67 @@ public class AnnonceService {
     }
 
     @Transactional
-    public void supprimerAnnonceLogique(UUID id) {
-        AnnonceEntity annonce = annonceRepository.findByIdAndSupprimeFalse(id)
+    public void supprimerAnnonceLogique(UUID id, String actorEmail, boolean isAdmin) {
+        // Ordre canonique de verrouillage : Annonce -> Transaction
+        AnnonceEntity annonce = annonceRepository.findByIdAndSupprimeFalseForUpdate(id)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Annonce introuvable ou déjà supprimée"));
+
+        if (!isAdmin && (actorEmail == null || actorEmail.isBlank() || annonce.getUtilisateur() == null
+                || !annonce.getUtilisateur().getEmail().equalsIgnoreCase(actorEmail))) {
+            throw new ResponseStatusException(
+                    HttpStatus.FORBIDDEN,
+                    "Accès refusé : seul le propriétaire de l'annonce ou un administrateur peut la supprimer."
+            );
+        }
+
+        StatutPublication statut = annonce.getStatutPublication();
+        if (statut != null && statut != StatutPublication.DISPONIBLE) {
+            throw new ResponseStatusException(
+                    HttpStatus.CONFLICT,
+                    buildSuppressionRefusMessage(statut)
+            );
+        }
+
+        List<StatutSequestre> activeBlockingStatuses = List.of(StatutSequestre.INITIALISE, StatutSequestre.BLOQUE);
+        List<TransactionEntity> lockedBlocking = transactionRepository.findBlockingTransactionsByAnnonceIdForUpdate(
+                id,
+                activeBlockingStatuses
+        );
+        boolean hasBlockingTx = (lockedBlocking != null && !lockedBlocking.isEmpty())
+                || transactionRepository.existsByAnnonceIdAndDossierActifTrueAndStatutSequestreIn(id, activeBlockingStatuses)
+                || transactionRepository.existsByAnnonceIdAndStatutSequestreIn(id, List.of(StatutSequestre.BLOQUE));
+
+        if (hasBlockingTx) {
+            throw new ResponseStatusException(
+                    HttpStatus.CONFLICT,
+                    "Impossible de supprimer cette annonce : une transaction active (INITIALISE ou BLOQUE) est en cours."
+            );
+        }
 
         annonce.setSupprime(true);
         annonceRepository.save(annonce);
+        if (rendezVousRepository != null) {
+            var activeRdvs = rendezVousRepository.findByAnnonceIdAndStatutIn(
+                    id,
+                    List.of(StatutRendezVous.DEMANDE, StatutRendezVous.CONFIRME)
+            );
+            for (var rdv : activeRdvs) {
+                rdv.setStatut(StatutRendezVous.ANNULE);
+                rendezVousRepository.save(rdv);
+            }
+        }
+        log.info("[SUPPRESSION LOGIQUE ANNONCE] Annonce {} archivée (supprime=true) par {}.",
+                id, actorEmail != null ? actorEmail : "SYSTEM");
+    }
+
+    private String buildSuppressionRefusMessage(StatutPublication statut) {
+        return switch (statut) {
+            case RESERVEE -> "Impossible de supprimer cette annonce : elle est actuellement RESERVEE par une transaction en cours.";
+            case LOUEE -> "Impossible de supprimer cette annonce : un bail a déjà été conclu (statut LOUEE).";
+            case VENDUE -> "Impossible de supprimer cette annonce : la vente a déjà été conclue (statut VENDUE).";
+            case SUSPENDUE -> "Impossible de supprimer cette annonce : elle fait l'objet d'une suspension administrative (statut SUSPENDUE).";
+            default -> "Impossible de supprimer cette annonce dans l'état " + statut + ".";
+        };
     }
 
     @Transactional(readOnly = true)
@@ -329,10 +441,38 @@ public class AnnonceService {
             String auteurEmail,
             String userEmail
     ) {
+        return rechercherAnnonces(
+                pageable, budgetMin, budgetMax, types, modeTransaction,
+                superficieMin, nombrePieces, quartier, ville, meuble,
+                animauxAcceptes, statutVerification, proximites, includeIndisponibles,
+                auteurEmail, userEmail, null
+        );
+    }
+
+    @Transactional(readOnly = true)
+    public Page<AnnonceResponseDTO> rechercherAnnonces(
+            Pageable pageable,
+            BigDecimal budgetMin,
+            BigDecimal budgetMax,
+            List<TypeBien> types,
+            ModeTransaction modeTransaction,
+            Double superficieMin,
+            Integer nombrePieces,
+            String quartier,
+            String ville,
+            Boolean meuble,
+            Boolean animauxAcceptes,
+            StatutVerification statutVerification,
+            List<ProximiteTag> proximites,
+            Boolean includeIndisponibles,
+            String auteurEmail,
+            String userEmail,
+            String q
+    ) {
         Specification<AnnonceEntity> spec = AnnonceSpecification.filterAnnonces(
                 budgetMin, budgetMax, types, modeTransaction, superficieMin,
                 nombrePieces, quartier, ville, meuble, animauxAcceptes,
-                statutVerification, proximites, includeIndisponibles, auteurEmail
+                statutVerification, proximites, includeIndisponibles, auteurEmail, q
         );
 
         Set<UUID> favorisIds = getFavorisIds(userEmail);
@@ -479,6 +619,19 @@ public class AnnonceService {
                 .build();
 
         DocumentVerificationEntity saved = documentVerificationRepository.save(doc);
+
+        if (annonce.getStatutVerification() == StatutVerification.REJETEE) {
+            annonce.setStatutVerification(StatutVerification.EN_ATTENTE);
+            annonce.setDateVerification(null);
+            for (DocumentVerificationEntity existingDoc : documentVerificationRepository.findByAnnonceId(id)) {
+                if (existingDoc.getMotifRejet() != null) {
+                    existingDoc.setMotifRejet(null);
+                    documentVerificationRepository.save(existingDoc);
+                }
+            }
+            annonceRepository.save(annonce);
+        }
+
         return annonceMapper.toDocumentDTO(saved);
     }
 
@@ -546,7 +699,7 @@ public class AnnonceService {
         }
 
         annonce.setStatutVerification(decision.getStatutVerification());
-        annonce.setDateVerification(LocalDateTime.now());
+        annonce.setDateVerification(now());
 
         StatutDocument documentStatus = decision.getStatutVerification() == StatutVerification.VERIFIEE ?
                 StatutDocument.VALIDE : StatutDocument.REJETE;
@@ -561,5 +714,86 @@ public class AnnonceService {
 
         AnnonceEntity saved = annonceRepository.save(annonce);
         return annonceMapper.toResponseDTO(saved);
+    }
+
+    @Transactional
+    public AnnonceResponseDTO changerStatutPublicationAdmin(UUID id, AnnonceStatutUpdateDTO request, String adminEmail) {
+        if (request == null || request.getVersion() == null) {
+            throw new ResponseStatusException(
+                    HttpStatus.BAD_REQUEST,
+                    "La version de l'annonce est obligatoire pour modifier son statut administratif."
+            );
+        }
+
+        if (request.getStatutPublication() == StatutPublication.SUSPENDUE
+                && (request.getMotif() == null || request.getMotif().trim().isBlank())) {
+            throw new ResponseStatusException(
+                    HttpStatus.BAD_REQUEST,
+                    "Le motif est obligatoire pour suspendre administrativement une annonce."
+            );
+        }
+
+        AnnonceEntity annonce = annonceRepository.findByIdAndSupprimeFalseForUpdate(id)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Annonce introuvable ou supprimée"));
+
+        if (!java.util.Objects.equals(request.getVersion(), annonce.getVersion())) {
+            throw new ResponseStatusException(
+                    HttpStatus.CONFLICT,
+                    "Cette annonce a été modifiée par un autre utilisateur (version actuelle: "
+                            + annonce.getVersion() + ", version reçue: " + request.getVersion()
+                            + "). Veuillez recharger l'annonce avant de changer son statut."
+            );
+        }
+
+        String motif = (request.getMotif() != null && !request.getMotif().isBlank())
+                ? request.getMotif().trim()
+                : "Décision administrative (" + adminEmail + ")";
+
+        appliquerTransitionPublicationAdminSurAnnonce(annonce, request.getStatutPublication(), motif);
+        AnnonceEntity saved = annonceRepository.saveAndFlush(annonce);
+        return annonceMapper.toResponseDTO(saved);
+    }
+
+    private void appliquerTransitionPublicationAdminSurAnnonce(AnnonceEntity annonce, StatutPublication target, String motif) {
+        boolean hasActiveBloque = transactionRepository.existsByAnnonceIdAndDossierActifTrueAndStatutSequestreIn(
+                annonce.getId(),
+                List.of(StatutSequestre.BLOQUE)
+        );
+        boolean changed = annonceStatutStateMachine.appliquerTransitionAdmin(annonce, target, hasActiveBloque);
+        if (changed && target == StatutPublication.SUSPENDUE) {
+            cloturerInitialiseSurSuspension(transactionRepository, annonce.getId(), motif);
+        }
+    }
+
+    public static void cloturerInitialiseSurSuspension(TransactionRepository transactionRepository, UUID annonceId, String motif) {
+        List<TransactionEntity> activeInitialise = transactionRepository.findActiveInitialiseByAnnonceIdForUpdate(annonceId);
+        if (activeInitialise == null || activeInitialise.isEmpty()) {
+            return;
+        }
+        LocalDateTime now = LocalDateTime.now(DAKAR_ZONE);
+        String effectiveMotif = (motif != null && !motif.isBlank())
+                ? motif
+                : "Clôture automatique suite à suspension administrative de l'annonce";
+        for (TransactionEntity tx : activeInitialise) {
+            if ((tx.getStatutBail() != null && tx.getStatutBail() != com.ecourtier.domain.transaction.entity.StatutBail.NON_SIGNE)
+                    || tx.getDateSignatureLocataire() != null
+                    || tx.getDateSignatureProprietaire() != null) {
+                throw new ResponseStatusException(
+                        HttpStatus.CONFLICT,
+                        "Impossible de clôturer automatiquement une transaction ayant déjà reçu une signature de bail."
+                );
+            }
+            tx.setStatutSequestre(StatutSequestre.ANNULE);
+            tx.setDossierActif(Boolean.FALSE);
+            tx.setDateCloture(now);
+            tx.setMotifCloture(effectiveMotif.length() > 500 ? effectiveMotif.substring(0, 500) : effectiveMotif);
+            transactionRepository.save(tx);
+        }
+    }
+
+    private boolean isCurrentUserAdmin() {
+        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+        return authentication != null && authentication.getAuthorities().stream()
+                .anyMatch(a -> "ROLE_ADMIN".equals(a.getAuthority()));
     }
 }

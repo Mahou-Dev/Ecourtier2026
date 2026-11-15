@@ -57,7 +57,15 @@ public class TransactionMapper {
                 .dateSignatureProprietaire(entity.getDateSignatureProprietaire())
                 .dateLiberation(entity.getDateLiberation())
                 .pdfBailPath(entity.getPdfBailPath())
+                .statutDocumentBail(entity.getStatutDocumentBail())
+                .pdfBailErreur(entity.getPdfBailErreur())
+                .pdfBailTentatives(entity.getPdfBailTentatives())
+                .pdfBailDerniereTentative(entity.getPdfBailDerniereTentative())
                 .dateCreation(entity.getDateCreation())
+                .dossierActif(entity.getDossierActif())
+                .dateExpiration(entity.getDateExpiration())
+                .dateCloture(entity.getDateCloture())
+                .motifCloture(entity.getMotifCloture())
                 .build();
     }
 }

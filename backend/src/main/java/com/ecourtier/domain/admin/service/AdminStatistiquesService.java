@@ -24,8 +24,12 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
 import java.time.Duration;
+import org.springframework.beans.factory.annotation.Autowired;
+
+import java.time.Clock;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
@@ -37,6 +41,21 @@ import java.util.Map;
 public class AdminStatistiquesService {
 
     private final AdminStatistiquesRepository repository;
+
+    private static final ZoneId DAKAR_ZONE = ZoneId.of("Africa/Dakar");
+
+    @Autowired(required = false)
+    private Clock clock = Clock.system(DAKAR_ZONE);
+
+    void setClock(Clock clock) {
+        if (clock != null) {
+            this.clock = clock;
+        }
+    }
+
+    private Clock effectiveClock() {
+        return clock != null ? clock : Clock.system(DAKAR_ZONE);
+    }
 
     @Cacheable(value = "adminStats", key = "#periode != null ? #periode : '30j'")
     @Transactional(readOnly = true)
@@ -61,7 +80,7 @@ public class AdminStatistiquesService {
     }
 
     private LocalDateTime calculerDateDebut(String periode) {
-        LocalDateTime now = LocalDateTime.now();
+        LocalDateTime now = LocalDateTime.now(effectiveClock());
         return switch (periode) {
             case "7j" -> now.minusDays(7).withHour(0).withMinute(0).withSecond(0).withNano(0);
             case "90j" -> now.minusDays(90).withHour(0).withMinute(0).withSecond(0).withNano(0);
@@ -92,7 +111,7 @@ public class AdminStatistiquesService {
 
         List<SerieTemporelleDTO> meps = new ArrayList<>();
         LocalDate start = dateDebut.toLocalDate();
-        LocalDate end = LocalDate.now();
+        LocalDate end = LocalDate.now(effectiveClock());
 
         if ("tout".equals(periode) && rawDaily.isEmpty()) {
             start = end;

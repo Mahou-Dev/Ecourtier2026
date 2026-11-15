@@ -12,16 +12,21 @@ import com.ecourtier.domain.rendezvous.entity.TypeNotificationSms;
 import com.ecourtier.domain.rendezvous.mapper.RendezVousMapper;
 import com.ecourtier.domain.rendezvous.repository.RendezVousRepository;
 import com.ecourtier.domain.rendezvous.sms.SmsGateway;
+import com.ecourtier.common.scheduler.SchedulerLockService;
 import com.ecourtier.domain.utilisateur.entity.UtilisateurEntity;
 import com.ecourtier.domain.utilisateur.repository.UtilisateurRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionTemplate;
 import org.springframework.web.server.ResponseStatusException;
 
+import java.time.Duration;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
@@ -29,12 +34,14 @@ import java.time.ZonedDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.List;
 import java.util.UUID;
+import java.util.concurrent.atomic.AtomicInteger;
 
 @Service
 @Slf4j
 @RequiredArgsConstructor
 public class RendezVousService {
 
+    public static final String REMINDER_LOCK_NAME = "rdv-rappels-demain";
     private static final ZoneId DAKAR_ZONE = ZoneId.of("Africa/Dakar");
     private static final DateTimeFormatter DATE_HEURE_FMT = DateTimeFormatter.ofPattern("dd/MM/yyyy 'à' HH:mm");
 
@@ -45,6 +52,12 @@ public class RendezVousService {
     private final SmsGateway smsGateway;
     private final java.time.Clock clock;
 
+    @Autowired(required = false)
+    private SchedulerLockService schedulerLockService;
+
+    @Autowired(required = false)
+    private PlatformTransactionManager transactionManager;
+
     @Transactional
     public RendezVousResponseDTO demanderRendezVous(UUID annonceId, RendezVousRequestDTO request, String userEmail) {
         UtilisateurEntity user = utilisateurRepository.findByEmail(userEmail)
@@ -52,6 +65,11 @@ public class RendezVousService {
 
         AnnonceEntity annonce = annonceRepository.findByIdAndSupprimeFalse(annonceId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Annonce introuvable"));
+
+        if (annonce.getUtilisateur() != null && annonce.getUtilisateur().getId().equals(user.getId())) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                    "Vous ne pouvez pas demander un rendez-vous pour votre propre annonce");
+        }
 
         if (annonce.getStatutPublication() != StatutPublication.DISPONIBLE) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Ce bien n'est plus disponible");
@@ -120,6 +138,14 @@ public class RendezVousService {
     public RendezVousResponseDTO confirmerRendezVous(UUID rdvId, String userEmail) {
         RendezVousEntity rdv = rendezVousRepository.findById(rdvId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Rendez-vous introuvable"));
+        if (rdv.getAnnonce().isSupprime()) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT,
+                    "Impossible de confirmer ce rendez-vous : l'annonce a été supprimée");
+        }
+        if (rdv.getStatut() != StatutRendezVous.DEMANDE) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT,
+                    "Seul un rendez-vous au statut DEMANDE peut être confirmé (statut actuel : " + rdv.getStatut() + ")");
+        }
 
         // Vérification anti-chevauchement : aucun autre RDV CONFIRME à ±60 min
         LocalDateTime startSlot = rdv.getDateHeure().minusMinutes(60);
@@ -158,6 +184,10 @@ public class RendezVousService {
     public RendezVousResponseDTO annulerRendezVous(UUID rdvId, RendezVousAnnulationDTO request, String userEmail) {
         RendezVousEntity rdv = rendezVousRepository.findById(rdvId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Rendez-vous introuvable"));
+        if (rdv.getStatut() == StatutRendezVous.ANNULE || rdv.getStatut() == StatutRendezVous.EFFECTUE) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT,
+                    "Impossible d'annuler un rendez-vous déjà " + rdv.getStatut());
+        }
 
         String motif = request != null ? request.getMotif() : null;
         rdv.setStatut(StatutRendezVous.ANNULE);
@@ -214,6 +244,10 @@ public class RendezVousService {
     public RendezVousResponseDTO marquerEffectue(UUID rdvId, String userEmail) {
         RendezVousEntity rdv = rendezVousRepository.findById(rdvId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Rendez-vous introuvable"));
+        if (rdv.getStatut() != StatutRendezVous.CONFIRME) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT,
+                    "Seul un rendez-vous CONFIRME peut être marqué comme effectué (statut actuel : " + rdv.getStatut() + ")");
+        }
 
         rdv.setStatut(StatutRendezVous.EFFECTUE);
         RendezVousEntity saved = rendezVousRepository.save(rdv);
@@ -240,8 +274,32 @@ public class RendezVousService {
     }
 
     @Scheduled(cron = "${ecourtier.rdv.rappel-cron:0 0 9 * * *}", zone = "Africa/Dakar")
-    @Transactional
     public int simulerRappelsDemain() {
+        final int[] envoyes = {0};
+        Runnable work = () -> envoyes[0] = executerRappelsDemainDansTransaction();
+        if (schedulerLockService != null) {
+            schedulerLockService.tryExecuteWithLock(
+                    REMINDER_LOCK_NAME,
+                    java.time.Duration.ofMinutes(5),
+                    java.time.Duration.ofSeconds(10),
+                    work
+            );
+        } else {
+            work.run();
+        }
+        return envoyes[0];
+    }
+
+    protected int executerRappelsDemainDansTransaction() {
+        if (transactionManager != null) {
+            Integer result = new org.springframework.transaction.support.TransactionTemplate(transactionManager)
+                    .execute(status -> executerRappelsDemainInterne());
+            return result != null ? result : 0;
+        }
+        return executerRappelsDemainInterne();
+    }
+
+    private int executerRappelsDemainInterne() {
         LocalDate tomorrow = LocalDate.now(clock != null ? clock.withZone(DAKAR_ZONE) : java.time.Clock.system(DAKAR_ZONE)).plusDays(1);
         LocalDateTime startTomorrow = tomorrow.atStartOfDay();
         LocalDateTime endTomorrow = tomorrow.atTime(23, 59, 59);

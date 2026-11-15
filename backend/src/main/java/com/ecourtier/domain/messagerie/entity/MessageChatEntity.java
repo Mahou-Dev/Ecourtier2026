@@ -5,6 +5,7 @@ import jakarta.persistence.*;
 import lombok.*;
 
 import java.time.LocalDateTime;
+import java.time.ZoneId;
 import java.util.UUID;
 
 @Entity
@@ -40,7 +41,7 @@ public class MessageChatEntity {
     @PrePersist
     protected void onCreate() {
         if (dateEnvoi == null) {
-            dateEnvoi = LocalDateTime.now();
+            dateEnvoi = LocalDateTime.now(ZoneId.of("Africa/Dakar"));
         }
     }
 }

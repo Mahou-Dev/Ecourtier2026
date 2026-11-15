@@ -8,6 +8,9 @@ import com.ecourtier.domain.annonce.entity.TypeDocumentVerification;
 import com.ecourtier.domain.reference.dto.ReferencesResponseDTO;
 import com.ecourtier.domain.reference.dto.ReferencesResponseDTO.ReferenceItemDTO;
 import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.responses.ApiResponse;
+import io.swagger.v3.oas.annotations.responses.ApiResponses;
+import io.swagger.v3.oas.annotations.security.SecurityRequirements;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -23,7 +26,11 @@ import java.util.List;
 public class ReferenceController {
 
     @GetMapping
+    @SecurityRequirements
     @Operation(summary = "Obtenir toutes les listes de référence", description = "Source unique des listes pour le formulaire, les filtres et les fiches.")
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "Listes de référence retournées")
+    })
     public ResponseEntity<ReferencesResponseDTO> getReferences() {
         List<ReferenceItemDTO> typesBien = Arrays.stream(TypeBien.values())
                 .map(t -> new ReferenceItemDTO(t.name(), getLibelleTypeBien(t), null))
@@ -61,6 +68,7 @@ public class ReferenceController {
             case APPARTEMENT -> "Appartement";
             case VILLA -> "Villa";
             case STUDIO -> "Studio";
+            case CHAMBRE -> "Chambre";
         };
     }
 

@@ -25,6 +25,7 @@ import org.springframework.security.web.header.writers.ReferrerPolicyHeaderWrite
 
 import java.nio.charset.StandardCharsets;
 import java.time.LocalDateTime;
+import java.time.ZoneId;
 import java.util.Arrays;
 import java.util.List;
 
@@ -60,7 +61,7 @@ public class SecurityConfig {
                     String safePath = request.getRequestURI() != null ? request.getRequestURI().replace("\"", "") : "";
                     String body = String.format(
                         "{\"timestamp\":\"%s\",\"status\":401,\"error\":\"Non authentifié — Jeton manquant, invalide ou expiré\",\"path\":\"%s\"}",
-                        LocalDateTime.now(),
+                        LocalDateTime.now(ZoneId.of("Africa/Dakar")),
                         safePath
                     );
                     response.getOutputStream().write(body.getBytes(StandardCharsets.UTF_8));
@@ -72,7 +73,7 @@ public class SecurityConfig {
                     String safePath = request.getRequestURI() != null ? request.getRequestURI().replace("\"", "") : "";
                     String body = String.format(
                         "{\"timestamp\":\"%s\",\"status\":403,\"error\":\"Accès refusé — Droits insuffisants pour cette ressource\",\"path\":\"%s\"}",
-                        LocalDateTime.now(),
+                        LocalDateTime.now(ZoneId.of("Africa/Dakar")),
                         safePath
                     );
                     response.getOutputStream().write(body.getBytes(StandardCharsets.UTF_8));
@@ -91,6 +92,7 @@ public class SecurityConfig {
                     "/api/v1/references",
                     "/api/v1/references/**",
                     "/api/v1/ia/**",
+                    "/api/v1/webhooks/wave",
                     "/ws/**"
                 ).permitAll()
                 .requestMatchers("/api/v1/conversations/**").authenticated()

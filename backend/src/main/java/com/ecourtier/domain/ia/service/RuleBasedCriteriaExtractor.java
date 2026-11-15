@@ -16,13 +16,19 @@ import java.util.regex.Pattern;
 @Component
 public class RuleBasedCriteriaExtractor {
 
-    private static final List<String> PROMPT_INJECTION_PATTERNS = List.of(
-            "ignore les instructions",
-            "ignore previous instructions",
-            "forget all instructions",
-            "system prompt",
-            "act as an unrestricted",
-            "disregard previous"
+    private static final List<Pattern> PROMPT_INJECTION_PATTERNS = List.of(
+            Pattern.compile("ignore.*(?:toutes|vos|les|previous|all)?.*instruction", Pattern.CASE_INSENSITIVE),
+            Pattern.compile("disregard.*(?:all|previous)?.*instruction", Pattern.CASE_INSENSITIVE),
+            Pattern.compile("forget.*(?:all|previous)?.*instruction", Pattern.CASE_INSENSITIVE),
+            Pattern.compile("(?:syst[eè]me?|system).*prompt", Pattern.CASE_INSENSITIVE),
+            Pattern.compile("prompt.*(?:syst[eè]me?|system)", Pattern.CASE_INSENSITIVE),
+            Pattern.compile("(?:donne|affiche|montre|revele|révèle).*(?:ton|le|votre)?.*prompt", Pattern.CASE_INSENSITIVE),
+            Pattern.compile("cl[eé].*(?:api|groq|secr[eè]te|priv[eé]e)", Pattern.CASE_INSENSITIVE),
+            Pattern.compile("api.*(?:key|cle|clé)", Pattern.CASE_INSENSITIVE),
+            Pattern.compile("mot.*de.*passe.*(?:admin|root|super)", Pattern.CASE_INSENSITIVE),
+            Pattern.compile("admin.*(?:password|passwd)", Pattern.CASE_INSENSITIVE),
+            Pattern.compile("act.*as.*(?:an.*)?unrestricted|dan.*mode|jailbreak", Pattern.CASE_INSENSITIVE),
+            Pattern.compile("system.*override", Pattern.CASE_INSENSITIVE)
     );
 
     private static final Map<String, Integer> MOT_VERS_NOMBRE = Map.ofEntries(
@@ -52,7 +58,8 @@ public class RuleBasedCriteriaExtractor {
     );
 
     private static final Pattern BUDGET_RANGE_PATTERN = Pattern.compile("entre\\s+(\\d[\\d\\s]*)\\s+et\\s+(\\d[\\d\\s]*)", Pattern.CASE_INSENSITIVE);
-    private static final Pattern BUDGET_SINGLE_PATTERN = Pattern.compile("(?:budget(?:\\s+de)?|max|environ)?\\s*(\\d[\\d\\s]{3,})\\s*(?:fcfa|cfa|f|k)?", Pattern.CASE_INSENSITIVE);
+    private static final Pattern BUDGET_K_PATTERN = Pattern.compile("(?:vers|autour de|budget(?:\\s+de)?|max|environ)?\\s*(\\d+)\\s*k(?:\\s*(?:fcfa|cfa|f))?", Pattern.CASE_INSENSITIVE);
+    private static final Pattern BUDGET_SINGLE_PATTERN = Pattern.compile("(?:vers|autour de|budget(?:\\s+de)?|max|environ)?\\s*(\\d[\\d\\s]{3,})\\s*(?:fcfa|cfa|f)?", Pattern.CASE_INSENSITIVE);
     private static final Pattern PIECES_PATTERN = Pattern.compile(
             "(?:(un|une|deux|trois|quatre|cinq|six|sept|huit|neuf|dix|\\d+)\\s*(?:pièces?|pieces?))|(?:f(\\d+))",
             Pattern.CASE_INSENSITIVE
@@ -84,21 +91,36 @@ public class RuleBasedCriteriaExtractor {
             budgetMin = parseAmount(rangeMatcher.group(1));
             budgetMax = parseAmount(rangeMatcher.group(2));
         } else {
-            Matcher singleMatcher = BUDGET_SINGLE_PATTERN.matcher(textLower);
-            if (singleMatcher.find()) {
-                BigDecimal val = parseAmount(singleMatcher.group(1));
+            Matcher kMatcher = BUDGET_K_PATTERN.matcher(textLower);
+            if (kMatcher.find()) {
+                BigDecimal val = parseAmount(kMatcher.group(1) + "k");
                 if (val != null && val.compareTo(BigDecimal.valueOf(10000)) >= 0) {
                     budgetMax = val;
+                }
+            } else {
+                Matcher singleMatcher = BUDGET_SINGLE_PATTERN.matcher(textLower);
+                if (singleMatcher.find()) {
+                    BigDecimal val = parseAmount(singleMatcher.group(1));
+                    if (val != null && val.compareTo(BigDecimal.valueOf(10000)) >= 0) {
+                        budgetMax = val;
+                    }
                 }
             }
         }
 
         // 2. Type Bien
-        if (textLower.contains("studio")) {
+        boolean nonHabitation = textLower.contains("terrain") || textLower.contains("parcelle")
+                || textLower.contains("magasin") || textLower.contains("bureau") || textLower.contains("commerce");
+
+        if (nonHabitation) {
+            type = null;
+        } else if (textLower.contains("studio")) {
             type = TypeBien.STUDIO;
+        } else if (textLower.matches(".*\\b(chambre|chambre\\s+seule|chambre\\s+individuelle|chambre\\s+meubl[eé]e|chambre\\s+en\\s+colocation)\\b.*") && !textLower.contains("chambres")) {
+            type = TypeBien.CHAMBRE;
         } else if (textLower.contains("villa") || textLower.contains("maison")) {
             type = TypeBien.VILLA;
-        } else if (textLower.contains("appartement") || textLower.contains("appat") || textLower.contains("f2") || textLower.contains("f3") || textLower.contains("f4")) {
+        } else if (textLower.contains("appartement") || textLower.contains("appart") || textLower.contains("f2") || textLower.contains("f3") || textLower.contains("f4")) {
             type = TypeBien.APPARTEMENT;
         }
 
@@ -158,6 +180,14 @@ public class RuleBasedCriteriaExtractor {
             ville = "Dakar";
         } else if (textLower.contains("ziguinchor")) {
             ville = "Ziguinchor";
+        } else if (textLower.contains("thiès") || textLower.contains("thies")) {
+            ville = "Thiès";
+        } else if (textLower.contains("saint-louis") || textLower.contains("saint louis")) {
+            ville = "Saint-Louis";
+        } else if (textLower.contains("mbour")) {
+            ville = "Mbour";
+        } else if (textLower.contains("saly")) {
+            ville = "Saly";
         }
 
         // 7. Meublé & Animaux
@@ -217,8 +247,11 @@ public class RuleBasedCriteriaExtractor {
         double confiance = Math.min(1.0, 0.4 + (foundCount * 0.1));
 
         String questionDeRelance = null;
-        if (budgetMax == null && budgetMin == null) {
-            questionDeRelance = "Quel est votre budget approximatif et le type de bien souhaité (ex: appartement, villa, studio) ?";
+        if (nonHabitation) {
+            questionDeRelance = "E-Courtier propose exclusivement des logements d'habitation (chambre, studio, appartement, villa). Souhaitez-vous rechercher l'un de ces logements ?";
+            confiance = 0.0;
+        } else if (budgetMax == null && budgetMin == null) {
+            questionDeRelance = "Quel est votre budget approximatif et le type de bien souhaité (ex: chambre, studio, appartement, villa) ?";
         }
 
         return CriteresExtraitsDTO.builder()
@@ -247,9 +280,8 @@ public class RuleBasedCriteriaExtractor {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Le message ne doit pas dépasser 500 caractères");
         }
 
-        String lower = userMessage.toLowerCase();
-        for (String pattern : PROMPT_INJECTION_PATTERNS) {
-            if (lower.contains(pattern)) {
+        for (Pattern pattern : PROMPT_INJECTION_PATTERNS) {
+            if (pattern.matcher(userMessage).find()) {
                 throw new ResponseStatusException(
                         HttpStatus.BAD_REQUEST,
                         "Message non autorisé : tentative de manipulation ou injection détectée"
@@ -260,8 +292,12 @@ public class RuleBasedCriteriaExtractor {
 
     private BigDecimal parseAmount(String raw) {
         if (raw == null) return null;
-        String clean = raw.replaceAll("\\s+", "");
+        String clean = raw.replaceAll("\\s+", "").toLowerCase();
         try {
+            if (clean.endsWith("k")) {
+                clean = clean.substring(0, clean.length() - 1);
+                return new BigDecimal(clean).multiply(BigDecimal.valueOf(1000));
+            }
             return new BigDecimal(clean);
         } catch (NumberFormatException e) {
             return null;
