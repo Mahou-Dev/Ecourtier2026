@@ -11,6 +11,7 @@ import com.ecourtier.domain.utilisateur.entity.Role;
 import com.ecourtier.domain.utilisateur.entity.UtilisateurEntity;
 import com.ecourtier.domain.utilisateur.repository.UtilisateurRepository;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -51,24 +52,39 @@ class IAIntegrationTest {
     @Autowired
     private UtilisateurRepository utilisateurRepository;
 
+    @Autowired
+    private com.ecourtier.domain.ia.repository.ConversationIARepository conversationIARepository;
+
+    @Autowired
+    private com.ecourtier.domain.ia.repository.MessageIARepository messageIARepository;
+
     private UtilisateurEntity testUser;
     private AnnonceEntity testAnnonce;
 
+    @AfterEach
+    void tearDown() {
+        messageIARepository.deleteAll();
+        conversationIARepository.deleteAll();
+        annonceRepository.deleteAll();
+        utilisateurRepository.deleteAll();
+    }
+
     @BeforeEach
     void setUp() {
-        if (utilisateurRepository.findByEmail("prop.ia.test@ecourtier.sn").isEmpty()) {
-            testUser = utilisateurRepository.save(UtilisateurEntity.builder()
-                    .nom("Fall")
-                    .prenom("Mamadou")
-                    .email("prop.ia.test@ecourtier.sn")
-                    .motDePasse("$2a$10$KhUqg3EWfmNgLhTIGhjP0uzeSXRI1y0ulUhiJyv1Qz0H34Ybju3IS")
-                    .telephone("+221771112233")
-                    .role(Role.PROPRIETAIRE)
-                    .actif(true)
-                    .build());
-        } else {
-            testUser = utilisateurRepository.findByEmail("prop.ia.test@ecourtier.sn").get();
-        }
+        messageIARepository.deleteAll();
+        conversationIARepository.deleteAll();
+        annonceRepository.deleteAll();
+        utilisateurRepository.deleteAll();
+
+        testUser = utilisateurRepository.save(UtilisateurEntity.builder()
+                .nom("Fall")
+                .prenom("Mamadou")
+                .email("prop.ia.test@ecourtier.sn")
+                .motDePasse("$2a$10$KhUqg3EWfmNgLhTIGhjP0uzeSXRI1y0ulUhiJyv1Qz0H34Ybju3IS")
+                .telephone("+221771112233")
+                .role(Role.PROPRIETAIRE)
+                .actif(true)
+                .build());
 
         if (annonceRepository.findAll().isEmpty()) {
             testAnnonce = annonceRepository.save(AnnonceEntity.builder()

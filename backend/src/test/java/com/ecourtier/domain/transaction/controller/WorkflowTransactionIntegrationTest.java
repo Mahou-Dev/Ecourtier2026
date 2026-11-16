@@ -19,6 +19,7 @@ import com.ecourtier.domain.utilisateur.entity.UtilisateurEntity;
 import com.ecourtier.domain.utilisateur.repository.UtilisateurRepository;
 import com.ecourtier.domain.transaction.service.PdfBailGeneratorService;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -77,6 +78,14 @@ class WorkflowTransactionIntegrationTest {
     private UtilisateurEntity locataire;
     private UtilisateurEntity tiers;
     private AnnonceEntity annonce;
+
+    @AfterEach
+    void tearDown() {
+        waveClientMock.resetState();
+        transactionRepository.deleteAll();
+        rendezVousRepository.deleteAll();
+        annonceRepository.deleteAll();
+    }
 
     @BeforeEach
     void setUp() {

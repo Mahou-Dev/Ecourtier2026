@@ -56,6 +56,18 @@ class AuthIntegrationTest {
     private com.ecourtier.domain.avis.repository.AvisRepository avisRepository;
 
     @Autowired
+    private com.ecourtier.domain.ia.repository.ConversationIARepository conversationIARepository;
+
+    @Autowired
+    private com.ecourtier.domain.ia.repository.MessageIARepository messageIARepository;
+
+    @Autowired
+    private com.ecourtier.domain.utilisateur.repository.RefreshTokenRepository refreshTokenRepository;
+
+    @Autowired
+    private com.ecourtier.domain.favori.repository.FavoriRepository favoriRepository;
+
+    @Autowired
     private PasswordEncoder passwordEncoder;
 
     @Autowired
@@ -76,6 +88,10 @@ class AuthIntegrationTest {
     @org.junit.jupiter.api.AfterEach
     void tearDown() {
         clearLoginRateLimiter();
+        messageIARepository.deleteAll();
+        conversationIARepository.deleteAll();
+        refreshTokenRepository.deleteAll();
+        favoriRepository.deleteAll();
         signalementRepository.deleteAll();
         avisRepository.deleteAll();
         transactionRepository.deleteAll();
@@ -87,6 +103,10 @@ class AuthIntegrationTest {
     @BeforeEach
     void setUp() {
         clearLoginRateLimiter();
+        messageIARepository.deleteAll();
+        conversationIARepository.deleteAll();
+        refreshTokenRepository.deleteAll();
+        favoriRepository.deleteAll();
         signalementRepository.deleteAll();
         avisRepository.deleteAll();
         transactionRepository.deleteAll();

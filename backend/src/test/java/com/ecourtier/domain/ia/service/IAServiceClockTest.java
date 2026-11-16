@@ -76,7 +76,12 @@ class IAServiceClockTest {
     @AfterEach
     void tearDown() {
         iaService.setClock(Clock.system(DAKAR_ZONE));
-        TimeZone.setDefault(previousTimeZone);
+        if (previousTimeZone != null) {
+            TimeZone.setDefault(previousTimeZone);
+        }
+        messageIARepository.deleteAll();
+        conversationIARepository.deleteAll();
+        utilisateurRepository.deleteAll();
     }
 
     @Test

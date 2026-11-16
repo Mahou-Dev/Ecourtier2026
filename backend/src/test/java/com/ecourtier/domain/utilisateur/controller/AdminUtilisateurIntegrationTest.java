@@ -50,6 +50,24 @@ class AdminUtilisateurIntegrationTest {
     private com.ecourtier.domain.annonce.repository.AnnonceRepository annonceRepository;
 
     @Autowired
+    private com.ecourtier.domain.transaction.repository.TransactionRepository transactionRepository;
+
+    @Autowired
+    private com.ecourtier.domain.rendezvous.repository.RendezVousRepository rendezVousRepository;
+
+    @Autowired
+    private com.ecourtier.domain.avis.repository.SignalementRepository signalementRepository;
+
+    @Autowired
+    private com.ecourtier.domain.avis.repository.AvisRepository avisRepository;
+
+    @Autowired
+    private com.ecourtier.domain.favori.repository.FavoriRepository favoriRepository;
+
+    @Autowired
+    private com.ecourtier.domain.utilisateur.repository.RefreshTokenRepository refreshTokenRepository;
+
+    @Autowired
     private JwtService jwtService;
 
     private UtilisateurEntity adminUser;
@@ -63,13 +81,25 @@ class AdminUtilisateurIntegrationTest {
 
     @org.junit.jupiter.api.AfterEach
     void tearDown() {
+        signalementRepository.deleteAll();
+        avisRepository.deleteAll();
+        transactionRepository.deleteAll();
+        rendezVousRepository.deleteAll();
+        favoriRepository.deleteAll();
         annonceRepository.deleteAll();
+        refreshTokenRepository.deleteAll();
         utilisateurRepository.deleteAll();
     }
 
     @BeforeEach
     void setUp() {
+        signalementRepository.deleteAll();
+        avisRepository.deleteAll();
+        transactionRepository.deleteAll();
+        rendezVousRepository.deleteAll();
+        favoriRepository.deleteAll();
         annonceRepository.deleteAll();
+        refreshTokenRepository.deleteAll();
         utilisateurRepository.deleteAll();
 
         adminUser = utilisateurRepository.save(UtilisateurEntity.builder()

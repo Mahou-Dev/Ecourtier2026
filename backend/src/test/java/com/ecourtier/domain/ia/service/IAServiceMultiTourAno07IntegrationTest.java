@@ -17,6 +17,7 @@ import com.ecourtier.domain.ia.repository.MessageIARepository;
 import com.ecourtier.domain.utilisateur.entity.Role;
 import com.ecourtier.domain.utilisateur.entity.UtilisateurEntity;
 import com.ecourtier.domain.utilisateur.repository.UtilisateurRepository;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -54,6 +55,14 @@ class IAServiceMultiTourAno07IntegrationTest {
 
     private UtilisateurEntity proprietaire;
     private UtilisateurEntity locataire;
+
+    @AfterEach
+    void tearDown() {
+        messageIARepository.deleteAll();
+        conversationIARepository.deleteAll();
+        annonceRepository.deleteAll();
+        utilisateurRepository.deleteAll();
+    }
 
     @BeforeEach
     void setUp() {

@@ -12,6 +12,7 @@ import com.ecourtier.domain.utilisateur.repository.UtilisateurRepository;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.servlet.http.Cookie;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -60,6 +61,14 @@ class AnonymousConversationSecurityIntegrationTest {
 
     private UtilisateurEntity utilisateurA;
     private UtilisateurEntity utilisateurB;
+
+    @AfterEach
+    void tearDown() {
+        iaRateLimiterService.clear();
+        messageIARepository.deleteAll();
+        conversationIARepository.deleteAll();
+        utilisateurRepository.deleteAll();
+    }
 
     @BeforeEach
     void setUp() {

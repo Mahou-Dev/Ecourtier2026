@@ -67,6 +67,12 @@ class AuthPhase2SecurityIntegrationTest {
     private RefreshTokenRepository refreshTokenRepository;
 
     @Autowired
+    private com.ecourtier.domain.ia.repository.ConversationIARepository conversationIARepository;
+
+    @Autowired
+    private com.ecourtier.domain.ia.repository.MessageIARepository messageIARepository;
+
+    @Autowired
     private PasswordEncoder passwordEncoder;
 
     @Autowired
@@ -81,6 +87,8 @@ class AuthPhase2SecurityIntegrationTest {
     @BeforeEach
     @AfterEach
     void cleanup() {
+        messageIARepository.deleteAll();
+        conversationIARepository.deleteAll();
         refreshTokenRepository.deleteAll();
         utilisateurRepository.deleteAll();
         refreshRateLimiterService.resetAttempts("198.51.100.88");
