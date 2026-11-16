@@ -82,7 +82,16 @@ class TransactionClockAndRefundDossierIntegrationTest {
     private PaiementWaveRepository paiementWaveRepository;
 
     @Autowired
+    private com.ecourtier.domain.ia.repository.MessageIARepository messageIARepository;
+
+    @Autowired
+    private com.ecourtier.domain.ia.repository.ConversationIARepository conversationIARepository;
+
+    @Autowired
     private PasswordEncoder passwordEncoder;
+
+    @Autowired
+    private com.ecourtier.testsupport.TestDatabaseCleaner testDatabaseCleaner;
 
     private UtilisateurEntity proprietaire;
     private UtilisateurEntity locataire;
@@ -135,12 +144,7 @@ class TransactionClockAndRefundDossierIntegrationTest {
     }
 
     private void cleanup() {
-        paiementWaveRepository.deleteAll();
-        transactionRepository.deleteAll();
-        rendezVousRepository.deleteAll();
-        annonceRepository.deleteAll();
-        refreshTokenRepository.deleteAll();
-        utilisateurRepository.deleteAll();
+        testDatabaseCleaner.cleanAll();
     }
 
     private AnnonceEntity createVerifiedAnnonce(String titre) {

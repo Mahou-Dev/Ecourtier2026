@@ -52,24 +52,21 @@ class ChatbotFunctionalAndSecurityTest {
     @Autowired
     private MessageIARepository messageIARepository;
 
+    @Autowired
+    private com.ecourtier.testsupport.TestDatabaseCleaner testDatabaseCleaner;
+
     private UtilisateurEntity utilisateurA;
     private UtilisateurEntity utilisateurB;
     private UtilisateurEntity bailleur;
 
     @AfterEach
     void tearDown() {
-        messageIARepository.deleteAll();
-        conversationIARepository.deleteAll();
-        annonceRepository.deleteAll();
-        utilisateurRepository.deleteAll();
+        testDatabaseCleaner.cleanAll();
     }
 
     @BeforeEach
     void setUp() {
-        messageIARepository.deleteAll();
-        conversationIARepository.deleteAll();
-        annonceRepository.deleteAll();
-        utilisateurRepository.deleteAll();
+        testDatabaseCleaner.cleanAll();
 
         utilisateurA = utilisateurRepository.save(UtilisateurEntity.builder()
                 .nom("Diallo")

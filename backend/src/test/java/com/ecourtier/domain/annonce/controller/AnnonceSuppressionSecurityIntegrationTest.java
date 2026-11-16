@@ -80,6 +80,9 @@ class AnnonceSuppressionSecurityIntegrationTest {
     @Autowired
     private FavoriRepository favoriRepository;
 
+    @Autowired
+    private com.ecourtier.testsupport.TestDatabaseCleaner testDatabaseCleaner;
+
     private UtilisateurEntity proprietaire;
     private UtilisateurEntity autreProprietaire;
     private UtilisateurEntity locataire;
@@ -92,11 +95,7 @@ class AnnonceSuppressionSecurityIntegrationTest {
 
     @BeforeEach
     void setUp() {
-        transactionRepository.deleteAll();
-        rendezVousRepository.deleteAll();
-        favoriRepository.deleteAll();
-        annonceRepository.deleteAll();
-        utilisateurRepository.deleteAll();
+        testDatabaseCleaner.cleanAll();
 
         proprietaire = utilisateurRepository.save(UtilisateurEntity.builder()
                 .nom("Ndiaye")
@@ -146,11 +145,7 @@ class AnnonceSuppressionSecurityIntegrationTest {
 
     @AfterEach
     void tearDown() {
-        transactionRepository.deleteAll();
-        rendezVousRepository.deleteAll();
-        favoriRepository.deleteAll();
-        annonceRepository.deleteAll();
-        utilisateurRepository.deleteAll();
+        testDatabaseCleaner.cleanAll();
     }
 
     private AnnonceEntity createAnnonce(StatutPublication statutPublication, ModeTransaction mode) {

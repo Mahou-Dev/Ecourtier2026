@@ -100,6 +100,12 @@ class WavePaymentRobustnessIntegrationTest {
     private PaiementWaveRepository paiementWaveRepository;
 
     @Autowired
+    private com.ecourtier.domain.ia.repository.MessageIARepository messageIARepository;
+
+    @Autowired
+    private com.ecourtier.domain.ia.repository.ConversationIARepository conversationIARepository;
+
+    @Autowired
     private WaveWebhookService waveWebhookService;
 
     @Autowired
@@ -111,6 +117,9 @@ class WavePaymentRobustnessIntegrationTest {
     @MockitoSpyBean
     private TransactionMapper transactionMapper;
 
+    @Autowired
+    private com.ecourtier.testsupport.TestDatabaseCleaner testDatabaseCleaner;
+
     private UtilisateurEntity proprietaire;
     private UtilisateurEntity locataire;
     private String tokenLocataire;
@@ -118,11 +127,7 @@ class WavePaymentRobustnessIntegrationTest {
     @BeforeEach
     void setUp() {
         Mockito.reset(waveClient, transactionMapper);
-        paiementWaveRepository.deleteAll();
-        transactionRepository.deleteAll();
-        rendezVousRepository.deleteAll();
-        annonceRepository.deleteAll();
-        utilisateurRepository.deleteAll();
+        testDatabaseCleaner.cleanAll();
 
         proprietaire = utilisateurRepository.save(UtilisateurEntity.builder()
                 .nom("Ba")
@@ -150,11 +155,7 @@ class WavePaymentRobustnessIntegrationTest {
     @AfterEach
     void tearDown() {
         Mockito.reset(waveClient, transactionMapper);
-        paiementWaveRepository.deleteAll();
-        transactionRepository.deleteAll();
-        rendezVousRepository.deleteAll();
-        annonceRepository.deleteAll();
-        utilisateurRepository.deleteAll();
+        testDatabaseCleaner.cleanAll();
     }
 
     private AnnonceEntity createAnnonce(StatutPublication statut) {

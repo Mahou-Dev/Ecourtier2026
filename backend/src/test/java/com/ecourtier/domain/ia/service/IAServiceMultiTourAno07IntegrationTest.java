@@ -53,23 +53,20 @@ class IAServiceMultiTourAno07IntegrationTest {
     @Autowired
     private MessageIARepository messageIARepository;
 
+    @Autowired
+    private com.ecourtier.testsupport.TestDatabaseCleaner testDatabaseCleaner;
+
     private UtilisateurEntity proprietaire;
     private UtilisateurEntity locataire;
 
     @AfterEach
     void tearDown() {
-        messageIARepository.deleteAll();
-        conversationIARepository.deleteAll();
-        annonceRepository.deleteAll();
-        utilisateurRepository.deleteAll();
+        testDatabaseCleaner.cleanAll();
     }
 
     @BeforeEach
     void setUp() {
-        messageIARepository.deleteAll();
-        conversationIARepository.deleteAll();
-        annonceRepository.deleteAll();
-        utilisateurRepository.deleteAll();
+        testDatabaseCleaner.cleanAll();
 
         proprietaire = utilisateurRepository.save(UtilisateurEntity.builder()
                 .nom("Diop")

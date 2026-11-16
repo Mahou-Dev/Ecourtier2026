@@ -40,13 +40,15 @@ public class SoftDeleteExclusionTest {
     @Autowired
     private UtilisateurRepository utilisateurRepository;
 
+    @Autowired
+    private com.ecourtier.testsupport.TestDatabaseCleaner testDatabaseCleaner;
+
     private AnnonceEntity activeAnnonce;
     private AnnonceEntity deletedAnnonce;
 
     @BeforeEach
     void setUp() {
-        annonceRepository.deleteAll();
-        utilisateurRepository.deleteAll();
+        testDatabaseCleaner.cleanAll();
 
         UtilisateurEntity owner = utilisateurRepository.save(UtilisateurEntity.builder()
                 .prenom("Owner")

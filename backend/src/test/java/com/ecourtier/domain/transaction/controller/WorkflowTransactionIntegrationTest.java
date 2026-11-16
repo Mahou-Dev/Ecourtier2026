@@ -74,6 +74,9 @@ class WorkflowTransactionIntegrationTest {
     @Autowired
     private com.ecourtier.domain.transaction.client.WaveClientMock waveClientMock;
 
+    @Autowired
+    private com.ecourtier.testsupport.TestDatabaseCleaner testDatabaseCleaner;
+
     private UtilisateurEntity proprietaire;
     private UtilisateurEntity locataire;
     private UtilisateurEntity tiers;
@@ -82,17 +85,13 @@ class WorkflowTransactionIntegrationTest {
     @AfterEach
     void tearDown() {
         waveClientMock.resetState();
-        transactionRepository.deleteAll();
-        rendezVousRepository.deleteAll();
-        annonceRepository.deleteAll();
+        testDatabaseCleaner.cleanAll();
     }
 
     @BeforeEach
     void setUp() {
         waveClientMock.resetState();
-        transactionRepository.deleteAll();
-        rendezVousRepository.deleteAll();
-        annonceRepository.deleteAll();
+        testDatabaseCleaner.cleanAll();
 
         proprietaire = utilisateurRepository.findByEmail("prop.tx.test@ecourtier.sn")
                 .orElseGet(() -> utilisateurRepository.save(UtilisateurEntity.builder()

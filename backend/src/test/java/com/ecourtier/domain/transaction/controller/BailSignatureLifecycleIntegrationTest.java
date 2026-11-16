@@ -82,7 +82,16 @@ class BailSignatureLifecycleIntegrationTest {
     private TransactionRepository transactionRepository;
 
     @Autowired
+    private com.ecourtier.domain.ia.repository.MessageIARepository messageIARepository;
+
+    @Autowired
+    private com.ecourtier.domain.ia.repository.ConversationIARepository conversationIARepository;
+
+    @Autowired
     private TransactionService transactionService;
+
+    @Autowired
+    private com.ecourtier.testsupport.TestDatabaseCleaner testDatabaseCleaner;
 
     private UtilisateurEntity proprietaire;
     private UtilisateurEntity locataire;
@@ -96,10 +105,7 @@ class BailSignatureLifecycleIntegrationTest {
 
     @BeforeEach
     void setUp() {
-        transactionRepository.deleteAll();
-        rendezVousRepository.deleteAll();
-        annonceRepository.deleteAll();
-        utilisateurRepository.deleteAll();
+        testDatabaseCleaner.cleanAll();
 
         proprietaire = utilisateurRepository.save(UtilisateurEntity.builder()
                 .nom("Fall")
@@ -149,10 +155,7 @@ class BailSignatureLifecycleIntegrationTest {
 
     @AfterEach
     void tearDown() {
-        transactionRepository.deleteAll();
-        rendezVousRepository.deleteAll();
-        annonceRepository.deleteAll();
-        utilisateurRepository.deleteAll();
+        testDatabaseCleaner.cleanAll();
     }
 
     private AnnonceEntity createAnnonce(StatutPublication statut) {

@@ -59,6 +59,9 @@ class AnnonceFiltresEtVerificationIntegrationTest {
     @Autowired
     private JwtService jwtService;
 
+    @Autowired
+    private com.ecourtier.testsupport.TestDatabaseCleaner testDatabaseCleaner;
+
     private UtilisateurEntity proprietaireAuteur;
     private UtilisateurEntity proprietaireTiers;
     private UtilisateurEntity admin;
@@ -69,8 +72,7 @@ class AnnonceFiltresEtVerificationIntegrationTest {
 
     @BeforeEach
     void setUp() {
-        annonceRepository.deleteAll();
-        utilisateurRepository.deleteAll();
+        testDatabaseCleaner.cleanAll();
 
         proprietaireAuteur = utilisateurRepository.save(UtilisateurEntity.builder()
                 .nom("Diallo")
@@ -109,8 +111,7 @@ class AnnonceFiltresEtVerificationIntegrationTest {
 
     @org.junit.jupiter.api.AfterEach
     void tearDown() {
-        annonceRepository.deleteAll();
-        utilisateurRepository.deleteAll();
+        testDatabaseCleaner.cleanAll();
     }
 
     @Test

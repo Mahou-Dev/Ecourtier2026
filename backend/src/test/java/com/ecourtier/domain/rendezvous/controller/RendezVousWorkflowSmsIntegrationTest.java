@@ -82,6 +82,9 @@ class RendezVousWorkflowSmsIntegrationTest {
     @MockitoSpyBean
     private SmsGateway smsGateway;
 
+    @Autowired
+    private com.ecourtier.testsupport.TestDatabaseCleaner testDatabaseCleaner;
+
     private UtilisateurEntity proprietaire;
     private UtilisateurEntity locataire1;
     private UtilisateurEntity locataire2;
@@ -91,17 +94,13 @@ class RendezVousWorkflowSmsIntegrationTest {
     @org.junit.jupiter.api.AfterEach
     void tearDown() {
         Mockito.reset(smsGateway);
-        notificationSmsRepository.deleteAll();
-        rendezVousRepository.deleteAll();
-        annonceRepository.deleteAll();
+        testDatabaseCleaner.cleanAll();
     }
 
     @BeforeEach
     void setUp() {
         Mockito.reset(smsGateway);
-        notificationSmsRepository.deleteAll();
-        rendezVousRepository.deleteAll();
-        annonceRepository.deleteAll();
+        testDatabaseCleaner.cleanAll();
 
         proprietaire = utilisateurRepository.findByEmail("prop.sms.it@ecourtier.sn")
                 .orElseGet(() -> utilisateurRepository.save(UtilisateurEntity.builder()

@@ -48,15 +48,16 @@ public class DocumentVerificationSecurityTest {
     @Autowired
     private DocumentVerificationRepository documentVerificationRepository;
 
+    @Autowired
+    private com.ecourtier.testsupport.TestDatabaseCleaner testDatabaseCleaner;
+
     private UtilisateurEntity owner;
     private AnnonceEntity annonce;
     private DocumentVerificationEntity doc;
 
     @BeforeEach
     void setUp() {
-        documentVerificationRepository.deleteAll();
-        annonceRepository.deleteAll();
-        utilisateurRepository.deleteAll();
+        testDatabaseCleaner.cleanAll();
 
         owner = utilisateurRepository.save(UtilisateurEntity.builder()
                 .prenom("Owner")

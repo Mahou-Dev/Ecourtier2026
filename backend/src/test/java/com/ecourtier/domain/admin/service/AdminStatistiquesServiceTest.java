@@ -63,18 +63,22 @@ class AdminStatistiquesServiceTest {
     @Autowired
     private org.springframework.cache.CacheManager cacheManager;
 
+    @Autowired
+    private com.ecourtier.testsupport.TestDatabaseCleaner testDatabaseCleaner;
+
     private UtilisateurEntity testUser;
+
+    @org.junit.jupiter.api.AfterEach
+    void tearDown() {
+        testDatabaseCleaner.cleanAll();
+    }
 
     @BeforeEach
     void setUp() {
         if (cacheManager.getCache("adminStats") != null) {
             cacheManager.getCache("adminStats").clear();
         }
-        transactionRepository.deleteAll();
-        messageIARepository.deleteAll();
-        conversationIARepository.deleteAll();
-        annonceRepository.deleteAll();
-        utilisateurRepository.deleteAll();
+        testDatabaseCleaner.cleanAll();
 
         testUser = UtilisateurEntity.builder()
                 .nom("Diallo")

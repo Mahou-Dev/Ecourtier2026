@@ -58,6 +58,9 @@ public class AnnonceIntegrationTest {
     @Autowired
     private PasswordEncoder passwordEncoder;
 
+    @Autowired
+    private com.ecourtier.testsupport.TestDatabaseCleaner testDatabaseCleaner;
+
     private UtilisateurEntity proprietaire1;
     private UtilisateurEntity proprietaire2;
     private UtilisateurEntity locataire;
@@ -68,10 +71,14 @@ public class AnnonceIntegrationTest {
     private String tokenLocataire;
     private String tokenAdmin;
 
+    @org.junit.jupiter.api.AfterEach
+    void tearDown() {
+        testDatabaseCleaner.cleanAll();
+    }
+
     @BeforeEach
     void setUp() throws Exception {
-        annonceRepository.deleteAll();
-        utilisateurRepository.deleteAll();
+        testDatabaseCleaner.cleanAll();
 
         // 1. Create Users
         proprietaire1 = createAndSaveUser("Proprietaire", "Un", "prop1@ecourtier.sn", Role.PROPRIETAIRE);

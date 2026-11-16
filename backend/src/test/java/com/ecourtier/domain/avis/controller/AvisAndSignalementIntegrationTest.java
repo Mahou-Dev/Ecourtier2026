@@ -60,10 +60,19 @@ class AvisAndSignalementIntegrationTest {
     private UtilisateurRepository utilisateurRepository;
 
     @Autowired
+    private com.ecourtier.domain.ia.repository.MessageIARepository messageIARepository;
+
+    @Autowired
+    private com.ecourtier.domain.ia.repository.ConversationIARepository conversationIARepository;
+
+    @Autowired
     private PasswordEncoder passwordEncoder;
 
     @Autowired
     private JwtService jwtService;
+
+    @Autowired
+    private com.ecourtier.testsupport.TestDatabaseCleaner testDatabaseCleaner;
 
     private UtilisateurEntity proprietaire;
     private UtilisateurEntity locataire;
@@ -75,10 +84,7 @@ class AvisAndSignalementIntegrationTest {
 
     @BeforeEach
     void setUp() {
-        signalementRepository.deleteAll();
-        avisRepository.deleteAll();
-        annonceRepository.deleteAll();
-        utilisateurRepository.deleteAll();
+        testDatabaseCleaner.cleanAll();
 
         proprietaire = utilisateurRepository.save(UtilisateurEntity.builder()
                 .nom("Sow")
@@ -132,10 +138,7 @@ class AvisAndSignalementIntegrationTest {
 
     @org.junit.jupiter.api.AfterEach
     void tearDown() {
-        signalementRepository.deleteAll();
-        avisRepository.deleteAll();
-        annonceRepository.deleteAll();
-        utilisateurRepository.deleteAll();
+        testDatabaseCleaner.cleanAll();
     }
 
     @Test

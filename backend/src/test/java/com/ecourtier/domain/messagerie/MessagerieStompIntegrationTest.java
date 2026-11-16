@@ -64,6 +64,12 @@ class MessagerieStompIntegrationTest {
     private MessageChatRepository messageChatRepository;
 
     @Autowired
+    private com.ecourtier.domain.ia.repository.MessageIARepository messageIARepository;
+
+    @Autowired
+    private com.ecourtier.domain.ia.repository.ConversationIARepository conversationIARepository;
+
+    @Autowired
     private MessagerieService messagerieService;
 
     @Autowired
@@ -74,6 +80,9 @@ class MessagerieStompIntegrationTest {
 
     @Autowired
     private com.ecourtier.common.security.WebSocketSessionRegistry webSocketSessionRegistry;
+
+    @Autowired
+    private com.ecourtier.testsupport.TestDatabaseCleaner testDatabaseCleaner;
 
     private UtilisateurEntity locataire;
     private UtilisateurEntity proprietaire;
@@ -87,10 +96,7 @@ class MessagerieStompIntegrationTest {
 
     @BeforeEach
     void setUp() {
-        messageChatRepository.deleteAll();
-        conversationChatRepository.deleteAll();
-        annonceRepository.deleteAll();
-        utilisateurRepository.deleteAll();
+        testDatabaseCleaner.cleanAll();
 
         locataire = utilisateurRepository.save(UtilisateurEntity.builder()
                 .email("locataire.e2e@test.sn")
@@ -148,10 +154,7 @@ class MessagerieStompIntegrationTest {
 
     @AfterEach
     void tearDown() {
-        messageChatRepository.deleteAll();
-        conversationChatRepository.deleteAll();
-        annonceRepository.deleteAll();
-        utilisateurRepository.deleteAll();
+        testDatabaseCleaner.cleanAll();
     }
 
     private WebSocketStompClient createStompClient() {

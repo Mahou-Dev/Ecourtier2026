@@ -45,7 +45,16 @@ class FavoriControllerIntegrationTest {
     private UtilisateurRepository utilisateurRepository;
 
     @Autowired
+    private com.ecourtier.domain.ia.repository.MessageIARepository messageIARepository;
+
+    @Autowired
+    private com.ecourtier.domain.ia.repository.ConversationIARepository conversationIARepository;
+
+    @Autowired
     private JwtService jwtService;
+
+    @Autowired
+    private com.ecourtier.testsupport.TestDatabaseCleaner testDatabaseCleaner;
 
     private UtilisateurEntity locataire;
     private AnnonceEntity annonce;
@@ -53,16 +62,12 @@ class FavoriControllerIntegrationTest {
 
     @org.junit.jupiter.api.AfterEach
     void tearDown() {
-        favoriRepository.deleteAll();
-        annonceRepository.deleteAll();
-        utilisateurRepository.deleteAll();
+        testDatabaseCleaner.cleanAll();
     }
 
     @BeforeEach
     void setUp() {
-        favoriRepository.deleteAll();
-        annonceRepository.deleteAll();
-        utilisateurRepository.deleteAll();
+        testDatabaseCleaner.cleanAll();
 
         locataire = utilisateurRepository.save(UtilisateurEntity.builder()
                 .nom("Diallo")

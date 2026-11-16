@@ -84,13 +84,13 @@ class AuthPhase2SecurityIntegrationTest {
     @Value("${ecourtier.jwt.secret}")
     private String jwtSecret;
 
+    @Autowired
+    private com.ecourtier.testsupport.TestDatabaseCleaner testDatabaseCleaner;
+
     @BeforeEach
     @AfterEach
     void cleanup() {
-        messageIARepository.deleteAll();
-        conversationIARepository.deleteAll();
-        refreshTokenRepository.deleteAll();
-        utilisateurRepository.deleteAll();
+        testDatabaseCleaner.cleanAll();
         refreshRateLimiterService.resetAttempts("198.51.100.88");
         refreshRateLimiterService.resetAttempts("127.0.0.1");
     }

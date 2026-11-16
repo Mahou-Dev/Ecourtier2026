@@ -72,6 +72,9 @@ public class PerformanceANO11Test {
     private UtilisateurRepository utilisateurRepository;
 
     @Autowired
+    private com.ecourtier.testsupport.TestDatabaseCleaner testDatabaseCleaner;
+
+    @Autowired
     private EntityManagerFactory entityManagerFactory;
 
     @Autowired
@@ -84,6 +87,11 @@ public class PerformanceANO11Test {
     private UtilisateurEntity testProprietaire;
     private List<AnnonceEntity> sampleAnnonces = new ArrayList<>();
 
+    @org.junit.jupiter.api.AfterEach
+    void tearDown() {
+        testDatabaseCleaner.cleanAll();
+    }
+
     @BeforeEach
     void setUp() {
         SessionFactory sessionFactory = entityManagerFactory.unwrap(SessionFactory.class);
@@ -92,16 +100,7 @@ public class PerformanceANO11Test {
         statistics.clear();
 
         transactionTemplate = new TransactionTemplate(transactionManager);
-
-        transactionTemplate.execute(status -> {
-            messageChatRepository.deleteAll();
-            conversationChatRepository.deleteAll();
-            favoriRepository.deleteAll();
-            photoAnnonceRepository.deleteAll();
-            annonceRepository.deleteAll();
-            utilisateurRepository.deleteAll();
-            return null;
-        });
+        testDatabaseCleaner.cleanAll();
 
         transactionTemplate.execute(status -> {
             testLocataire = utilisateurRepository.save(UtilisateurEntity.builder()

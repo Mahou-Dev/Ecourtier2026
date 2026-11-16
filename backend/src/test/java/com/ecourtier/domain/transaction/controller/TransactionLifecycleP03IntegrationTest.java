@@ -93,6 +93,12 @@ class TransactionLifecycleP03IntegrationTest {
     private PaiementWaveRepository paiementWaveRepository;
 
     @Autowired
+    private com.ecourtier.domain.ia.repository.MessageIARepository messageIARepository;
+
+    @Autowired
+    private com.ecourtier.domain.ia.repository.ConversationIARepository conversationIARepository;
+
+    @Autowired
     private TransactionService transactionService;
 
     @Autowired
@@ -100,6 +106,9 @@ class TransactionLifecycleP03IntegrationTest {
 
     @Autowired
     private WaveClientMock waveClientMock;
+
+    @Autowired
+    private com.ecourtier.testsupport.TestDatabaseCleaner testDatabaseCleaner;
 
     private UtilisateurEntity proprietaire;
     private UtilisateurEntity locataire1;
@@ -167,10 +176,7 @@ class TransactionLifecycleP03IntegrationTest {
     }
 
     private void cleanTables() {
-        transactionRepository.deleteAll();
-        rendezVousRepository.deleteAll();
-        annonceRepository.deleteAll();
-        utilisateurRepository.deleteAll();
+        testDatabaseCleaner.cleanAll();
     }
 
     private UtilisateurEntity createUser(String email, Role role) {

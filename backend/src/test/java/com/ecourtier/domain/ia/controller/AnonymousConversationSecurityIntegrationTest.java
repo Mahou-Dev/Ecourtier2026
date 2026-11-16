@@ -59,23 +59,22 @@ class AnonymousConversationSecurityIntegrationTest {
     @Autowired
     private ObjectMapper objectMapper;
 
+    @Autowired
+    private com.ecourtier.testsupport.TestDatabaseCleaner testDatabaseCleaner;
+
     private UtilisateurEntity utilisateurA;
     private UtilisateurEntity utilisateurB;
 
     @AfterEach
     void tearDown() {
         iaRateLimiterService.clear();
-        messageIARepository.deleteAll();
-        conversationIARepository.deleteAll();
-        utilisateurRepository.deleteAll();
+        testDatabaseCleaner.cleanAll();
     }
 
     @BeforeEach
     void setUp() {
         iaRateLimiterService.clear();
-        messageIARepository.deleteAll();
-        conversationIARepository.deleteAll();
-        utilisateurRepository.deleteAll();
+        testDatabaseCleaner.cleanAll();
 
         utilisateurA = utilisateurRepository.save(UtilisateurEntity.builder()
                 .nom("Diallo")

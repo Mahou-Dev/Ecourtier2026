@@ -92,13 +92,15 @@ class SchedulerLockServiceIntegrationTest {
     @Autowired
     private TransactionRepository transactionRepository;
 
+    @Autowired
+    private com.ecourtier.testsupport.TestDatabaseCleaner testDatabaseCleaner;
+
     private final List<Path> generatedFilesToDelete = new ArrayList<>();
 
     @BeforeEach
     @AfterEach
     void cleanUp() {
         schedulerLockService.setClock(Clock.system(DAKAR_ZONE));
-        jdbcTemplate.update("DELETE FROM scheduler_locks");
         for (Path p : generatedFilesToDelete) {
             try {
                 Files.deleteIfExists(p);
@@ -106,11 +108,7 @@ class SchedulerLockServiceIntegrationTest {
             }
         }
         generatedFilesToDelete.clear();
-        notificationSmsRepository.deleteAll();
-        transactionRepository.deleteAll();
-        rendezVousRepository.deleteAll();
-        annonceRepository.deleteAll();
-        utilisateurRepository.deleteAll();
+        testDatabaseCleaner.cleanAll();
     }
 
     @Test

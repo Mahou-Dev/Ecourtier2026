@@ -59,7 +59,16 @@ class MessagerieRestControllerIntegrationTest {
     private UtilisateurRepository utilisateurRepository;
 
     @Autowired
+    private com.ecourtier.domain.ia.repository.MessageIARepository messageIARepository;
+
+    @Autowired
+    private com.ecourtier.domain.ia.repository.ConversationIARepository conversationIARepository;
+
+    @Autowired
     private JwtService jwtService;
+
+    @Autowired
+    private com.ecourtier.testsupport.TestDatabaseCleaner testDatabaseCleaner;
 
     private UtilisateurEntity proprietaire;
     private UtilisateurEntity locataire;
@@ -69,18 +78,12 @@ class MessagerieRestControllerIntegrationTest {
 
     @org.junit.jupiter.api.AfterEach
     void tearDown() {
-        messageChatRepository.deleteAll();
-        conversationChatRepository.deleteAll();
-        annonceRepository.deleteAll();
-        utilisateurRepository.deleteAll();
+        testDatabaseCleaner.cleanAll();
     }
 
     @BeforeEach
     void setUp() {
-        messageChatRepository.deleteAll();
-        conversationChatRepository.deleteAll();
-        annonceRepository.deleteAll();
-        utilisateurRepository.deleteAll();
+        testDatabaseCleaner.cleanAll();
 
         proprietaire = utilisateurRepository.save(UtilisateurEntity.builder()
                 .nom("Diop")

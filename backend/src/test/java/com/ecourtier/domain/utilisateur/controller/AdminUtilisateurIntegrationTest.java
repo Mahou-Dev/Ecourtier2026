@@ -70,6 +70,9 @@ class AdminUtilisateurIntegrationTest {
     @Autowired
     private JwtService jwtService;
 
+    @Autowired
+    private com.ecourtier.testsupport.TestDatabaseCleaner testDatabaseCleaner;
+
     private UtilisateurEntity adminUser;
     private UtilisateurEntity secondAdminUser;
     private UtilisateurEntity agentUser;
@@ -81,26 +84,12 @@ class AdminUtilisateurIntegrationTest {
 
     @org.junit.jupiter.api.AfterEach
     void tearDown() {
-        signalementRepository.deleteAll();
-        avisRepository.deleteAll();
-        transactionRepository.deleteAll();
-        rendezVousRepository.deleteAll();
-        favoriRepository.deleteAll();
-        annonceRepository.deleteAll();
-        refreshTokenRepository.deleteAll();
-        utilisateurRepository.deleteAll();
+        testDatabaseCleaner.cleanAll();
     }
 
     @BeforeEach
     void setUp() {
-        signalementRepository.deleteAll();
-        avisRepository.deleteAll();
-        transactionRepository.deleteAll();
-        rendezVousRepository.deleteAll();
-        favoriRepository.deleteAll();
-        annonceRepository.deleteAll();
-        refreshTokenRepository.deleteAll();
-        utilisateurRepository.deleteAll();
+        testDatabaseCleaner.cleanAll();
 
         adminUser = utilisateurRepository.save(UtilisateurEntity.builder()
                 .nom("AdminNom")

@@ -73,6 +73,9 @@ class AuthIntegrationTest {
     @Autowired
     private com.ecourtier.common.security.LoginRateLimiterService loginRateLimiterService;
 
+    @Autowired
+    private com.ecourtier.testsupport.TestDatabaseCleaner testDatabaseCleaner;
+
     @SuppressWarnings("unchecked")
     private void clearLoginRateLimiter() {
         Object attempts = org.springframework.test.util.ReflectionTestUtils.getField(loginRateLimiterService, "attemptsMap");
@@ -88,31 +91,13 @@ class AuthIntegrationTest {
     @org.junit.jupiter.api.AfterEach
     void tearDown() {
         clearLoginRateLimiter();
-        messageIARepository.deleteAll();
-        conversationIARepository.deleteAll();
-        refreshTokenRepository.deleteAll();
-        favoriRepository.deleteAll();
-        signalementRepository.deleteAll();
-        avisRepository.deleteAll();
-        transactionRepository.deleteAll();
-        rendezVousRepository.deleteAll();
-        annonceRepository.deleteAll();
-        utilisateurRepository.deleteAll();
+        testDatabaseCleaner.cleanAll();
     }
 
     @BeforeEach
     void setUp() {
         clearLoginRateLimiter();
-        messageIARepository.deleteAll();
-        conversationIARepository.deleteAll();
-        refreshTokenRepository.deleteAll();
-        favoriRepository.deleteAll();
-        signalementRepository.deleteAll();
-        avisRepository.deleteAll();
-        transactionRepository.deleteAll();
-        rendezVousRepository.deleteAll();
-        annonceRepository.deleteAll();
-        utilisateurRepository.deleteAll();
+        testDatabaseCleaner.cleanAll();
     }
 
     @Test

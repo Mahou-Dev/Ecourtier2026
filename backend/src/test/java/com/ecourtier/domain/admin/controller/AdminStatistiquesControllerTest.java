@@ -44,19 +44,20 @@ class AdminStatistiquesControllerTest {
     @Autowired
     private PasswordEncoder passwordEncoder;
 
+    @Autowired
+    private com.ecourtier.testsupport.TestDatabaseCleaner testDatabaseCleaner;
+
     private String adminToken;
     private String locataireToken;
 
     @org.junit.jupiter.api.AfterEach
     void tearDown() {
-        annonceRepository.deleteAll();
-        utilisateurRepository.deleteAll();
+        testDatabaseCleaner.cleanAll();
     }
 
     @BeforeEach
     void setUp() throws Exception {
-        annonceRepository.deleteAll();
-        utilisateurRepository.deleteAll();
+        testDatabaseCleaner.cleanAll();
 
         // Admin User
         UtilisateurEntity admin = UtilisateurEntity.builder()

@@ -58,23 +58,20 @@ class IAIntegrationTest {
     @Autowired
     private com.ecourtier.domain.ia.repository.MessageIARepository messageIARepository;
 
+    @Autowired
+    private com.ecourtier.testsupport.TestDatabaseCleaner testDatabaseCleaner;
+
     private UtilisateurEntity testUser;
     private AnnonceEntity testAnnonce;
 
     @AfterEach
     void tearDown() {
-        messageIARepository.deleteAll();
-        conversationIARepository.deleteAll();
-        annonceRepository.deleteAll();
-        utilisateurRepository.deleteAll();
+        testDatabaseCleaner.cleanAll();
     }
 
     @BeforeEach
     void setUp() {
-        messageIARepository.deleteAll();
-        conversationIARepository.deleteAll();
-        annonceRepository.deleteAll();
-        utilisateurRepository.deleteAll();
+        testDatabaseCleaner.cleanAll();
 
         testUser = utilisateurRepository.save(UtilisateurEntity.builder()
                 .nom("Fall")

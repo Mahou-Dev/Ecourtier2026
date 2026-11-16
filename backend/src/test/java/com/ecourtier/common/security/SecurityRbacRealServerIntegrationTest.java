@@ -40,6 +40,9 @@ class SecurityRbacRealServerIntegrationTest {
     private UtilisateurRepository utilisateurRepository;
 
     @Autowired
+    private com.ecourtier.testsupport.TestDatabaseCleaner testDatabaseCleaner;
+
+    @Autowired
     private PasswordEncoder passwordEncoder;
 
     @Autowired
@@ -55,9 +58,14 @@ class SecurityRbacRealServerIntegrationTest {
     private UtilisateurEntity locataire;
     private UtilisateurEntity admin;
 
+    @org.junit.jupiter.api.AfterEach
+    void tearDown() {
+        testDatabaseCleaner.cleanAll();
+    }
+
     @BeforeEach
     void setUp() {
-        utilisateurRepository.deleteAll();
+        testDatabaseCleaner.cleanAll();
 
         locataire = utilisateurRepository.save(UtilisateurEntity.builder()
                 .nom("Diallo")

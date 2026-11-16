@@ -39,6 +39,9 @@ public class MesAnnoncesFilterTest {
     @Autowired
     private UtilisateurRepository utilisateurRepository;
 
+    @Autowired
+    private com.ecourtier.testsupport.TestDatabaseCleaner testDatabaseCleaner;
+
     private UtilisateurEntity owner;
     private AnnonceEntity loueeAnnonce;
     private AnnonceEntity vendueAnnonce;
@@ -46,8 +49,7 @@ public class MesAnnoncesFilterTest {
 
     @BeforeEach
     void setUp() {
-        annonceRepository.deleteAll();
-        utilisateurRepository.deleteAll();
+        testDatabaseCleaner.cleanAll();
 
         owner = utilisateurRepository.save(UtilisateurEntity.builder()
                 .prenom("Babacar")

@@ -52,15 +52,16 @@ class IAServiceClockTest {
     @Autowired
     private UtilisateurRepository utilisateurRepository;
 
+    @Autowired
+    private com.ecourtier.testsupport.TestDatabaseCleaner testDatabaseCleaner;
+
     private TimeZone previousTimeZone;
     private UtilisateurEntity user;
 
     @BeforeEach
     void setUp() {
         previousTimeZone = TimeZone.getDefault();
-        messageIARepository.deleteAll();
-        conversationIARepository.deleteAll();
-        utilisateurRepository.deleteAll();
+        testDatabaseCleaner.cleanAll();
 
         user = utilisateurRepository.save(UtilisateurEntity.builder()
                 .nom("Ndiaye")
@@ -79,9 +80,7 @@ class IAServiceClockTest {
         if (previousTimeZone != null) {
             TimeZone.setDefault(previousTimeZone);
         }
-        messageIARepository.deleteAll();
-        conversationIARepository.deleteAll();
-        utilisateurRepository.deleteAll();
+        testDatabaseCleaner.cleanAll();
     }
 
     @Test

@@ -103,6 +103,9 @@ class AnnonceOptimisticLockIntegrationTest {
     @Autowired
     private GlobalExceptionHandler globalExceptionHandler;
 
+    @Autowired
+    private com.ecourtier.testsupport.TestDatabaseCleaner testDatabaseCleaner;
+
     private UtilisateurEntity proprietaire;
     private String tokenProprietaire;
     private UUID annonceId;
@@ -157,15 +160,7 @@ class AnnonceOptimisticLockIntegrationTest {
     }
 
     private void cleanupDatabase() {
-        paiementWaveRepository.deleteAll();
-        transactionRepository.deleteAll();
-        rendezVousRepository.deleteAll();
-        signalementRepository.deleteAll();
-        avisRepository.deleteAll();
-        favoriRepository.deleteAll();
-        annonceRepository.deleteAll();
-        refreshTokenRepository.deleteAll();
-        utilisateurRepository.deleteAll();
+        testDatabaseCleaner.cleanAll();
     }
 
     @Test

@@ -96,6 +96,9 @@ class AnnonceStatutSecurityIntegrationTest {
     @Autowired
     private WaveClientMock waveClientMock;
 
+    @Autowired
+    private com.ecourtier.testsupport.TestDatabaseCleaner testDatabaseCleaner;
+
     private UtilisateurEntity proprietaire;
     private UtilisateurEntity locataire;
     private UtilisateurEntity admin;
@@ -124,11 +127,7 @@ class AnnonceStatutSecurityIntegrationTest {
     }
 
     private void cleanTables() {
-        transactionRepository.deleteAll();
-        signalementRepository.deleteAll();
-        rendezVousRepository.deleteAll();
-        annonceRepository.deleteAll();
-        utilisateurRepository.deleteAll();
+        testDatabaseCleaner.cleanAll();
     }
 
     private UtilisateurEntity createUser(String email, Role role) {
