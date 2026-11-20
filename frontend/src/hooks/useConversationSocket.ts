@@ -21,6 +21,12 @@ export function useConversationSocket(conversationId: string | undefined) {
   const fetchMessagesHistory = useCallback(async (id: string) => {
     try {
       const history = await messagerieService.listerMessages(id);
+      if (!Array.isArray(history)) {
+        console.error('Réponse historique messages inattendue (non-tableau):', history);
+        setMessages([]);
+        setError('Format inattendu de l’historique de conversation');
+        return;
+      }
       setMessages(history);
       setError(null);
     } catch (err: unknown) {
@@ -88,13 +94,18 @@ export function useConversationSocket(conversationId: string | undefined) {
         // Subscribe to real-time conversation topic
         client.subscribe(`/topic/conversations/${conversationId}`, (frame: IFrame) => {
           try {
-            const newMessage: MessageChatDTO = JSON.parse(frame.body);
+            const newMessage = JSON.parse(frame.body) as MessageChatDTO;
+            if (!newMessage || typeof newMessage.id !== 'string' || typeof newMessage.contenu !== 'string') {
+              console.error('Message STOMP invalide ignoré:', newMessage);
+              return;
+            }
             setMessages((prev) => {
+              const safePrev = Array.isArray(prev) ? prev : [];
               // Avoid duplicate messages if already present
-              if (prev.some((m) => m.id === newMessage.id)) {
-                return prev;
+              if (safePrev.some((m) => m.id === newMessage.id)) {
+                return safePrev;
               }
-              return [...prev, newMessage];
+              return [...safePrev, newMessage];
             });
           } catch (err) {
             console.error('Erreur parsing message STOMP:', err);

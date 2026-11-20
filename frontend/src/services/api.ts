@@ -1,6 +1,7 @@
 import { useAuthStore } from '../store/useAuthStore';
 import { HealthCheckResponse, TransactionResponseDTO } from '../types';
 import { resolveApiBaseUrl } from '../lib/env';
+import fallbackDefaultVisual from '../assets/home/property-fallbacks/default/default-01.webp';
 
 export const API_BASE_URL = resolveApiBaseUrl();
 
@@ -173,7 +174,7 @@ export async function fetchHealthStatus(): Promise<HealthCheckResponse> {
 }
 
 export function getPhotoUrl(url?: string): string {
-  if (!url) return 'https://images.unsplash.com/photo-1600585154340-be6161a56a0c?auto=format&fit=crop&w=1200&q=80';
+  if (!url) return fallbackDefaultVisual;
   if (url.startsWith('http://') || url.startsWith('https://')) return url;
   if (url.startsWith('/')) return `${API_BASE_URL}${url}`;
   return `${API_BASE_URL}/api/v1/uploads/annonces/${url}`;

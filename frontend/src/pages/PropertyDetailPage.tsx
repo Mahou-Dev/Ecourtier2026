@@ -15,11 +15,16 @@ import {
   MessageSquare,
   FileText,
   Upload,
-  Building2
+  Building2,
+  ChevronLeft,
+  ChevronRight,
+  Images
 } from 'lucide-react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { apiFetch, getPhotoUrl } from '../services/api';
+import { API_BASE_URL, apiFetch, getPhotoUrl } from '../services/api';
 import { messagerieService } from '../services/messagerie.service';
+import { PropertyVisual } from '../components/property/PropertyVisual';
+import { isUsablePhotoUrl, mapPropertyCategory, selectFallbackPhoto } from '../lib/propertyMedia';
 import { EquipementBadge, ProximiteBadge } from '../components/ui/ReferenceIcons';
 import { getErrorMessage, getErrorStatus } from '../lib/errors';
 import { 
@@ -49,6 +54,41 @@ const LazyLightbox = React.lazy(() => {
 const LazyTransactionDetailsModal = React.lazy(() => import('../components/transaction/TransactionDetailsModal').then((m) => ({ default: m.TransactionDetailsModal })));
 const LazySignalementModal = React.lazy(() => import('../components/ui/SignalementModal').then((m) => ({ default: m.SignalementModal })));
 const LazyChatDrawer = React.lazy(() => import('../components/messagerie/ChatDrawer').then((m) => ({ default: m.ChatDrawer })));
+
+const PUBLICATION_STATUS_META: Record<
+  AnnonceDTO['statutPublication'],
+  { label: string; badgeVariant: 'sahel' | 'warning' | 'rose'; notice?: string }
+> = {
+  DISPONIBLE: { label: 'Disponible', badgeVariant: 'sahel' },
+  RESERVEE: {
+    label: 'Réservée',
+    badgeVariant: 'warning',
+    notice: "Ce bien fait actuellement l'objet d'une réservation en cours. Les nouvelles demandes sont temporairement suspendues.",
+  },
+  LOUEE: {
+    label: 'Déjà louée',
+    badgeVariant: 'rose',
+    notice: "Ce logement est déjà loué et n'est plus disponible à la visite ni à la réservation.",
+  },
+  VENDUE: {
+    label: 'Bien vendu',
+    badgeVariant: 'rose',
+    notice: "Ce bien a été vendu et n'est plus disponible à la visite ni à la réservation.",
+  },
+  SUSPENDUE: {
+    label: 'Annonce suspendue',
+    badgeVariant: 'rose',
+    notice: "Cette annonce est actuellement suspendue et indisponible à la réservation.",
+  },
+};
+
+const SPEC_SM_GRID_COLS: Record<number, string> = {
+  1: 'sm:grid-cols-1',
+  2: 'sm:grid-cols-2',
+  3: 'sm:grid-cols-3',
+  4: 'sm:grid-cols-4',
+  5: 'sm:grid-cols-5',
+};
 
 // Deferred Map: loads Leaflet and tile resources strictly when scrolled into view
 const DeferredMap: React.FC<{ property: AnnonceDTO }> = ({ property }) => {
@@ -94,7 +134,7 @@ const DeferredMap: React.FC<{ property: AnnonceDTO }> = ({ property }) => {
           onClick={() => setShouldLoad(true)}
         >
           <MapPin className="w-6 h-6 text-terracotta-500" />
-          <span>{property.quartier}, {property.ville}</span>
+          <span>{property.quartier ? `${property.quartier}, ` : ''}{property.ville}</span>
           <span className="text-[11px] text-charcoal-400 font-normal">Cliquer pour charger la carte interactive</span>
         </div>
       )}
@@ -110,8 +150,40 @@ export const PropertyDetailPage: React.FC = () => {
   const { utilisateur, accessToken } = useAuthStore();
   const wasPrefetchedRef = React.useRef(false);
 
-  const [isLightboxOpen, setIsLightboxOpen] = useState(false);
-  const [selectedPhotoIndex, setSelectedPhotoIndex] = useState(0);
+  const [galleryNav, setGalleryNav] = useState<{
+    forId?: string;
+    lightboxOpen: boolean;
+    selectedIndex: number;
+    mobileIndex: number;
+  }>({ forId: id, lightboxOpen: false, selectedIndex: 0, mobileIndex: 0 });
+  const [resolvedSlideUrls, setResolvedSlideUrls] = useState<Record<string, string | null>>({});
+
+  const normalizeGalleryNav = (prev: typeof galleryNav) =>
+    prev.forId === id ? prev : { forId: id, lightboxOpen: false, selectedIndex: 0, mobileIndex: 0 };
+
+  const isLightboxOpen = galleryNav.forId === id ? galleryNav.lightboxOpen : false;
+  const selectedPhotoIndex = galleryNav.forId === id ? galleryNav.selectedIndex : 0;
+  const mobilePhotoIndex = galleryNav.forId === id ? galleryNav.mobileIndex : 0;
+
+  const setIsLightboxOpen = (open: boolean) =>
+    setGalleryNav((prev) => ({ ...normalizeGalleryNav(prev), forId: id, lightboxOpen: open }));
+  const setSelectedPhotoIndex = (index: number) =>
+    setGalleryNav((prev) => ({ ...normalizeGalleryNav(prev), forId: id, selectedIndex: index }));
+  const setMobilePhotoIndex = (updater: number | ((prev: number) => number)) =>
+    setGalleryNav((prev) => {
+      const current = normalizeGalleryNav(prev);
+      const nextIndex = typeof updater === 'function' ? updater(current.mobileIndex) : updater;
+      return { ...current, forId: id, mobileIndex: nextIndex };
+    });
+
+  const handleGalleryStageChange = React.useCallback(
+    (slideKey: string, url: string | null) => {
+      setResolvedSlideUrls((prev) =>
+        prev[slideKey] === url ? prev : { ...prev, [slideKey]: url }
+      );
+    },
+    []
+  );
   const [isVisitModalOpen, setIsVisitModalOpen] = useState(false);
   const [visitDate, setVisitDate] = useState('');
   const [visitTime, setVisitTime] = useState('10:00');
@@ -184,14 +256,59 @@ export const PropertyDetailPage: React.FC = () => {
     }
   };
 
-  // Fetch listing details
+  // Fetch listing details with hardened prefetch JSON validation
   const { data: property, isLoading, isError, refetch: refetchProperty } = useQuery<AnnonceDTO>({
     queryKey: ['annonce', id],
     queryFn: async () => {
       interface PrefetchedWindow {
         __PREFETCHED_ANNONCE_ID__?: string;
-        __PREFETCHED_ANNONCE_PROMISE__?: Promise<{ ok?: boolean; status?: number; data?: AnnonceDTO }> | null;
+        __PREFETCHED_ANNONCE_PROMISE__?: Promise<{ ok?: boolean; status?: number; data?: unknown }> | null;
       }
+
+      const isValidAnnoncePayload = (payload: unknown): payload is AnnonceDTO => {
+        if (!payload || typeof payload !== 'object' || Array.isArray(payload)) return false;
+        const candidate = payload as Partial<AnnonceDTO>;
+        return (
+          typeof candidate.id === 'string' &&
+          candidate.id === id &&
+          typeof candidate.titre === 'string' &&
+          candidate.titre.length > 0 &&
+          typeof candidate.prix === 'number'
+        );
+      };
+
+      const isPrefetchConfirmedJsonResponse = (): boolean | null => {
+        if (typeof window === 'undefined' || typeof performance === 'undefined') return null;
+        const targetPath = `/api/v1/annonces/${id}`;
+        const entries = performance.getEntriesByType('resource') as Array<
+          PerformanceResourceTiming & { contentType?: string }
+        >;
+        for (let i = entries.length - 1; i >= 0; i--) {
+          const entry = entries[i];
+          try {
+            const parsed = new URL(entry.name, window.location.origin);
+            if (parsed.origin === window.location.origin && parsed.pathname === targetPath) {
+              if (typeof entry.contentType === 'string') {
+                return entry.contentType.toLowerCase().includes('json');
+              }
+              return null;
+            }
+          } catch {
+            continue;
+          }
+        }
+        return null;
+      };
+
+      const isApiCrossOrigin = (): boolean => {
+        if (typeof window === 'undefined') return false;
+        try {
+          return new URL(API_BASE_URL || '/', window.location.origin).origin !== window.location.origin;
+        } catch {
+          return false;
+        }
+      };
+
       const win = typeof window !== 'undefined' ? (window as unknown as PrefetchedWindow) : null;
       if (win && win.__PREFETCHED_ANNONCE_ID__ === id && win.__PREFETCHED_ANNONCE_PROMISE__) {
         const prefetched = win.__PREFETCHED_ANNONCE_PROMISE__;
@@ -199,22 +316,23 @@ export const PropertyDetailPage: React.FC = () => {
         try {
           const res = await prefetched;
           if (res) {
-            // Case 1: Prefetch succeeded with valid listing data
-            if (res.ok && res.data && res.data.id === id) {
+            // Case 1: Prefetch succeeded with genuine listing JSON payload
+            if (res.ok && isValidAnnoncePayload(res.data)) {
               wasPrefetchedRef.current = true;
               return res.data;
             }
-            // Case 2: Listing is definitively 404 (Not Found) - throw immediately to avoid duplicate request
-            if (res.status === 404) {
-              const notFoundErr = new Error('Annonce introuvable ou supprimée') as Error & { status?: number };
-              notFoundErr.status = 404;
-              throw notFoundErr;
-            }
-            // Case 3: Other definitive client errors (403, 410)
-            if (res.status === 403 || res.status === 410) {
-              const clientErr = new Error(`Erreur ${res.status}`) as Error & { status?: number };
-              clientErr.status = res.status;
-              throw clientErr;
+
+            // Case 2: Confirm definitive API client error ONLY when response was JSON (never Vite HTML/empty 404)
+            if (res.status === 404 || res.status === 403 || res.status === 410) {
+              const jsonConfirmed = isPrefetchConfirmedJsonResponse();
+              const allowErrorWithoutTiming = jsonConfirmed === null && !isApiCrossOrigin();
+              if (jsonConfirmed === true || allowErrorWithoutTiming) {
+                const clientErr = new Error(
+                  res.status === 404 ? 'Annonce introuvable ou supprimée' : `Erreur ${res.status}`
+                ) as Error & { status?: number };
+                clientErr.status = res.status;
+                throw clientErr;
+              }
             }
           }
         } catch (err: unknown) {
@@ -286,6 +404,11 @@ export const PropertyDetailPage: React.FC = () => {
   );
 
   const handleDemanderVisiteClick = () => {
+    if ((property?.statutPublication ?? 'DISPONIBLE') !== 'DISPONIBLE') {
+      toast.warning("Ce bien n'est plus disponible pour de nouvelles visites");
+      return;
+    }
+
     if (!utilisateur) {
       toast.info('Veuillez vous connecter pour planifier une visite');
       navigate('/connexion', { state: { from: location.pathname } });
@@ -329,6 +452,10 @@ export const PropertyDetailPage: React.FC = () => {
 
   const handleInitierTransaction = async () => {
     if (!id || !property) return;
+    if ((property.statutPublication ?? 'DISPONIBLE') !== 'DISPONIBLE') {
+      toast.warning("Ce bien n'est plus disponible pour initier une nouvelle transaction");
+      return;
+    }
     setIsInitiatingTx(true);
     try {
       const tx = await apiFetch<TransactionResponseDTO>(`/api/v1/annonces/${id}/transactions`, {
@@ -423,33 +550,99 @@ export const PropertyDetailPage: React.FC = () => {
     );
   }
 
-  const photosList = property.photos && property.photos.length > 0
-    ? property.photos.map(p => getPhotoUrl(p.url))
-    : ['https://images.unsplash.com/photo-1600585154340-be6161a56a0c?auto=format&fit=crop&w=1200&q=80'];
+  const rawPhotos = property.photos || [];
+  const gallerySlotCount = Math.max(1, rawPhotos.length);
+  const activeMobilePhotoIndex = Math.min(mobilePhotoIndex, gallerySlotCount - 1);
+  const publicationStatus = property.statutPublication ?? 'DISPONIBLE';
+  const statusMeta = PUBLICATION_STATUS_META[publicationStatus];
+  const isAvailable = publicationStatus === 'DISPONIBLE';
+
+  const hasSuperficie =
+    typeof property.superficie === 'number' &&
+    Number.isFinite(property.superficie) &&
+    property.superficie > 0;
+  const hasPieces =
+    typeof property.nombrePieces === 'number' &&
+    Number.isFinite(property.nombrePieces) &&
+    property.nombrePieces > 0;
+  const hasEtage = property.etage !== undefined && property.etage !== null;
+
+  const specItems: Array<{ label: string; value: string }> = [
+    ...(hasSuperficie ? [{ label: 'Superficie', value: `${property.superficie} m²` }] : []),
+    ...(hasPieces
+      ? [
+          {
+            label: 'Nombre de pièces',
+            value: `${property.nombrePieces} ${property.nombrePieces === 1 ? 'pièce' : 'pièces'}`,
+          },
+        ]
+      : []),
+    ...(hasEtage ? [{ label: 'Étage', value: property.etage === 0 ? 'RDC' : `${property.etage}e` }] : []),
+    { label: 'Meublé', value: property.meuble ? 'Oui' : 'Non' },
+    { label: 'Animaux', value: property.animauxAcceptes ? 'Acceptés' : 'Refusés' },
+  ];
+  const specSmColsClass = SPEC_SM_GRID_COLS[specItems.length] ?? 'sm:grid-cols-4';
+  const isOddSpecCount = specItems.length % 2 === 1;
+
+  const galleryFallbacks = (() => {
+    const used = new Set<string>();
+    const category = mapPropertyCategory(property.type, property.titre);
+    return Array.from({ length: gallerySlotCount }, (_, idx) =>
+      selectFallbackPhoto(category, `${property.id}:gallery-${idx}`, used)
+    );
+  })();
+
+  const lightboxSlides = Array.from({ length: gallerySlotCount }, (_, idx) => {
+    const slideKey = `${property.id}:${idx}`;
+    const resolved = resolvedSlideUrls[slideKey];
+    if (resolved) return { src: resolved };
+    if (resolved === null) return null;
+    const rawUrl = rawPhotos[idx]?.url;
+    if (isUsablePhotoUrl(rawUrl)) return { src: getPhotoUrl(rawUrl) };
+    const fb = galleryFallbacks[idx];
+    return fb ? { src: fb } : null;
+  }).filter((item): item is { src: string } => Boolean(item));
+
+  const secondaryCount = gallerySlotCount - 1;
+  const desktopContainerCols =
+    gallerySlotCount === 1
+      ? 'md:grid-cols-1'
+      : gallerySlotCount === 2
+        ? 'md:grid-cols-2'
+        : 'md:grid-cols-4';
+  const desktopSecondaryGridClass =
+    secondaryCount === 1
+      ? 'grid-cols-1'
+      : secondaryCount === 2
+        ? 'grid-cols-1 grid-rows-2'
+        : 'grid-cols-2 grid-rows-2';
 
   return (
-    <div className="max-w-7xl mx-auto px-4 py-6 space-y-8">
+    <div className="max-w-7xl mx-auto px-3 sm:px-4 lg:pr-[68px] min-[1380px]:px-4 py-3 sm:py-3.5 pb-24 lg:pb-8 space-y-3 sm:space-y-4">
       
       {/* NAVIGATION BAR & DISCRETE REPORT BUTTON */}
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between gap-2">
         <Link
           to="/recherche"
-          className="inline-flex items-center gap-2 text-xs font-semibold text-sahel-700 hover:text-terracotta-600 transition-colors"
+          aria-label="Retour aux résultats"
+          className="inline-flex items-center gap-1.5 sm:gap-2 text-xs font-semibold text-sahel-700 hover:text-terracotta-600 transition-colors shrink-0"
         >
-          <ArrowLeft className="w-4 h-4" />
-          <span>Retour aux résultats</span>
+          <ArrowLeft className="w-4 h-4 shrink-0" />
+          <span className="sm:hidden">Résultats</span>
+          <span className="hidden sm:inline">Retour aux résultats</span>
         </Link>
 
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
           {id && property && (
-            <div className="flex items-center gap-1.5 bg-white border border-sand-300 px-3 py-1 rounded-xl shadow-xs">
+            <div className="flex items-center gap-1.5 bg-white border border-sand-300 px-2 sm:px-3 py-0.5 sm:py-1 rounded-xl shadow-sm">
               <FavoriteButton
                 annonceId={id}
                 estFavori={property.estFavori || false}
-                size="md"
+                size="sm"
               />
-              <span className="text-xs font-semibold text-charcoal-700">
-                {property.estFavori ? 'Dans vos favoris' : 'Ajouter aux favoris'}
+              <span className="text-[11px] sm:text-xs font-semibold text-charcoal-700 whitespace-nowrap">
+                <span className="sm:hidden">{property.estFavori ? 'En favoris' : 'Favoris'}</span>
+                <span className="hidden sm:inline">{property.estFavori ? 'Dans vos favoris' : 'Ajouter aux favoris'}</span>
               </span>
             </div>
           )}
@@ -463,19 +656,24 @@ export const PropertyDetailPage: React.FC = () => {
               }
               setIsSignalementModalOpen(true);
             }}
-            className="inline-flex items-center gap-1.5 text-xs text-charcoal-500 hover:text-rose-600 transition-colors py-1 px-2.5 rounded-lg border border-transparent hover:border-rose-200"
+            className="inline-flex items-center gap-1 text-[11px] sm:text-xs text-charcoal-500 hover:text-rose-600 transition-colors py-1 px-2 sm:px-2.5 rounded-lg border border-transparent hover:border-rose-200 whitespace-nowrap"
           >
-            <AlertTriangle className="w-3.5 h-3.5 text-rose-500" />
+            <AlertTriangle className="w-3.5 h-3.5 text-rose-500 shrink-0" />
             <span>Signaler</span>
           </button>
         </div>
       </div>
 
       {/* HEADER TITLE & BADGES & RATING SUMMARY */}
-      <div className="space-y-3">
-        <div className="flex flex-wrap items-center gap-2">
+      <div className="space-y-1.5 sm:space-y-2">
+        <div className="flex flex-wrap items-center gap-1.5 sm:gap-2">
           <Badge variant="terracotta">{property.modeTransaction}</Badge>
           <Badge variant="sahel">{property.type}</Badge>
+          {publicationStatus !== 'DISPONIBLE' && (
+            <Badge variant={statusMeta.badgeVariant} data-testid="publication-status-badge">
+              {statusMeta.label}
+            </Badge>
+          )}
           {property.statutVerification === 'VERIFIEE' && (
             <Badge variant="success" className="flex items-center gap-1">
               <ShieldCheck className="w-3.5 h-3.5 text-emerald-600" />
@@ -483,18 +681,18 @@ export const PropertyDetailPage: React.FC = () => {
             </Badge>
           )}
           {(property.auteurRole === 'AGENT' || property.auteur?.role === 'AGENT') && (
-            <Badge variant="sahel" className="flex items-center gap-1 bg-amber-100 text-amber-900 border border-amber-300">
-              <Building2 className="w-3.5 h-3.5 text-amber-700" />
+            <Badge variant="sahel" className="flex items-center gap-1 bg-ocher-100 text-ocher-900 border border-ocher-300">
+              <Building2 className="w-3.5 h-3.5 text-ocher-800" />
               <span>Publié par un agent immobilier</span>
             </Badge>
           )}
 
           {/* Average Rating Star Badge */}
           {avisSummary?.noteMoyenne ? (
-            <div className="flex items-center gap-1 text-xs font-bold bg-amber-50 text-amber-900 border border-amber-300 px-2.5 py-1 rounded-full shadow-xs">
+            <div className="flex items-center gap-1 text-xs font-bold bg-ocher-50 text-ocher-900 border border-ocher-300 px-2.5 py-0.5 rounded-full shadow-sm">
               <Star className="w-3.5 h-3.5 fill-amber-400 text-amber-500" />
               <span>{avisSummary.noteMoyenne.toFixed(1)} / 5</span>
-              <span className="text-amber-700 text-[10px]">({avisSummary.nombreAvis} avis)</span>
+              <span className="text-ocher-700 text-[10px]">({avisSummary.nombreAvis} avis)</span>
             </div>
           ) : (
             <span className="text-[11px] text-charcoal-400 bg-sand-200 px-2.5 py-0.5 rounded-full font-medium">
@@ -503,93 +701,192 @@ export const PropertyDetailPage: React.FC = () => {
           )}
         </div>
 
-        <h1 className="font-display font-extrabold text-2xl md:text-4xl text-charcoal-900 tracking-tight">
+        <h1 className="font-display font-extrabold text-xl xs:text-2xl xl:text-3xl text-charcoal-900 tracking-tight leading-tight">
           {property.titre}
         </h1>
 
-        <div className="flex flex-wrap items-center gap-4 text-xs font-semibold text-charcoal-600">
+        <div className="flex flex-wrap items-center gap-3 text-xs font-semibold text-charcoal-600">
           <span className="flex items-center gap-1">
             <MapPin className="w-4 h-4 text-terracotta-500" />
-            {property.quartier}, {property.ville}
+            {property.quartier ? `${property.quartier}, ` : ''}{property.ville}
           </span>
 
           {property.lienVisite360 && (
             <button
               onClick={() => setIs360ModalOpen(true)}
-              className="flex items-center gap-1.5 text-terracotta-600 hover:text-terracotta-700 bg-terracotta-50 hover:bg-terracotta-100 px-3 py-1 rounded-full border border-terracotta-200 font-bold transition-all"
+              className="flex items-center gap-1.5 text-terracotta-600 hover:text-terracotta-700 bg-terracotta-50 hover:bg-terracotta-100 px-3 py-0.5 rounded-full border border-terracotta-200 font-bold transition-all"
             >
-              <Compass className="w-4 h-4 animate-spin-slow" />
+              <Compass className="w-4 h-4 [animation:spin_12s_linear_infinite] motion-reduce:animate-none" />
               <span>Visite Virtuelle 360°</span>
             </button>
           )}
         </div>
       </div>
 
-      {/* GALLERY GRID WITH LAZY LOADING & FIXED DIMENSIONS */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-3 h-[380px] rounded-3xl overflow-hidden shadow-warm-card">
-        <div className="md:col-span-2 h-full cursor-pointer relative group bg-sand-200" onClick={() => { setSelectedPhotoIndex(0); setIsLightboxOpen(true); }}>
-          <img
-            src={photosList[0]}
-            alt={property.titre}
+      {/* ADAPTIVE GALLERY GRID (1..10 PHOTOS, 3-TIER FALLBACK, SYNCHRONIZED LIGHTBOX) */}
+      <div
+        data-testid="property-gallery-grid"
+        className={`grid grid-cols-1 ${desktopContainerCols} gap-3 h-56 xs:h-48 sm:h-56 md:h-64 lg:h-[235px] xl:h-[248px] min-[1400px]:h-[340px] rounded-2xl sm:rounded-3xl overflow-hidden shadow-warm-card`}
+      >
+        <div
+          className={`${
+            gallerySlotCount >= 3 ? 'md:col-span-2' : 'md:col-span-1'
+          } h-full min-h-0 cursor-pointer relative group bg-sand-200`}
+          onClick={() => {
+            setSelectedPhotoIndex(activeMobilePhotoIndex);
+            setIsLightboxOpen(true);
+          }}
+        >
+          <PropertyVisual
+            mode="gallery"
+            rawUrl={rawPhotos[activeMobilePhotoIndex]?.url}
+            listingId={property.id}
+            type={property.type}
+            title={
+              activeMobilePhotoIndex === 0
+                ? property.titre
+                : `${property.titre} — Photo ${activeMobilePhotoIndex + 1}`
+            }
+            quartier={property.quartier}
+            fallbackUrl={galleryFallbacks[activeMobilePhotoIndex]}
+            slotKey={`gallery-${activeMobilePhotoIndex}`}
+            badgePosition={gallerySlotCount > 1 ? 'bottom-left' : 'bottom-right'}
             loading="eager"
             fetchPriority="high"
-            decoding="async"
             width={760}
-            height={380}
-            className="w-full h-full object-cover group-hover:scale-102 transition-transform duration-300"
+            height={360}
+            className="w-full h-full"
+            imageClassName="group-hover:scale-[1.02] transition-transform duration-300"
+            onStageChange={(_stage, url) =>
+              handleGalleryStageChange(`${property.id}:${activeMobilePhotoIndex}`, url)
+            }
           />
+          {gallerySlotCount > 1 && (
+            <div
+              onClick={(e) => e.stopPropagation()}
+              className="md:hidden absolute top-3 right-3 flex items-center gap-1 rounded-full bg-charcoal-900/75 px-1.5 py-1 text-white backdrop-blur-sm z-20 shadow-sm"
+            >
+              <button
+                type="button"
+                aria-label="Photo précédente"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setMobilePhotoIndex((prev) => (prev - 1 + gallerySlotCount) % gallerySlotCount);
+                }}
+                className="w-7 h-7 rounded-full hover:bg-white/20 flex items-center justify-center transition-colors"
+              >
+                <ChevronLeft className="w-4 h-4" />
+              </button>
+              <span
+                data-testid="mobile-gallery-counter"
+                className="px-1.5 text-[11px] font-bold whitespace-nowrap"
+              >
+                {activeMobilePhotoIndex + 1} / {gallerySlotCount} photos
+              </span>
+              <button
+                type="button"
+                aria-label="Photo suivante"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setMobilePhotoIndex((prev) => (prev + 1) % gallerySlotCount);
+                }}
+                className="w-7 h-7 rounded-full hover:bg-white/20 flex items-center justify-center transition-colors"
+              >
+                <ChevronRight className="w-4 h-4" />
+              </button>
+            </div>
+          )}
         </div>
-        <div className="hidden md:grid grid-cols-1 gap-3 h-full col-span-2">
-          <div className="grid grid-cols-2 gap-3 h-full">
-            {photosList.slice(1, 5).map((photo, idx) => (
-              <div key={idx} className="h-full cursor-pointer overflow-hidden relative group bg-sand-200" onClick={() => { setSelectedPhotoIndex(idx + 1); setIsLightboxOpen(true); }}>
-                <img
-                  src={photo}
-                  alt={`Photo ${idx + 2} - ${property.titre}`}
-                  loading="lazy"
-                  decoding="async"
-                  width={360}
-                  height={185}
-                  className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
-                />
-              </div>
-            ))}
+
+        {gallerySlotCount > 1 && (
+          <div
+            className={`hidden md:grid h-full min-h-0 ${
+              gallerySlotCount === 2 ? 'md:col-span-1' : 'md:col-span-2'
+            } ${desktopSecondaryGridClass} gap-3`}
+          >
+            {Array.from({ length: Math.min(4, gallerySlotCount - 1) }, (_, offset) => {
+              const idx = offset + 1;
+              const isFourPhotosWideTop = secondaryCount === 3 && offset === 0;
+              const isLastTileWithOverflow = offset === 3 && gallerySlotCount > 5;
+              const hiddenPhotosCount = gallerySlotCount - 5;
+
+              return (
+                <div
+                  key={idx}
+                  data-testid={`gallery-tile-${idx}`}
+                  className={`${
+                    isFourPhotosWideTop ? 'col-span-2' : ''
+                  } h-full min-h-0 cursor-pointer overflow-hidden relative group bg-sand-200`}
+                  onClick={() => {
+                    setSelectedPhotoIndex(idx);
+                    setIsLightboxOpen(true);
+                  }}
+                >
+                  <PropertyVisual
+                    mode="gallery"
+                    rawUrl={rawPhotos[idx]?.url}
+                    listingId={property.id}
+                    type={property.type}
+                    title={`${property.titre} — Photo ${idx + 1}`}
+                    quartier={property.quartier}
+                    fallbackUrl={galleryFallbacks[idx]}
+                    slotKey={`gallery-${idx}`}
+                    showIllustrativeBadge={!isLastTileWithOverflow}
+                    loading="lazy"
+                    width={360}
+                    height={185}
+                    className="w-full h-full"
+                    imageClassName="group-hover:scale-105 transition-transform duration-300"
+                    onStageChange={(_stage, url) => handleGalleryStageChange(`${property.id}:${idx}`, url)}
+                  />
+                  {isLastTileWithOverflow && (
+                    <div
+                      data-testid="gallery-more-overlay"
+                      className="absolute inset-0 bg-charcoal-900/55 group-hover:bg-charcoal-900/65 transition-colors flex flex-col items-center justify-center text-white p-2 text-center z-10"
+                    >
+                      <Images className="w-5 h-5 mb-1 opacity-95" aria-hidden="true" />
+                      <span className="font-display font-extrabold text-base leading-tight">
+                        +{hiddenPhotosCount} {hiddenPhotosCount === 1 ? 'photo' : 'photos'}
+                      </span>
+                      <span className="text-[11px] text-sand-100 mt-0.5 font-medium">
+                        Voir les {gallerySlotCount} photos
+                      </span>
+                    </div>
+                  )}
+                </div>
+              );
+            })}
           </div>
-        </div>
+        )}
       </div>
 
-      {/* DETAILS GRID */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+      {/* DETAILS GRID (Single Booking Card order-1 on <lg, sticky right column on lg+) */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 sm:gap-6 lg:gap-8 items-start">
         
         {/* LEFT COLUMN */}
-        <div className="lg:col-span-2 space-y-8">
+        <div className="lg:col-span-2 order-2 lg:order-1 min-w-0 space-y-6 sm:space-y-8">
           
-          {/* Key Specifications (Including Étage) */}
-          <div className="p-6 rounded-2xl bg-white border border-argile-200 shadow-warm-card grid grid-cols-2 sm:grid-cols-5 gap-4 text-center">
-            <div>
-              <p className="text-xs text-charcoal-500 font-medium">Superficie</p>
-              <p className="font-display font-bold text-lg text-charcoal-900">{property.superficie} m²</p>
-            </div>
-            <div>
-              <p className="text-xs text-charcoal-500 font-medium">Nombre de pièces</p>
-              <p className="font-display font-bold text-lg text-charcoal-900">{property.nombrePieces}</p>
-            </div>
-            <div>
-              <p className="text-xs text-charcoal-500 font-medium">Étage</p>
-              <p className="font-display font-bold text-lg text-charcoal-900">
-                {property.etage !== undefined && property.etage !== null
-                  ? property.etage === 0 ? 'RDC' : `${property.etage}e`
-                  : 'N/A'}
-              </p>
-            </div>
-            <div>
-              <p className="text-xs text-charcoal-500 font-medium">Meublé</p>
-              <p className="font-display font-bold text-lg text-charcoal-900">{property.meuble ? 'Oui' : 'Non'}</p>
-            </div>
-            <div>
-              <p className="text-xs text-charcoal-500 font-medium">Animaux</p>
-              <p className="font-display font-bold text-lg text-charcoal-900">{property.animauxAcceptes ? 'Acceptés' : 'Refusés'}</p>
-            </div>
+          {/* Key Specifications (Dynamic items without N/A or orphan mobile tile) */}
+          <div
+            data-testid="specs-grid"
+            className={`p-4 sm:p-6 rounded-2xl bg-white border border-argile-200 shadow-warm-card grid grid-cols-2 ${specSmColsClass} gap-4 text-center`}
+          >
+            {specItems.map((spec, specIdx) => {
+              const isOrphanLast = isOddSpecCount && specIdx === specItems.length - 1;
+              return (
+                <div
+                  key={spec.label}
+                  className={
+                    isOrphanLast
+                      ? 'col-span-2 sm:col-span-1 pt-2 sm:pt-0 border-t sm:border-t-0 border-sand-200'
+                      : ''
+                  }
+                >
+                  <p className="text-xs text-charcoal-500 font-medium">{spec.label}</p>
+                  <p className="font-display font-bold text-lg text-charcoal-900">{spec.value}</p>
+                </div>
+              );
+            })}
           </div>
 
           {/* Description */}
@@ -744,7 +1041,7 @@ export const PropertyDetailPage: React.FC = () => {
                 <h4 className="text-xs font-bold text-charcoal-700 uppercase tracking-wider">
                   Ajouter des pièces justificatives supplémentaires
                 </h4>
-                <div className="p-2.5 bg-clay-50 rounded-lg border border-sahel-200 text-[11px] text-sahel-800">
+                <div className="p-2.5 bg-sahel-50 rounded-lg border border-sahel-200 text-[11px] text-sahel-800">
                   <strong>Formats acceptés :</strong> Documents PDF ou images (JPG, JPEG, PNG, WEBP, PDF — Max 10 Mo par document).
                 </div>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 items-end">
@@ -862,7 +1159,7 @@ export const PropertyDetailPage: React.FC = () => {
             {avisSummary?.avis && avisSummary.avis.length > 0 ? (
               <div className="space-y-3">
                 {avisSummary.avis.map((av) => (
-                  <div key={av.id} className="p-4 bg-white rounded-2xl border border-argile-200 shadow-xs space-y-2">
+                  <div key={av.id} className="p-4 bg-white rounded-2xl border border-argile-200 shadow-sm space-y-2">
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-2">
                         <span className="font-display font-bold text-xs text-charcoal-900">
@@ -899,44 +1196,100 @@ export const PropertyDetailPage: React.FC = () => {
 
         </div>
 
-        {/* RIGHT COLUMN: STICKY BOOKING / TRANSACTION CARD */}
-        <div className="lg:col-span-1">
-          <div className="sticky top-24 space-y-4">
+        {/* RIGHT COLUMN: STICKY BOOKING / TRANSACTION CARD (Single price DOM instance across all viewports) */}
+        <div id="booking-card" className="lg:col-span-1 order-1 lg:order-2 scroll-mt-24">
+          <div className="lg:sticky lg:top-24 space-y-4">
             
             <Card className="border-terracotta-200 shadow-warm-hover">
-              <CardBody className="space-y-5">
+              <CardBody className="p-3.5 sm:p-4 space-y-2.5 md:grid md:grid-cols-12 md:gap-5 md:space-y-0 md:items-start lg:block lg:space-y-3">
                 
-                {/* Price Display */}
-                <div>
-                  <span className="text-xs font-semibold text-charcoal-500 uppercase tracking-wider">
-                    {property.modeTransaction === 'LOCATION' ? 'Loyer Mensuel' : 'Prix de Vente'}
-                  </span>
-                  <div className="flex items-baseline gap-1 mt-0.5">
-                    <span className="font-display font-extrabold text-3xl text-terracotta-600">
-                      {property.prix.toLocaleString('fr-FR')} FCFA
+                {/* Price Display & Contextual Reassurance / Notice */}
+                <div className="md:col-span-6 space-y-2.5 pr-12 xs:pr-0">
+                  <div>
+                    <span className="text-xs font-semibold text-charcoal-500 uppercase tracking-wider">
+                      {property.modeTransaction === 'LOCATION' ? 'Loyer Mensuel' : 'Prix de Vente'}
                     </span>
-                    <span className="text-xs text-charcoal-500">
-                      {property.modeTransaction === 'LOCATION' ? '/ mois' : ''}
-                    </span>
+                    <div className="flex flex-wrap items-baseline gap-1 mt-0.5">
+                      <span className="font-display font-extrabold text-xl sm:text-2xl text-terracotta-600 break-words">
+                        {property.prix.toLocaleString('fr-FR')} FCFA
+                      </span>
+                      {property.modeTransaction === 'LOCATION' && (
+                        <span className="text-xs text-charcoal-500">/ mois</span>
+                      )}
+                    </div>
+                    <p className="text-[11px] text-sahel-800 font-semibold mt-0.5 flex items-center gap-1 leading-snug">
+                      <CheckCircle2 className="w-3.5 h-3.5 text-sahel-600 shrink-0" />
+                      <span>
+                        {property.modeTransaction === 'VENTE'
+                          ? 'Acompte de réservation sécurisé sous séquestre'
+                          : 'Caution 100% sécurisée sous séquestre Wave'}
+                      </span>
+                    </p>
                   </div>
-                  <p className="text-[11px] text-sahel-800 font-semibold mt-1 flex items-center gap-1">
-                    <CheckCircle2 className="w-3.5 h-3.5 text-sahel-600" />
-                    <span>Caution 100% sécurisée sous séquestre Wave</span>
-                  </p>
+
+                  {/* Publication Status Notice when unavailable */}
+                  {!isAvailable && statusMeta.notice && (
+                    <div
+                      data-testid="booking-status-notice"
+                      className={`p-3 rounded-xl border text-xs font-medium leading-relaxed ${
+                        publicationStatus === 'RESERVEE'
+                          ? 'bg-ocher-50 border-ocher-300 text-ocher-900'
+                          : 'bg-rose-50 border-rose-200 text-rose-900'
+                      }`}
+                    >
+                      <p className="font-bold flex items-center gap-1.5 mb-1">
+                        <AlertTriangle className="w-3.5 h-3.5 shrink-0" />
+                        <span>Statut : {statusMeta.label}</span>
+                      </p>
+                      <p>{statusMeta.notice}</p>
+                    </div>
+                  )}
+
+                  {/* Tablet/Desktop guarantees paired under Price on md */}
+                  <div className="hidden md:block lg:hidden text-[11px] text-charcoal-600 space-y-1 pt-2 border-t border-argile-200">
+                    <p className="flex items-start gap-1.5">
+                      <CheckCircle2 className="w-3.5 h-3.5 text-sahel-600 shrink-0 mt-0.5" aria-hidden="true" />
+                      <span>Aucun frais de visite préalable</span>
+                    </p>
+                    {property.modeTransaction === 'VENTE' ? (
+                      <>
+                        <p className="flex items-start gap-1.5">
+                          <CheckCircle2 className="w-3.5 h-3.5 text-sahel-600 shrink-0 mt-0.5" aria-hidden="true" />
+                          <span>Acompte de réservation protégé sous séquestre avant signature</span>
+                        </p>
+                        <p className="flex items-start gap-1.5">
+                          <CheckCircle2 className="w-3.5 h-3.5 text-sahel-600 shrink-0 mt-0.5" aria-hidden="true" />
+                          <span>Engagement de réservation avec double signature numérique</span>
+                        </p>
+                      </>
+                    ) : (
+                      <>
+                        <p className="flex items-start gap-1.5">
+                          <CheckCircle2 className="w-3.5 h-3.5 text-sahel-600 shrink-0 mt-0.5" aria-hidden="true" />
+                          <span>Séquestre bloqué via Wave sandbox</span>
+                        </p>
+                        <p className="flex items-start gap-1.5">
+                          <CheckCircle2 className="w-3.5 h-3.5 text-sahel-600 shrink-0 mt-0.5" aria-hidden="true" />
+                          <span>Contrat de bail numérique avec double signature électronique</span>
+                        </p>
+                      </>
+                    )}
+                  </div>
                 </div>
 
                 {/* Primary Action Buttons */}
-                <div className="space-y-3 pt-2">
+                <div className="md:col-span-6 space-y-2 pt-0.5 md:pt-0">
                   
-                  {/* Case 1: Transaction already exists */}
+                  {/* Case 1: Transaction already exists (always accessible to involved user) */}
                   {existingTx ? (
-                    <div className="space-y-2 p-3.5 rounded-xl bg-emerald-50 border border-emerald-200">
+                    <div className="space-y-2 p-3 rounded-xl bg-emerald-50 border border-emerald-200">
                       <p className="text-xs font-bold text-emerald-900 flex items-center gap-1.5">
                         <FileCheck className="w-4 h-4 text-emerald-600" />
                         Dossier de transaction en cours
                       </p>
                       <Button
                         variant="primary"
+                        size="md"
                         className="w-full justify-center bg-emerald-700 hover:bg-emerald-800 text-white"
                         onClick={() => {
                           setSelectedTx(existingTx);
@@ -946,9 +1299,20 @@ export const PropertyDetailPage: React.FC = () => {
                         {property.modeTransaction === 'VENTE' ? "Gérer l'acompte & Signer la réservation" : "Gérer la caution & Signer le bail"}
                       </Button>
                     </div>
+                  ) : !isAvailable ? (
+                    /* Case 2: Property not DISPONIBLE -> block booking/visit */
+                    <Button
+                      variant="outline"
+                      size="md"
+                      disabled
+                      data-testid="booking-unavailable-cta"
+                      className="w-full justify-center opacity-75 cursor-not-allowed border-argile-300 text-charcoal-600 bg-sand-100"
+                    >
+                      {statusMeta.label} — Réservation indisponible
+                    </Button>
                   ) : hasEffectueVisit ? (
-                    /* Case 2: Visit is EFFECTUE -> Option to initiate transaction */
-                    <div className="space-y-2 p-3.5 rounded-xl bg-sand-50 border border-terracotta-200">
+                    /* Case 3: Visit is EFFECTUE -> Option to initiate transaction */
+                    <div className="space-y-2 p-3 rounded-xl bg-sand-50 border border-terracotta-200">
                       <p className="text-xs font-bold text-sahel-900 flex items-center gap-1.5">
                         <CheckCircle2 className="w-4 h-4 text-emerald-600" />
                         Visite effectuée avec succès !
@@ -960,7 +1324,7 @@ export const PropertyDetailPage: React.FC = () => {
                       </p>
                       <Button
                         variant="primary"
-                        size="lg"
+                        size="md"
                         className="w-full justify-center"
                         isLoading={isInitiatingTx}
                         onClick={handleInitierTransaction}
@@ -969,10 +1333,10 @@ export const PropertyDetailPage: React.FC = () => {
                       </Button>
                     </div>
                   ) : (
-                    /* Case 3: Request visit */
+                    /* Case 4: Available -> Request visit */
                     <Button
                       variant="primary"
-                      size="lg"
+                      size="md"
                       className="w-full justify-center"
                       onClick={handleDemanderVisiteClick}
                     >
@@ -984,11 +1348,22 @@ export const PropertyDetailPage: React.FC = () => {
                   {(!utilisateur || (utilisateur.id !== property.auteur?.id)) && (
                     <Button
                       variant="outline"
-                      size="lg"
-                      className="w-full justify-center border-amber-600 text-amber-700 hover:bg-amber-50 dark:hover:bg-amber-950/30"
+                      size="md"
+                      disabled={!isAvailable && !existingTx}
+                      className={`w-full justify-center ${
+                        !isAvailable && !existingTx
+                          ? 'opacity-60 cursor-not-allowed border-argile-300 text-charcoal-500'
+                          : 'border-ocher-600 text-ocher-800 hover:bg-ocher-50'
+                      }`}
                       isLoading={isInitiatingChat}
                       onClick={handleContacterProprietaire}
-                      leftIcon={<MessageSquare className="w-4 h-4 text-amber-600" />}
+                      leftIcon={
+                        <MessageSquare
+                          className={`w-4 h-4 ${
+                            !isAvailable && !existingTx ? 'text-charcoal-400' : 'text-ocher-700'
+                          }`}
+                        />
+                      }
                     >
                       Contacter le propriétaire
                     </Button>
@@ -996,10 +1371,34 @@ export const PropertyDetailPage: React.FC = () => {
 
                 </div>
 
-                <div className="text-[11px] text-charcoal-500 space-y-1.5 pt-2 border-t border-argile-200">
-                  <p>✔ Aucun frais de visite préalable</p>
-                  <p>✔ Séquestre bloqué via Wave sandbox</p>
-                  <p>✔ Contrat de bail numérique avec double signature électronique</p>
+                <div className="md:hidden lg:block text-[11px] text-charcoal-600 space-y-1 pt-2 border-t border-argile-200">
+                  <p className="flex items-start gap-1.5">
+                    <CheckCircle2 className="w-3.5 h-3.5 text-sahel-600 shrink-0 mt-0.5" aria-hidden="true" />
+                    <span>Aucun frais de visite préalable</span>
+                  </p>
+                  {property.modeTransaction === 'VENTE' ? (
+                    <>
+                      <p className="flex items-start gap-1.5">
+                        <CheckCircle2 className="w-3.5 h-3.5 text-sahel-600 shrink-0 mt-0.5" aria-hidden="true" />
+                        <span>Acompte de réservation protégé sous séquestre avant signature</span>
+                      </p>
+                      <p className="flex items-start gap-1.5">
+                        <CheckCircle2 className="w-3.5 h-3.5 text-sahel-600 shrink-0 mt-0.5" aria-hidden="true" />
+                        <span>Engagement de réservation avec double signature numérique</span>
+                      </p>
+                    </>
+                  ) : (
+                    <>
+                      <p className="flex items-start gap-1.5">
+                        <CheckCircle2 className="w-3.5 h-3.5 text-sahel-600 shrink-0 mt-0.5" aria-hidden="true" />
+                        <span>Séquestre bloqué via Wave sandbox</span>
+                      </p>
+                      <p className="flex items-start gap-1.5">
+                        <CheckCircle2 className="w-3.5 h-3.5 text-sahel-600 shrink-0 mt-0.5" aria-hidden="true" />
+                        <span>Contrat de bail numérique avec double signature électronique</span>
+                      </p>
+                    </>
+                  )}
                 </div>
 
               </CardBody>
@@ -1124,13 +1523,21 @@ export const PropertyDetailPage: React.FC = () => {
       )}
 
       {/* LIGHTBOX */}
-      {isLightboxOpen && (
+      {isLightboxOpen && lightboxSlides.length > 0 && (
         <React.Suspense fallback={null}>
           <LazyLightbox
             open={isLightboxOpen}
             close={() => setIsLightboxOpen(false)}
-            index={selectedPhotoIndex}
-            slides={photosList.map((src) => ({ src }))}
+            index={Math.min(selectedPhotoIndex, lightboxSlides.length - 1)}
+            slides={lightboxSlides}
+            on={{
+              view: ({ index }) => {
+                setSelectedPhotoIndex(index);
+                if (typeof window !== 'undefined' && window.innerWidth < 768) {
+                  setMobilePhotoIndex(index);
+                }
+              },
+            }}
           />
         </React.Suspense>
       )}

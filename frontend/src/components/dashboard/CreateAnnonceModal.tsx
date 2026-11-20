@@ -270,7 +270,7 @@ export const CreateAnnonceModal: React.FC<CreateAnnonceModalProps> = ({
             />
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
+          <div className="grid grid-cols-1 xs:grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-3 sm:gap-4">
             <Input
               label="Superficie (m²)"
               type="number"
@@ -309,7 +309,7 @@ export const CreateAnnonceModal: React.FC<CreateAnnonceModalProps> = ({
             {...register('lienVisite360')}
           />
 
-          <div className="flex flex-wrap items-center gap-6 pt-2">
+          <div className="flex flex-wrap items-center gap-4 sm:gap-6 pt-2">
             <label className="flex items-center gap-2 text-xs font-semibold text-sahel-800 cursor-pointer">
               <input type="checkbox" className="rounded text-terracotta-500 focus:ring-terracotta-500" {...register('meuble')} />
               <span>Meublé</span>
@@ -353,7 +353,7 @@ export const CreateAnnonceModal: React.FC<CreateAnnonceModalProps> = ({
           <h4 className="font-display text-sm font-bold text-sahel-900">
             3. Équipements disponibles
           </h4>
-          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2.5">
+          <div className="grid grid-cols-1 xs:grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2.5">
             {(references?.equipements || [
               { valeur: 'WIFI', libelle: 'Wi-Fi' },
               { valeur: 'PARKING', libelle: 'Parking' },
@@ -533,11 +533,11 @@ export const CreateAnnonceModal: React.FC<CreateAnnonceModalProps> = ({
         </div>
 
         {/* Actions */}
-        <div className="flex justify-end gap-3 pt-6 border-t border-sand-300">
-          <Button variant="ghost" type="button" onClick={onClose} disabled={isSubmitting}>
+        <div className="flex flex-col-reverse sm:flex-row justify-end gap-2 sm:gap-3 pt-6 border-t border-sand-300">
+          <Button variant="ghost" type="button" onClick={onClose} disabled={isSubmitting} className="w-full sm:w-auto justify-center">
             Annuler
           </Button>
-          <Button variant="primary" type="submit" isLoading={isSubmitting}>
+          <Button variant="primary" type="submit" isLoading={isSubmitting} className="w-full sm:w-auto justify-center">
             Publier l'annonce
           </Button>
         </div>

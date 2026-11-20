@@ -37,15 +37,15 @@ export const Modal: React.FC<ModalProps> = ({
         {/* Dialog Content Container with automatic Focus-Trap & Escape listener */}
         <Dialog.Content
           className={cn(
-            'fixed left-[50%] top-[50%] z-50 w-full max-w-[calc(100vw-1.5rem)] max-h-[calc(100vh-2rem)] max-h-[calc(100dvh-2rem)] translate-x-[-50%] translate-y-[-50%] bg-white rounded-2xl shadow-warm-hover overflow-hidden border border-argile-200 flex flex-col focus:outline-none animate-in fade-in zoom-in-95 duration-200 p-0',
+            'fixed left-[50%] top-[50%] z-50 w-full max-w-[calc(100vw-1rem)] sm:max-w-[calc(100vw-1.5rem)] max-h-[calc(100vh-1.5rem)] max-h-[calc(100dvh-1.5rem)] translate-x-[-50%] translate-y-[-50%] bg-white rounded-2xl shadow-warm-hover overflow-hidden border border-argile-200 flex flex-col focus:outline-none animate-in fade-in zoom-in-95 duration-200 p-0',
             sizes[size],
             className
           )}
         >
           {/* Header */}
-          <div className="flex items-center justify-between px-6 py-4 border-b border-argile-200 bg-sand-50/50 shrink-0">
+          <div className="flex items-center justify-between gap-3 px-4 py-3.5 sm:px-6 sm:py-4 border-b border-argile-200 bg-sand-50/50 shrink-0">
             {title ? (
-              <Dialog.Title className="font-display font-bold text-base text-charcoal-900">
+              <Dialog.Title className="font-display font-bold text-sm sm:text-base text-charcoal-900 leading-snug min-w-0 break-words">
                 {title}
               </Dialog.Title>
             ) : (
@@ -54,7 +54,7 @@ export const Modal: React.FC<ModalProps> = ({
             <Dialog.Close asChild>
               <button
                 type="button"
-                className="w-8 h-8 rounded-full bg-sand-200 hover:bg-sand-300 text-charcoal-600 flex items-center justify-center transition-colors focus:outline-none focus:ring-2 focus:ring-terracotta-500"
+                className="w-9 h-9 sm:w-8 sm:h-8 rounded-full bg-sand-200 hover:bg-sand-300 text-charcoal-600 flex items-center justify-center shrink-0 transition-colors focus:outline-none focus:ring-2 focus:ring-terracotta-500"
                 aria-label="Fermer"
               >
                 <X className="w-4 h-4" />
@@ -63,7 +63,7 @@ export const Modal: React.FC<ModalProps> = ({
           </div>
 
           {/* Body Content */}
-          <div className="p-6 overflow-y-auto flex-1 min-h-0">{children}</div>
+          <div className="p-4 sm:p-6 overflow-y-auto flex-1 min-h-0">{children}</div>
         </Dialog.Content>
       </Dialog.Portal>
     </Dialog.Root>

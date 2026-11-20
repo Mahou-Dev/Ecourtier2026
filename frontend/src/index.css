@@ -3,12 +3,21 @@
 @tailwind utilities;
 
 @layer base {
+  *, *::before, *::after {
+    box-sizing: border-box;
+  }
+
   html {
     scroll-behavior: smooth;
+    -webkit-text-size-adjust: 100%;
   }
 
   body {
     overflow-x: hidden;
+  }
+
+  img, svg, video, canvas, iframe {
+    max-width: 100%;
   }
   
   h1, h2, h3, h4, h5, h6 {
@@ -23,15 +32,15 @@
   }
   
   .gradient-terracotta {
-    background: linear-gradient(135deg, #C85A32 0%, #E09F3E 100%);
+    background: linear-gradient(135deg, #B85C42 0%, #D5AD72 100%);
   }
 
   .gradient-sahel {
-    background: linear-gradient(135deg, #1D3E35 0%, #2F544A 100%);
+    background: linear-gradient(135deg, #1C352E 0%, #274940 100%);
   }
 
   .gradient-sand-hero {
-    background: radial-gradient(circle at 50% 0%, #FAF5EC 0%, #FDFBF7 100%);
+    background: radial-gradient(circle at 50% 0%, #FAF7F2 0%, #F5F0E8 100%);
   }
 
   /* Utility to hide scrollbars while preserving scrolling functionality */
@@ -44,7 +53,7 @@
   }
 }
 
-/* LEAFLET RESPONSIVE CONTROL OVERRIDES */
+/* LEAFLET & RECHARTS RESPONSIVE OVERRIDES */
 .leaflet-container {
   max-width: 100% !important;
   width: 100% !important;
@@ -60,6 +69,12 @@
   white-space: nowrap !important;
   overflow: hidden !important;
   text-overflow: ellipsis !important;
+  margin-right: 58px !important;
+}
+
+.recharts-wrapper,
+.recharts-responsive-container {
+  max-width: 100% !important;
 }
 
 @keyframes shimmer {
@@ -102,5 +117,52 @@
 @media (prefers-reduced-motion: reduce) {
   .animate-route-fade-in {
     animation: none !important;
+  }
+}
+
+/* ==========================================================================
+   SCOPED HOME REDESIGN TOKENS — SAHEL PREMIUM PROPTECH (ONLY APPLIED TO /)
+   Strictly isolated under .home-premium-theme so zero other routes shift.
+   ========================================================================== */
+.home-premium-theme {
+  --home-sand: #F5F0E8;
+  --home-sand-soft: #FAF7F2;
+  --home-terracotta: #B85C42;
+  --home-terracotta-dark: #9D4A32;
+  --home-charcoal: #252A29;
+  --home-ocher: #D5AD72;
+  --home-sahel: #1C352E;
+  --home-sahel-deep: #152722;
+  --home-border: #E2DACB;
+  --home-white: #FFFFFF;
+  background-color: var(--home-sand);
+  color: var(--home-charcoal);
+  font-family: 'Inter', 'Plus Jakarta Sans', system-ui, sans-serif;
+}
+
+.home-premium-theme h1,
+.home-premium-theme h2,
+.home-premium-theme h3,
+.home-premium-theme .font-editorial {
+  font-family: 'Manrope', 'Plus Jakarta Sans', system-ui, sans-serif;
+}
+
+@keyframes heroSlowZoom {
+  from {
+    transform: scale(1);
+  }
+  to {
+    transform: scale(1.045);
+  }
+}
+
+.home-hero-kenburns {
+  animation: heroSlowZoom 14s ease-out forwards;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .home-hero-kenburns {
+    animation: none !important;
+    transform: none !important;
   }
 }

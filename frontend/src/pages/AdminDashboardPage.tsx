@@ -98,9 +98,9 @@ export const AdminDashboardPage: React.FC = () => {
   ];
 
   return (
-    <div className="min-h-screen bg-sand-100/60 pb-16 pt-6 sm:pt-8 px-3 sm:px-6 lg:px-8 max-w-7xl mx-auto">
+    <div className="min-h-screen bg-sand-100/60 pb-24 lg:pb-16 pt-6 sm:pt-8 px-3 sm:px-6 lg:px-8 max-w-7xl mx-auto">
       {/* Admin Sub-Header Navigation */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-8">
+      <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 mb-6 sm:mb-8">
         <div>
           <div className="flex items-center gap-2 mb-1">
             <span className="bg-terracotta-100 text-terracotta-800 text-xs font-bold px-2.5 py-0.5 rounded-full flex items-center gap-1">
@@ -120,15 +120,15 @@ export const AdminDashboardPage: React.FC = () => {
       </div>
 
       {/* Period Filter Selector Toolbar */}
-      <div className="flex items-center justify-between bg-white p-3 rounded-2xl border border-argile-200/80 mb-8 shadow-xs">
-        <div className="flex items-center gap-2">
+      <div className="flex flex-wrap items-center justify-between gap-2 bg-white p-2.5 sm:p-3 rounded-2xl border border-argile-200/80 mb-6 sm:mb-8 shadow-xs">
+        <div className="flex flex-wrap items-center gap-2 min-w-0">
           <span className="text-xs font-bold text-charcoal-600 hidden sm:inline">Période d'analyse :</span>
-          <div className="flex items-center gap-1">
+          <div className="flex flex-wrap items-center gap-1">
             {(['7j', '30j', '90j', 'tout'] as const).map((p) => (
               <button
                 key={p}
                 onClick={() => setPeriode(p)}
-                className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all ${
+                className={`px-2.5 sm:px-3 py-1.5 rounded-xl text-xs font-bold transition-all ${
                   periode === p
                     ? 'bg-charcoal-800 text-white shadow-xs'
                     : 'text-charcoal-600 hover:bg-sand-100'
@@ -143,7 +143,7 @@ export const AdminDashboardPage: React.FC = () => {
         <button
           onClick={() => refetch()}
           disabled={isRefetching}
-          className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold text-charcoal-700 hover:bg-sand-100 transition-colors"
+          className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold text-charcoal-700 hover:bg-sand-100 transition-colors shrink-0 ml-auto"
           title="Rafraîchir les métriques"
         >
           <RefreshCw className={`w-3.5 h-3.5 text-terracotta-600 ${isRefetching ? 'animate-spin' : ''}`} />
@@ -267,19 +267,19 @@ export const AdminDashboardPage: React.FC = () => {
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
             
             {/* Chart 1: Inscriptions Curve */}
-            <Card className="p-6 bg-white border-argile-200/80 shadow-xs">
-              <div className="flex items-center justify-between mb-6">
-                <div>
-                  <h3 className="text-base font-display font-bold text-charcoal-900 flex items-center gap-2">
-                    <Users className="w-4 h-4 text-terracotta-600" />
-                    Nouvelles Inscriptions dans le temps
+            <Card className="p-4 sm:p-6 bg-white border-argile-200/80 shadow-xs min-w-0 overflow-hidden">
+              <div className="flex items-center justify-between mb-4 sm:mb-6">
+                <div className="min-w-0">
+                  <h3 className="text-sm sm:text-base font-display font-bold text-charcoal-900 flex items-center gap-2">
+                    <Users className="w-4 h-4 text-terracotta-600 shrink-0" />
+                    <span>Nouvelles Inscriptions dans le temps</span>
                   </h3>
                   <p className="text-xs text-charcoal-500 mt-0.5">Série temporelle quotidienne d'acquisition d'utilisateurs</p>
                 </div>
               </div>
-              <div className="h-64 w-full">
+              <div className="h-64 w-full min-w-0">
                 <ResponsiveContainer width="100%" height="100%">
-                  <AreaChart data={inscriptionData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+                  <AreaChart data={inscriptionData} margin={{ top: 10, right: 12, left: -12, bottom: 0 }}>
                     <defs>
                       <linearGradient id="gradientTerracotta" x1="0" y1="0" x2="0" y2="1">
                         <stop offset="5%" stopColor={PALETTE.terracotta} stopOpacity={0.4} />
@@ -287,8 +287,8 @@ export const AdminDashboardPage: React.FC = () => {
                       </linearGradient>
                     </defs>
                     <CartesianGrid strokeDasharray="3 3" stroke="#f0ebe1" />
-                    <XAxis dataKey="date" tick={{ fontSize: 11, fill: '#6e675f' }} />
-                    <YAxis allowDecimals={false} tick={{ fontSize: 11, fill: '#6e675f' }} />
+                    <XAxis dataKey="date" tick={{ fontSize: 10, fill: '#6e675f' }} />
+                    <YAxis allowDecimals={false} tick={{ fontSize: 10, fill: '#6e675f' }} width={36} />
                     <Tooltip
                       contentStyle={{ backgroundColor: '#ffffff', borderRadius: '12px', border: '1px solid #e0d8c8', fontSize: '12px' }}
                       formatter={(value) => [`${value ?? 0} utilisateur(s)`, 'Inscriptions']}
@@ -300,22 +300,22 @@ export const AdminDashboardPage: React.FC = () => {
             </Card>
 
             {/* Chart 2: Conversion Pipeline Funnel */}
-            <Card className="p-6 bg-white border-argile-200/80 shadow-xs">
-              <div className="flex items-center justify-between mb-6">
-                <div>
-                  <h3 className="text-base font-display font-bold text-charcoal-900 flex items-center gap-2">
-                    <TrendingUp className="w-4 h-4 text-sahel-700" />
-                    Entonnoir de Conversion Commerciale
+            <Card className="p-4 sm:p-6 bg-white border-argile-200/80 shadow-xs min-w-0 overflow-hidden">
+              <div className="flex items-center justify-between mb-4 sm:mb-6">
+                <div className="min-w-0">
+                  <h3 className="text-sm sm:text-base font-display font-bold text-charcoal-900 flex items-center gap-2">
+                    <TrendingUp className="w-4 h-4 text-sahel-700 shrink-0" />
+                    <span>Entonnoir de Conversion Commerciale</span>
                   </h3>
                   <p className="text-xs text-charcoal-500 mt-0.5">Visites → Transactions → Signature du bail complet</p>
                 </div>
               </div>
-              <div className="h-64 w-full">
+              <div className="h-64 w-full min-w-0">
                 <ResponsiveContainer width="100%" height="100%">
-                  <BarChart data={conversionFunnelData} layout="vertical" margin={{ top: 10, right: 30, left: 40, bottom: 0 }}>
+                  <BarChart data={conversionFunnelData} layout="vertical" margin={{ top: 10, right: 16, left: 4, bottom: 0 }}>
                     <CartesianGrid strokeDasharray="3 3" stroke="#f0ebe1" />
-                    <XAxis type="number" allowDecimals={false} tick={{ fontSize: 11, fill: '#6e675f' }} />
-                    <YAxis type="category" dataKey="etape" tick={{ fontSize: 11, fill: '#262322', fontWeight: 600 }} width={120} />
+                    <XAxis type="number" allowDecimals={false} tick={{ fontSize: 10, fill: '#6e675f' }} />
+                    <YAxis type="category" dataKey="etape" tick={{ fontSize: 10, fill: '#262322', fontWeight: 600 }} width={92} />
                     <Tooltip
                       contentStyle={{ backgroundColor: '#ffffff', borderRadius: '12px', border: '1px solid #e0d8c8', fontSize: '12px' }}
                       formatter={(valeur) => [`${valeur ?? 0}`, 'Volume']}
@@ -335,22 +335,22 @@ export const AdminDashboardPage: React.FC = () => {
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
 
             {/* Chart 3: Listings Publication Status */}
-            <Card className="p-6 bg-white border-argile-200/80 shadow-xs">
-              <div className="flex items-center justify-between mb-6">
-                <div>
-                  <h3 className="text-base font-display font-bold text-charcoal-900 flex items-center gap-2">
-                    <Building className="w-4 h-4 text-ocher-600" />
-                    Annonces par Statut de Publication
+            <Card className="p-4 sm:p-6 bg-white border-argile-200/80 shadow-xs min-w-0 overflow-hidden">
+              <div className="flex items-center justify-between mb-4 sm:mb-6">
+                <div className="min-w-0">
+                  <h3 className="text-sm sm:text-base font-display font-bold text-charcoal-900 flex items-center gap-2">
+                    <Building className="w-4 h-4 text-ocher-600 shrink-0" />
+                    <span>Annonces par Statut de Publication</span>
                   </h3>
                   <p className="text-xs text-charcoal-500 mt-0.5">Répartition du parc immobilier E-Courtier</p>
                 </div>
               </div>
-              <div className="h-64 w-full">
+              <div className="h-64 w-full min-w-0">
                 <ResponsiveContainer width="100%" height="100%">
-                  <BarChart data={publicationStatusData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+                  <BarChart data={publicationStatusData} margin={{ top: 10, right: 12, left: -12, bottom: 0 }}>
                     <CartesianGrid strokeDasharray="3 3" stroke="#f0ebe1" />
-                    <XAxis dataKey="statut" tick={{ fontSize: 11, fill: '#6e675f' }} />
-                    <YAxis allowDecimals={false} tick={{ fontSize: 11, fill: '#6e675f' }} />
+                    <XAxis dataKey="statut" tick={{ fontSize: 10, fill: '#6e675f' }} />
+                    <YAxis allowDecimals={false} tick={{ fontSize: 10, fill: '#6e675f' }} width={36} />
                     <Tooltip
                       contentStyle={{ backgroundColor: '#ffffff', borderRadius: '12px', border: '1px solid #e0d8c8', fontSize: '12px' }}
                     />
@@ -361,44 +361,68 @@ export const AdminDashboardPage: React.FC = () => {
             </Card>
 
             {/* Chart 4: Signalements Pie Chart */}
-            <Card className="p-6 bg-white border-argile-200/80 shadow-xs">
-              <div className="flex items-center justify-between mb-6">
-                <div>
-                  <h3 className="text-base font-display font-bold text-charcoal-900 flex items-center gap-2">
-                    <Flag className="w-4 h-4 text-terracotta-600" />
-                    Modération : Signalements par Motif
+            <Card className="p-4 sm:p-6 bg-white border-argile-200/80 shadow-xs min-w-0 overflow-hidden">
+              <div className="flex items-center justify-between mb-4">
+                <div className="min-w-0">
+                  <h3 className="text-sm sm:text-base font-display font-bold text-charcoal-900 flex items-center gap-2">
+                    <Flag className="w-4 h-4 text-terracotta-600 shrink-0" />
+                    <span>Modération : Signalements par Motif</span>
                   </h3>
                   <p className="text-xs text-charcoal-500 mt-0.5">Catégories de signalements soumis par les utilisateurs</p>
                 </div>
               </div>
-              <div className="h-64 w-full">
-                {signalementsMotifData.length === 0 || signalementsMotifData.every(d => d.count === 0) ? (
-                  <div className="h-full flex items-center justify-center text-xs text-charcoal-500 italic">
-                    Aucun signalement enregistré sur cette période.
+              {signalementsMotifData.length === 0 || signalementsMotifData.every(d => d.count === 0) ? (
+                <div className="h-64 flex items-center justify-center text-xs text-charcoal-500 italic">
+                  Aucun signalement enregistré sur cette période.
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  <div className="h-52 w-full min-w-0">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <PieChart>
+                        <Pie
+                          data={signalementsMotifData}
+                          dataKey="count"
+                          nameKey="motif"
+                          cx="50%"
+                          cy="50%"
+                          outerRadius={72}
+                          innerRadius={40}
+                          paddingAngle={4}
+                        >
+                          {signalementsMotifData.map((_, index) => (
+                            <Cell key={`pie-cell-${index}`} fill={PALETTE.pieColors[index % PALETTE.pieColors.length]} />
+                          ))}
+                        </Pie>
+                        <Tooltip contentStyle={{ backgroundColor: '#ffffff', borderRadius: '12px', border: '1px solid #e0d8c8', fontSize: '12px' }} />
+                      </PieChart>
+                    </ResponsiveContainer>
                   </div>
-                ) : (
-                  <ResponsiveContainer width="100%" height="100%">
-                    <PieChart>
-                      <Pie
-                        data={signalementsMotifData}
-                        dataKey="count"
-                        nameKey="motif"
-                        cx="50%"
-                        cy="50%"
-                        outerRadius={80}
-                        innerRadius={45}
-                        paddingAngle={4}
-                        label={({ name, percent }: { name?: string; percent?: number }) => `${name || ''} (${((percent || 0) * 100).toFixed(0)}%)`}
-                      >
-                        {signalementsMotifData.map((_, index) => (
-                          <Cell key={`pie-cell-${index}`} fill={PALETTE.pieColors[index % PALETTE.pieColors.length]} />
-                        ))}
-                      </Pie>
-                      <Tooltip contentStyle={{ backgroundColor: '#ffffff', borderRadius: '12px', border: '1px solid #e0d8c8', fontSize: '12px' }} />
-                    </PieChart>
-                  </ResponsiveContainer>
-                )}
-              </div>
+                  <div className="flex flex-wrap items-center justify-center gap-2 pt-1">
+                    {(() => {
+                      const totalSigs = signalementsMotifData.reduce((acc, item) => acc + item.count, 0);
+                      return signalementsMotifData.map((entry, index) => {
+                        const pct = totalSigs > 0 ? Math.round((entry.count / totalSigs) * 100) : 0;
+                        return (
+                          <span
+                            key={entry.motif}
+                            className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-sand-100 border border-argile-200 text-[11px] font-semibold text-charcoal-700"
+                          >
+                            <span
+                              className="w-2.5 h-2.5 rounded-full shrink-0"
+                              style={{ backgroundColor: PALETTE.pieColors[index % PALETTE.pieColors.length] }}
+                            />
+                            <span>{entry.motif}</span>
+                            <span className="text-charcoal-500 font-mono">
+                              {entry.count} ({pct}%)
+                            </span>
+                          </span>
+                        );
+                      });
+                    })()}
+                  </div>
+                </div>
+              )}
             </Card>
           </div>
 

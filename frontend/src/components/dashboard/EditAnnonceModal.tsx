@@ -11,6 +11,7 @@ import { isInsideSenegal } from '../../lib/geo';
 import { getEquipementMeta, getProximiteMeta } from '../../lib/referenceMeta';
 import { getErrorMessage, getErrorStatus } from '../../lib/errors';
 import { Check } from 'lucide-react';
+import { EditAnnonceMediaSection } from './EditAnnonceMediaSection';
 
 interface EditAnnonceModalProps {
   isOpen: boolean;
@@ -53,6 +54,7 @@ const EditAnnonceForm: React.FC<EditAnnonceFormProps> = ({
 }) => {
   const { data: references } = useReferences();
 
+  const [currentVersion, setCurrentVersion] = useState<number | undefined>(annonce.version);
   const [titre, setTitre] = useState(annonce.titre || '');
   const [description, setDescription] = useState(annonce.description || '');
   const [prix, setPrix] = useState<number>(annonce.prix || 0);
@@ -68,11 +70,13 @@ const EditAnnonceForm: React.FC<EditAnnonceFormProps> = ({
   const [meuble, setMeuble] = useState(annonce.meuble || false);
   const [animauxAcceptes, setAnimauxAcceptes] = useState(annonce.animauxAcceptes || false);
   const [confirmationAutomatique, setConfirmationAutomatique] = useState(annonce.confirmationAutomatique ?? true);
+  const [lienVisite360, setLienVisite360] = useState(annonce.lienVisite360 || '');
   const [selectedEquipements, setSelectedEquipements] = useState<string[]>(annonce.equipements || []);
   const [selectedProximites, setSelectedProximites] = useState<string[]>(annonce.proximites || []);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isMediaBusy, setIsMediaBusy] = useState(false);
 
-  const hasValidVersion = typeof annonce.version === 'number' && Number.isFinite(annonce.version);
+  const hasValidVersion = typeof currentVersion === 'number' && Number.isFinite(currentVersion);
 
   const toggleEquipement = (code: string) => {
     setSelectedEquipements((prev) =>
@@ -112,7 +116,7 @@ const EditAnnonceForm: React.FC<EditAnnonceFormProps> = ({
 
     setIsSubmitting(true);
     try {
-      const payload = {
+      const payload: Record<string, unknown> = {
         titre,
         description,
         prix,
@@ -130,8 +134,12 @@ const EditAnnonceForm: React.FC<EditAnnonceFormProps> = ({
         confirmationAutomatique,
         equipements: selectedEquipements,
         proximites: selectedProximites,
-        version: annonce.version,
+        version: currentVersion,
       };
+
+      if (lienVisite360.trim()) {
+        payload.lienVisite360 = lienVisite360.trim();
+      }
 
       await apiFetch<AnnonceDTO>(`/api/v1/annonces/${annonce.id}`, {
         method: 'PUT',
@@ -163,7 +171,7 @@ const EditAnnonceForm: React.FC<EditAnnonceFormProps> = ({
   };
 
   return (
-    <Modal isOpen={isOpen} onClose={onClose} title="Modifier l'annonce" size="lg">
+    <Modal isOpen={isOpen} onClose={onClose} title="Modifier l'annonce" size="xl">
       <form onSubmit={handleSubmit} className="space-y-6">
         {!hasValidVersion && (
           <div
@@ -174,7 +182,7 @@ const EditAnnonceForm: React.FC<EditAnnonceFormProps> = ({
           </div>
         )}
         
-        {/* Informations générales */}
+        {/* 1. Informations générales */}
         <div className="space-y-4">
           <h4 className="font-display text-sm font-bold text-sahel-900 border-b border-sand-300 pb-2">
             1. Informations générales
@@ -196,8 +204,9 @@ const EditAnnonceForm: React.FC<EditAnnonceFormProps> = ({
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <div>
-              <label className="block text-xs font-bold text-sahel-800 mb-1">Type de bien</label>
+              <label htmlFor="edit-type-bien" className="block text-xs font-bold text-sahel-800 mb-1">Type de bien</label>
               <select
+                id="edit-type-bien"
                 className="w-full px-3 py-2 rounded-xl border border-sand-300 text-sm focus:ring-2 focus:ring-terracotta-500 outline-none"
                 value={type}
                 onChange={(e) =>
@@ -216,8 +225,9 @@ const EditAnnonceForm: React.FC<EditAnnonceFormProps> = ({
             </div>
 
             <div>
-              <label className="block text-xs font-bold text-sahel-800 mb-1">Transaction</label>
+              <label htmlFor="edit-mode-transaction" className="block text-xs font-bold text-sahel-800 mb-1">Transaction</label>
               <select
+                id="edit-mode-transaction"
                 className="w-full px-3 py-2 rounded-xl border border-sand-300 text-sm focus:ring-2 focus:ring-terracotta-500 outline-none"
                 value={modeTransaction}
                 onChange={(e) => setModeTransaction(e.target.value as 'LOCATION' | 'VENTE')}
@@ -239,7 +249,7 @@ const EditAnnonceForm: React.FC<EditAnnonceFormProps> = ({
             />
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
+          <div className="grid grid-cols-1 xs:grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-3 sm:gap-4">
             <Input
               label="Superficie (m²)"
               type="number"
@@ -270,6 +280,13 @@ const EditAnnonceForm: React.FC<EditAnnonceFormProps> = ({
             />
           </div>
 
+          <Input
+            label="Lien Visite Virtuelle 360° (Optionnel — URL Matterport, YouTube 360, etc.)"
+            placeholder="https://my.matterport.com/show/?m=..."
+            value={lienVisite360}
+            onChange={(e) => setLienVisite360(e.target.value)}
+          />
+
           <div className="flex flex-wrap items-center gap-6 pt-2">
             <label className="flex items-center gap-2 text-xs font-semibold text-sahel-800 cursor-pointer">
               <input type="checkbox" checked={meuble} onChange={(e) => setMeuble(e.target.checked)} className="rounded text-terracotta-500" />
@@ -292,10 +309,24 @@ const EditAnnonceForm: React.FC<EditAnnonceFormProps> = ({
           </div>
         </div>
 
-        {/* Localisation Interactive Leaflet (F4) */}
+        {/* 2. Photos & Documents de vérification (ANO-08) */}
+        <div className="space-y-4 pt-4 border-t border-sand-300">
+          <h4 className="font-display text-sm font-bold text-sahel-900 border-b border-sand-300 pb-2">
+            2. Photos et Documents de vérification
+          </h4>
+          <EditAnnonceMediaSection
+            annonce={annonce}
+            documentTypes={references?.typesDocument}
+            onMediaChanged={onSuccess}
+            onVersionSync={(newVersion) => setCurrentVersion(newVersion)}
+            onBusyChange={(busy) => setIsMediaBusy(busy)}
+          />
+        </div>
+
+        {/* 3. Localisation Interactive Leaflet (F4) */}
         <div className="space-y-3 pt-4 border-t border-sand-300">
           <h4 className="font-display text-sm font-bold text-sahel-900">
-            2. Localisation géographique (Sénégal)
+            3. Localisation géographique (Sénégal)
           </h4>
           <LocationPickerMap
             latitude={latitude}
@@ -307,12 +338,12 @@ const EditAnnonceForm: React.FC<EditAnnonceFormProps> = ({
           />
         </div>
 
-        {/* Équipements (F5) */}
+        {/* 4. Équipements (F5) */}
         <div className="space-y-3 pt-4 border-t border-sand-300">
           <h4 className="font-display text-sm font-bold text-sahel-900">
-            3. Équipements disponibles
+            4. Équipements disponibles
           </h4>
-          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2.5">
+          <div className="grid grid-cols-1 xs:grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2.5">
             {(references?.equipements || [
               { valeur: 'WIFI', libelle: 'Wi-Fi' },
               { valeur: 'PARKING', libelle: 'Parking' },
@@ -338,19 +369,19 @@ const EditAnnonceForm: React.FC<EditAnnonceFormProps> = ({
                 >
                   <Icon className={`w-4 h-4 shrink-0 ${isChecked ? 'text-terracotta-600' : 'text-charcoal-500'}`} />
                   <span className="truncate">{eq.libelle}</span>
-                  {isChecked && <Check className="w-3.5 h-3.5 text-terracotta-600 ml-auto" />}
+                  {isChecked && <Check className="w-3.5 h-3.5 text-terracotta-600 ml-auto shrink-0" />}
                 </button>
               );
             })}
           </div>
         </div>
 
-        {/* Proximités (F5) */}
+        {/* 5. Proximités (F5) */}
         <div className="space-y-3 pt-4 border-t border-sand-300">
           <h4 className="font-display text-sm font-bold text-sahel-900">
-            4. Proximités & Commodités
+            5. Proximités & Commodités
           </h4>
-          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2.5">
+          <div className="grid grid-cols-1 xs:grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2.5">
             {(references?.proximites || [
               { valeur: 'ECOLE', libelle: 'École' },
               { valeur: 'MARCHE', libelle: 'Marché' },
@@ -376,18 +407,18 @@ const EditAnnonceForm: React.FC<EditAnnonceFormProps> = ({
                 >
                   <Icon className={`w-4 h-4 shrink-0 ${isChecked ? 'text-sahel-700' : 'text-charcoal-500'}`} />
                   <span className="truncate">{prox.libelle}</span>
-                  {isChecked && <Check className="w-3.5 h-3.5 text-sahel-700 ml-auto" />}
+                  {isChecked && <Check className="w-3.5 h-3.5 text-sahel-700 ml-auto shrink-0" />}
                 </button>
               );
             })}
           </div>
         </div>
 
-        <div className="flex justify-end gap-3 pt-4 border-t border-sand-300">
-          <Button variant="ghost" type="button" onClick={onClose} disabled={isSubmitting}>
+        <div className="flex flex-col-reverse sm:flex-row justify-end gap-2 sm:gap-3 pt-4 border-t border-sand-300">
+          <Button variant="ghost" type="button" onClick={onClose} disabled={isSubmitting || isMediaBusy} className="w-full sm:w-auto justify-center">
             Annuler
           </Button>
-          <Button variant="primary" type="submit" isLoading={isSubmitting}>
+          <Button variant="primary" type="submit" isLoading={isSubmitting} disabled={isMediaBusy} className="w-full sm:w-auto justify-center">
             Enregistrer les modifications
           </Button>
         </div>

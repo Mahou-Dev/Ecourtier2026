@@ -8,8 +8,11 @@ export interface SliderProps {
   step?: number;
   value: number;
   onChange: (value: number) => void;
+  onCommit?: (value: number) => void;
   label?: string;
   formatValue?: (val: number) => string;
+  displayValue?: string;
+  maxLabel?: string;
   className?: string;
 }
 
@@ -19,23 +22,27 @@ export const Slider: React.FC<SliderProps> = ({
   step = 1,
   value,
   onChange,
+  onCommit,
   label,
   formatValue = (v) => v.toString(),
+  displayValue,
+  maxLabel,
   className,
 }) => {
   return (
     <div className={cn('w-full space-y-2', className)}>
-      <div className="flex items-center justify-between text-xs font-semibold text-charcoal-800">
+      <div className="flex items-center justify-between gap-2 text-xs font-semibold text-charcoal-800">
         {label && <span>{label}</span>}
-        <span className="text-terracotta-600 font-bold bg-terracotta-50 px-2 py-0.5 rounded border border-terracotta-100">
-          {formatValue(value)}
+        <span className="text-terracotta-700 font-bold bg-terracotta-50 px-2 py-0.5 rounded border border-terracotta-200 whitespace-nowrap shrink-0">
+          {displayValue ?? formatValue(value)}
         </span>
       </div>
 
       <RadixSlider.Root
         className="relative flex items-center select-none touch-none w-full h-5 cursor-pointer"
-        value={[value]}
+        value={[Math.min(Math.max(value, min), max)]}
         onValueChange={(vals) => onChange(vals[0])}
+        onValueCommit={(vals) => onCommit?.(vals[0])}
         min={min}
         max={max}
         step={step}
@@ -49,9 +56,9 @@ export const Slider: React.FC<SliderProps> = ({
         />
       </RadixSlider.Root>
 
-      <div className="flex justify-between text-[11px] text-charcoal-400 font-mono">
+      <div className="flex justify-between text-[11px] text-charcoal-500 font-mono">
         <span>{formatValue(min)}</span>
-        <span>{formatValue(max)}</span>
+        <span>{maxLabel ?? formatValue(max)}</span>
       </div>
     </div>
   );

@@ -2,10 +2,11 @@ import React, { useState, useEffect, useRef } from 'react';
 import { Sparkles, X, Send, Bot, User, ShieldCheck, CheckCircle2, AlertCircle, RotateCcw } from 'lucide-react';
 import { AnimatePresence, motion, useReducedMotion } from 'framer-motion';
 import { Button } from '../ui/Button';
-import { apiFetch, getPhotoUrl } from '../../services/api';
+import { PropertyVisual } from '../property/PropertyVisual';
+import { apiFetch } from '../../services/api';
 import { AnnonceDTO, MessageIAResponseDTO, ConversationHistoryResponseDTO } from '../../types';
 import { useAuthStore } from '../../store/useAuthStore';
-import { Link } from 'react-router-dom';
+import { Link, useLocation } from 'react-router-dom';
 
 export interface ChatMessageItem {
   id: string;
@@ -42,6 +43,8 @@ export const AiAssistantWidget: React.FC = () => {
 
 const AiAssistantWidgetInner: React.FC<{ currentUserId: string }> = ({ currentUserId }) => {
   const shouldReduceMotion = useReducedMotion();
+  const location = useLocation();
+  const isHome = location.pathname === '/';
   const storageKey = `ecourtier_ia_conversation_${currentUserId}`;
 
   const [isOpen, setIsOpen] = useState(false);
@@ -258,23 +261,48 @@ const AiAssistantWidgetInner: React.FC<{ currentUserId: string }> = ({ currentUs
   };
 
   return (
-    <div className="fixed bottom-20 sm:bottom-5 right-5 z-50">
+    <div
+      className={
+        isHome
+          ? 'fixed bottom-3 right-3 sm:bottom-4 sm:right-4 z-40 max-w-[calc(100vw-1.5rem)]'
+          : 'fixed bottom-3 right-3 z-40 max-w-[calc(100vw-1.5rem)]'
+      }
+    >
       
-      {/* Floating Launcher Button */}
+      {/* Floating Launcher Button (compact across all routes; icon-only FAB on !isHome keeps right-side cards & table actions uncovered) */}
       {!isOpen && (
         <motion.button
           onClick={() => setIsOpen(true)}
           whileHover={{ scale: shouldReduceMotion ? 1 : 1.05 }}
           whileTap={{ scale: shouldReduceMotion ? 1 : 0.95 }}
-          className="group relative flex items-center gap-3 px-4 py-3 rounded-full bg-terracotta-500 text-white font-display font-bold shadow-terracotta-glow hover:bg-terracotta-600 transition-colors"
+          aria-label="Ouvrir l'assistant IA E-Courtier"
+          title="Samba IA — Ouvrir l'assistant immobilier"
+          className={
+            isHome
+              ? 'group relative flex items-center justify-center sm:justify-start gap-2 w-11 h-11 sm:w-auto sm:h-auto sm:px-3.5 sm:py-2 rounded-full bg-[#B85C42] text-white font-display font-bold shadow-[0_10px_24px_-6px_rgba(184,92,66,0.55)] hover:bg-[#9D4A32] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#D5AD72] focus-visible:ring-offset-2'
+              : 'group relative flex items-center justify-center w-11 h-11 rounded-full bg-[#B85C42] text-white font-display font-bold shadow-[0_10px_24px_-6px_rgba(184,92,66,0.55)] hover:bg-[#9D4A32] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#D5AD72] focus-visible:ring-offset-2'
+          }
         >
-          <div className="w-8 h-8 rounded-full bg-white/20 flex items-center justify-center">
+          <div className="w-7 h-7 rounded-full bg-white/20 flex items-center justify-center shrink-0">
             <Sparkles className="w-4 h-4 text-white animate-spin-slow" />
           </div>
-          <span className="text-sm">Assistant IA E-Courtier</span>
-          <span className="flex h-3 w-3 relative">
+          {isHome && <span className="hidden sm:inline text-xs font-bold tracking-tight">Samba IA</span>}
+          <span className="sr-only">Assistant IA E-Courtier</span>
+          <span
+            className={
+              isHome
+                ? 'flex h-2 w-2 absolute -top-0.5 -right-0.5 sm:static sm:h-2.5 sm:w-2.5 sm:relative shrink-0'
+                : 'flex h-2.5 w-2.5 absolute -top-0.5 -right-0.5 shrink-0'
+            }
+          >
             <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-ocher-400 opacity-75"></span>
-            <span className="relative inline-flex rounded-full h-3 w-3 bg-ocher-500"></span>
+            <span
+              className={
+                isHome
+                  ? 'relative inline-flex rounded-full h-2 w-2 sm:h-2.5 sm:w-2.5 bg-ocher-500 border border-[#B85C42] sm:border-0'
+                  : 'relative inline-flex rounded-full h-2.5 w-2.5 bg-ocher-500 border border-[#B85C42]'
+              }
+            ></span>
           </span>
         </motion.button>
       )}
@@ -287,11 +315,11 @@ const AiAssistantWidgetInner: React.FC<{ currentUserId: string }> = ({ currentUs
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: shouldReduceMotion ? 0 : 15, scale: shouldReduceMotion ? 1 : 0.95 }}
             transition={{ duration: shouldReduceMotion ? 0.05 : 0.22, ease: [0.25, 1, 0.5, 1] }}
-            className="w-[calc(100vw-2.5rem)] max-w-[420px] sm:w-[420px] h-[500px] sm:h-[580px] bg-white rounded-3xl shadow-warm-hover border border-argile-200 flex flex-col overflow-hidden"
+            className="w-[calc(100vw-1.5rem)] max-w-[420px] sm:w-[420px] h-[min(78dvh,540px)] max-h-[calc(100dvh-1.5rem)] sm:h-[580px] bg-white rounded-2xl sm:rounded-3xl shadow-warm-hover border border-argile-200 flex flex-col overflow-hidden"
           >
             
             {/* Header */}
-            <div className="p-4 bg-sahel-800 text-white flex items-center justify-between">
+            <div className="p-3 sm:p-4 bg-sahel-800 text-white flex items-center justify-between gap-2">
               <div className="flex items-center gap-3">
                 <div className="w-10 h-10 rounded-xl bg-terracotta-500 flex items-center justify-center text-white shadow-terracotta-glow">
                   <Bot className="w-5 h-5" />
@@ -367,9 +395,7 @@ const AiAssistantWidgetInner: React.FC<{ currentUserId: string }> = ({ currentUs
                     {/* Shortlist Mini Cards inside Chat */}
                     {msg.suggestedProperties && (
                       <div className="space-y-2 pt-1">
-                        {msg.suggestedProperties.map((prop) => {
-                          const firstPhoto = prop.photos && prop.photos.length > 0 ? getPhotoUrl(prop.photos[0].url) : getPhotoUrl();
-                          return (
+                        {msg.suggestedProperties.map((prop) => (
                             <Link
                               key={prop.id}
                               to={`/annonce/${prop.id}`}
@@ -377,7 +403,17 @@ const AiAssistantWidgetInner: React.FC<{ currentUserId: string }> = ({ currentUs
                               className="block bg-white p-2.5 rounded-xl border border-argile-300 hover:border-terracotta-400 transition-all shadow-sm group"
                             >
                               <div className="flex gap-2.5 items-center">
-                                <img src={firstPhoto} alt={prop.titre} className="w-14 h-14 object-cover rounded-lg shrink-0" />
+                                <PropertyVisual
+                                  mode="thumbnail"
+                                  rawUrl={prop.photos?.[0]?.url}
+                                  listingId={prop.id}
+                                  type={prop.type}
+                                  title={prop.titre}
+                                  quartier={prop.quartier}
+                                  className="w-14 h-14 rounded-lg shrink-0"
+                                  showIllustrativeBadge={true}
+                                  illustrativeBadgeCompact={true}
+                                />
                                 <div className="flex-1 min-w-0 text-left">
                                   <h4 className="font-display font-bold text-xs text-charcoal-900 truncate group-hover:text-terracotta-600">
                                     {prop.titre}
@@ -392,8 +428,7 @@ const AiAssistantWidgetInner: React.FC<{ currentUserId: string }> = ({ currentUs
                                 </div>
                               </div>
                             </Link>
-                          );
-                        })}
+                        ))}
                       </div>
                     )}
                   </div>
