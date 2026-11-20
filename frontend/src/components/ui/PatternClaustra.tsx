@@ -15,11 +15,11 @@ export const PatternClaustra: React.FC<PatternClaustraProps> = ({
   ...props
 }) => {
   const colorMap = {
-    terracotta: '#C85A32',
-    sahel: '#1D3E35',
-    ocher: '#E09F3E',
-    sand: '#DFCEAA',
-    charcoal: '#1E232A',
+    terracotta: '#B85C42',
+    sahel: '#1C352E',
+    ocher: '#D5AD72',
+    sand: '#E2DACB',
+    charcoal: '#252A29',
   };
 
   const rawId = React.useId();

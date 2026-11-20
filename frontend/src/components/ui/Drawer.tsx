@@ -65,7 +65,7 @@ export const Drawer: React.FC<DrawerProps> = ({
                 animate={{ opacity: 1 }}
                 exit={{ opacity: 0 }}
                 transition={{ duration: 0.2 }}
-                className="fixed inset-0 z-50 bg-charcoal-900/50 backdrop-blur-xs"
+                className="fixed inset-0 z-50 bg-charcoal-900/50 backdrop-blur-sm"
               />
             </Dialog.Overlay>
 
@@ -86,9 +86,9 @@ export const Drawer: React.FC<DrawerProps> = ({
                 )}
 
                 {/* Drawer Header */}
-                <div className="flex items-center justify-between p-5 border-b border-argile-200 bg-sand-100 shrink-0">
+                <div className="flex items-center justify-between gap-3 p-4 sm:p-5 border-b border-argile-200 bg-sand-50 shrink-0">
                   {title ? (
-                    <Dialog.Title className="font-display font-bold text-lg text-charcoal-900">
+                    <Dialog.Title className="font-display font-bold text-base sm:text-lg text-charcoal-900 min-w-0 truncate">
                       {title}
                     </Dialog.Title>
                   ) : (
@@ -97,7 +97,7 @@ export const Drawer: React.FC<DrawerProps> = ({
                   <Dialog.Close asChild>
                     <button
                       type="button"
-                      className="p-2 rounded-xl text-charcoal-500 hover:bg-sand-200 transition-colors focus:outline-none focus:ring-2 focus:ring-terracotta-500"
+                      className="p-2 rounded-xl text-charcoal-500 hover:bg-sand-200 shrink-0 transition-colors focus:outline-none focus:ring-2 focus:ring-terracotta-500"
                       aria-label="Fermer"
                     >
                       <X className="w-5 h-5" />
@@ -106,7 +106,7 @@ export const Drawer: React.FC<DrawerProps> = ({
                 </div>
 
                 {/* Drawer Scrollable Content */}
-                <div className="p-6 overflow-y-auto flex-1 min-h-0">{children}</div>
+                <div className="p-4 sm:p-6 overflow-y-auto flex-1 min-h-0">{children}</div>
               </motion.div>
             </Dialog.Content>
           </Dialog.Portal>

@@ -90,7 +90,7 @@ export const AdminSignalementsPage: React.FC = () => {
           </div>
 
           {/* Status Filter Tabs */}
-          <div className="relative z-10 flex items-center gap-2 bg-sand-100 p-1.5 rounded-xl border border-argile-300">
+          <div className="relative z-10 flex flex-wrap items-center gap-1.5 sm:gap-2 bg-sand-100 p-1.5 rounded-xl border border-argile-300">
             {['EN_ATTENTE', 'TRAITE', 'REJETE', 'TOUS'].map((st) => (
               <button
                 key={st}
@@ -98,7 +98,7 @@ export const AdminSignalementsPage: React.FC = () => {
                   setStatutFilter(st);
                   setPage(0);
                 }}
-                className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
+                className={`px-2.5 sm:px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
                   statutFilter === st
                     ? 'bg-sahel-800 text-white shadow-xs'
                     : 'text-charcoal-600 hover:bg-sand-200'
@@ -140,10 +140,10 @@ export const AdminSignalementsPage: React.FC = () => {
               return (
                 <div
                   key={sig.id}
-                  className="bg-white p-5 rounded-2xl border border-argile-300 shadow-warm-card flex flex-col md:flex-row items-start md:items-center justify-between gap-4 transition-all hover:border-terracotta-400"
+                  className="bg-white p-4 sm:p-5 rounded-2xl border border-argile-300 shadow-warm-card flex flex-col md:flex-row items-start md:items-center justify-between gap-4 transition-all hover:border-terracotta-400"
                 >
-                  <div className="space-y-2 flex-1">
-                    <div className="flex items-center gap-2">
+                  <div className="space-y-2 flex-1 min-w-0">
+                    <div className="flex flex-wrap items-center gap-2">
                       <Badge
                         variant={sig.statut === 'EN_ATTENTE' ? 'rose' : sig.statut === 'TRAITE' ? 'success' : 'neutral'}
                         className="text-[10px] uppercase font-bold"
@@ -153,19 +153,19 @@ export const AdminSignalementsPage: React.FC = () => {
                       <span className="text-xs font-bold text-terracotta-600 bg-terracotta-50 px-2 py-0.5 rounded border border-terracotta-200">
                         {sig.motif.replace('_', ' ')}
                       </span>
-                      <span className="text-[11px] text-charcoal-400">
+                      <span className="text-[11px] text-charcoal-400 break-all">
                         Signalé le {new Date(sig.dateCreation).toLocaleDateString('fr-FR')} par {sig.auteurEmail}
                       </span>
                     </div>
 
-                    <div className="flex items-center gap-2">
-                      <h3 className="font-display font-bold text-sm text-charcoal-900">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <h3 className="font-display font-bold text-sm text-charcoal-900 break-words">
                         Annonce : {sig.annonceTitre}
                       </h3>
                       <Link
                         to={`/annonce/${sig.annonceId}`}
                         target="_blank"
-                        className="text-terracotta-600 hover:text-terracotta-700 flex items-center gap-0.5 text-xs font-semibold"
+                        className="text-terracotta-600 hover:text-terracotta-700 flex items-center gap-0.5 text-xs font-semibold shrink-0"
                       >
                         <span>Voir</span>
                         <ExternalLink className="w-3.5 h-3.5" />
@@ -173,7 +173,7 @@ export const AdminSignalementsPage: React.FC = () => {
                     </div>
 
                     {sig.description && (
-                      <p className="text-xs text-charcoal-700 bg-sand-100 p-3 rounded-xl border border-argile-200 italic">
+                      <p className="text-xs text-charcoal-700 bg-sand-100 p-3 rounded-xl border border-argile-200 italic break-words">
                         "{sig.description}"
                       </p>
                     )}
@@ -181,7 +181,7 @@ export const AdminSignalementsPage: React.FC = () => {
 
                   {/* Action Buttons */}
                   {isPending && (
-                    <div className="flex items-center gap-2 shrink-0 pt-2 md:pt-0 border-t md:border-t-0 border-argile-200 w-full md:w-auto">
+                    <div className="flex flex-wrap items-center gap-2 shrink-0 pt-2 md:pt-0 border-t md:border-t-0 border-argile-200 w-full md:w-auto">
                       <Button
                         variant="primary"
                         size="sm"

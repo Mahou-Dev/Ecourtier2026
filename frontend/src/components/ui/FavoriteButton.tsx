@@ -14,6 +14,7 @@ interface FavoriteButtonProps {
   estFavori: boolean;
   size?: 'sm' | 'md';
   className?: string;
+  onToggled?: (newIsFavorite: boolean) => void;
 }
 
 export const FavoriteButton: React.FC<FavoriteButtonProps> = ({
@@ -21,6 +22,7 @@ export const FavoriteButton: React.FC<FavoriteButtonProps> = ({
   estFavori,
   size = 'sm',
   className,
+  onToggled,
 }) => {
   const navigate = useNavigate();
   const location = useLocation();
@@ -29,27 +31,32 @@ export const FavoriteButton: React.FC<FavoriteButtonProps> = ({
   const { utilisateur } = useAuthStore();
 
   const toggleMutation = useMutation({
-    mutationFn: async () => {
-      if (estFavori) {
+    mutationFn: async (currentlyFavorite: boolean) => {
+      if (currentlyFavorite) {
         await apiFetch(`/api/v1/annonces/${annonceId}/favoris`, { method: 'DELETE' });
       } else {
         await apiFetch(`/api/v1/annonces/${annonceId}/favoris`, { method: 'POST' });
       }
+      return !currentlyFavorite;
     },
-    onMutate: async () => {
+    onMutate: async (currentlyFavorite: boolean) => {
+      const nextFavorite = !currentlyFavorite;
       // Cancel outgoing refetches
       await queryClient.cancelQueries({ queryKey: ['annonces'] });
       await queryClient.cancelQueries({ queryKey: ['annonce', annonceId] });
       await queryClient.cancelQueries({ queryKey: ['favoris'] });
+      await queryClient.cancelQueries({ queryKey: ['favoris-count'] });
 
       // Snapshot previous data for rollback
       const previousAnnonce = queryClient.getQueryData<AnnonceDTO>(['annonce', annonceId]);
       const previousAnnonces = queryClient.getQueriesData<PageResponse<AnnonceDTO>>({ queryKey: ['annonces'] });
+      const previousFavoris = queryClient.getQueriesData<PageResponse<AnnonceDTO>>({ queryKey: ['favoris'] });
+      const previousCount = queryClient.getQueryData<unknown>(['favoris-count']);
 
       // Optimistically update the single annonce query
       queryClient.setQueryData<AnnonceDTO>(['annonce', annonceId], (old) => {
         if (!old) return old;
-        return { ...old, estFavori: !estFavori };
+        return { ...old, estFavori: nextFavorite };
       });
 
       // Optimistically update annonces list queries
@@ -58,12 +65,42 @@ export const FavoriteButton: React.FC<FavoriteButtonProps> = ({
         return {
           ...old,
           content: old.content.map((a) =>
-            a.id === annonceId ? { ...a, estFavori: !estFavori } : a
+            a.id === annonceId ? { ...a, estFavori: nextFavorite } : a
           ),
         };
       });
 
-      return { previousAnnonce, previousAnnonces };
+      // Optimistically update favoris page queries when removing from favorites
+      if (!nextFavorite) {
+        queryClient.setQueriesData<PageResponse<AnnonceDTO>>({ queryKey: ['favoris'] }, (old) => {
+          if (!old?.content) return old;
+          const nextContent = old.content.filter((a) => a.id !== annonceId);
+          return {
+            ...old,
+            content: nextContent,
+            totalElements: Math.max(0, (old.totalElements ?? nextContent.length) - 1),
+          };
+        });
+      }
+
+      // Optimistically update header count query
+      queryClient.setQueryData<unknown>(['favoris-count'], (old: unknown) => {
+        if (!old || typeof old !== 'object') return old;
+        const delta = nextFavorite ? 1 : -1;
+        const record = old as { count?: number; totalElements?: number };
+        if (typeof record.count === 'number') {
+          return { ...record, count: Math.max(0, record.count + delta) };
+        }
+        if (typeof record.totalElements === 'number') {
+          return { ...record, totalElements: Math.max(0, record.totalElements + delta) };
+        }
+        return old;
+      });
+
+      return { previousAnnonce, previousAnnonces, previousFavoris, previousCount, currentlyFavorite };
+    },
+    onSuccess: (nextFavorite) => {
+      onToggled?.(nextFavorite);
     },
     onError: (_err, _vars, context) => {
       // Rollback on error
@@ -75,7 +112,16 @@ export const FavoriteButton: React.FC<FavoriteButtonProps> = ({
           queryClient.setQueryData(queryKey, data);
         });
       }
-      toast.error(estFavori ? 'Impossible de retirer des favoris' : "Impossible d'ajouter aux favoris");
+      if (context?.previousFavoris) {
+        context.previousFavoris.forEach(([queryKey, data]) => {
+          queryClient.setQueryData(queryKey, data);
+        });
+      }
+      if (context?.previousCount !== undefined) {
+        queryClient.setQueryData(['favoris-count'], context.previousCount);
+      }
+      const wasFav = context?.currentlyFavorite ?? estFavori;
+      toast.error(wasFav ? 'Impossible de retirer des favoris' : "Impossible d'ajouter aux favoris");
     },
     onSettled: () => {
       // Refetch to ensure consistency
@@ -96,7 +142,7 @@ export const FavoriteButton: React.FC<FavoriteButtonProps> = ({
       return;
     }
 
-    toggleMutation.mutate();
+    toggleMutation.mutate(estFavori);
   };
 
   const sizeClasses = size === 'md'

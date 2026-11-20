@@ -7,6 +7,9 @@ import { Footer } from './components/layout/Footer';
 import { Toaster } from './components/ui/Toast';
 import { Skeleton } from './components/ui/Skeleton';
 import { OfflineIndicator } from './components/ui/OfflineIndicator';
+import { ErrorBoundary } from './components/ui/ErrorBoundary';
+import { ProtectedRoute } from './components/auth/ProtectedRoute';
+import { useCurrentProfile } from './hooks/useCurrentProfile';
 
 // Code-splitting global widgets with React.lazy()
 const LazyAiAssistantWidget = lazy(() => import('./components/ai/AiAssistantWidget').then(m => ({ default: m.AiAssistantWidget })));
@@ -25,6 +28,7 @@ const AdminUtilisateursPage = lazy(() => import('./pages/AdminUtilisateursPage')
 const AdminVerificationPage = lazy(() => import('./pages/AdminVerificationPage').then(m => ({ default: m.AdminVerificationPage })));
 const AdminSignalementsPage = lazy(() => import('./pages/AdminSignalementsPage').then(m => ({ default: m.AdminSignalementsPage })));
 const AdminTransactionsPage = lazy(() => import('./pages/AdminTransactionsPage').then(m => ({ default: m.AdminTransactionsPage })));
+const NotFoundPage = lazy(() => import('./pages/NotFoundPage').then(m => ({ default: m.NotFoundPage })));
 
 // Design System Skeleton Fallback
 const PageSkeletonFallback: React.FC = () => (
@@ -40,27 +44,112 @@ const PageSkeletonFallback: React.FC = () => (
 
 const AnimatedRoutes: React.FC = () => {
   const location = useLocation();
+  useCurrentProfile();
 
   return (
-    <div key={location.pathname} className="w-full flex-1 animate-route-fade-in">
-      <Suspense fallback={<PageSkeletonFallback />}>
-        <Routes location={location}>
-          <Route path="/" element={<HomePage />} />
-          <Route path="/recherche" element={<SearchResultsPage />} />
-          <Route path="/annonce/:id" element={<PropertyDetailPage />} />
-          <Route path="/favoris" element={<FavorisPage />} />
-          <Route path="/connexion" element={<LoginPage />} />
-          <Route path="/inscription" element={<RegisterPage />} />
-          <Route path="/dashboard" element={<DashboardPage />} />
-          <Route path="/mon-compte" element={<MonComptePage />} />
-          <Route path="/admin" element={<Navigate to="/admin/dashboard" replace />} />
-          <Route path="/admin/dashboard" element={<AdminDashboardPage />} />
-          <Route path="/admin/utilisateurs" element={<AdminUtilisateursPage />} />
-          <Route path="/admin/verification" element={<AdminVerificationPage />} />
-          <Route path="/admin/signalements" element={<AdminSignalementsPage />} />
-          <Route path="/admin/transactions" element={<AdminTransactionsPage />} />
-        </Routes>
-      </Suspense>
+    <div key={location.pathname} className="w-full min-w-0 flex-1 animate-route-fade-in">
+      <ErrorBoundary resetKey={`${location.pathname}${location.search}`}>
+        <Suspense fallback={<PageSkeletonFallback />}>
+          <Routes location={location}>
+            <Route path="/" element={<HomePage />} />
+            <Route path="/recherche" element={<SearchResultsPage />} />
+            <Route path="/annonce/:id" element={<PropertyDetailPage />} />
+            <Route
+              path="/favoris"
+              element={
+                <ProtectedRoute>
+                  <FavorisPage />
+                </ProtectedRoute>
+              }
+            />
+            <Route path="/connexion" element={<LoginPage />} />
+            <Route path="/inscription" element={<RegisterPage />} />
+            <Route
+              path="/dashboard"
+              element={
+                <ProtectedRoute>
+                  <DashboardPage />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/mon-compte"
+              element={
+                <ProtectedRoute>
+                  <MonComptePage />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/admin"
+              element={
+                <ProtectedRoute
+                  allowedRoles={['ADMIN']}
+                  deniedMessage="Accès refusé : espace réservé aux administrateurs E-Courtier."
+                >
+                  <Navigate to="/admin/dashboard" replace />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/admin/dashboard"
+              element={
+                <ProtectedRoute
+                  allowedRoles={['ADMIN']}
+                  deniedMessage="Accès refusé : espace réservé aux administrateurs E-Courtier."
+                >
+                  <AdminDashboardPage />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/admin/utilisateurs"
+              element={
+                <ProtectedRoute
+                  allowedRoles={['ADMIN']}
+                  deniedMessage="Accès refusé : espace réservé aux administrateurs E-Courtier."
+                >
+                  <AdminUtilisateursPage />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/admin/verification"
+              element={
+                <ProtectedRoute
+                  allowedRoles={['ADMIN']}
+                  deniedMessage="Accès refusé : espace réservé aux administrateurs E-Courtier."
+                >
+                  <AdminVerificationPage />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/admin/signalements"
+              element={
+                <ProtectedRoute
+                  allowedRoles={['ADMIN']}
+                  deniedMessage="Accès refusé : espace réservé aux administrateurs E-Courtier."
+                >
+                  <AdminSignalementsPage />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/admin/transactions"
+              element={
+                <ProtectedRoute
+                  allowedRoles={['ADMIN']}
+                  deniedMessage="Accès refusé : espace réservé aux administrateurs E-Courtier."
+                >
+                  <AdminTransactionsPage />
+                </ProtectedRoute>
+              }
+            />
+            <Route path="*" element={<NotFoundPage />} />
+          </Routes>
+        </Suspense>
+      </ErrorBoundary>
     </div>
   );
 };
@@ -71,7 +160,7 @@ export const App: React.FC = () => {
       <Router>
         <div className="min-h-screen w-full max-w-[100vw] overflow-x-hidden flex flex-col bg-sand-100 selection:bg-terracotta-200 selection:text-terracotta-900 font-body antialiased">
           <Header />
-          <main className="flex-1 flex flex-col">
+          <main className="flex-1 flex flex-col min-w-0 w-full">
             <AnimatedRoutes />
           </main>
           <Footer />

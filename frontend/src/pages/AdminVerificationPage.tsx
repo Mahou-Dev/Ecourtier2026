@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { apiFetch, fetchProtectedBlob, getPhotoUrl } from '../services/api';
+import { apiFetch, fetchProtectedBlob } from '../services/api';
+import { PropertyVisual } from '../components/property/PropertyVisual';
 import { adminService } from '../services/admin.service';
 import { AnnonceDTO, DocumentVerificationDTO, PageResponse, VerificationDecisionDTO } from '../types';
 import { useAuthStore } from '../store/useAuthStore';
@@ -288,18 +289,18 @@ export const AdminVerificationPage: React.FC = () => {
       (preview.doc.nomFichier || '').toLowerCase().endsWith('.pdf'));
 
   return (
-    <div className="min-h-screen bg-sand-100 py-8">
-      <div className="max-w-7xl mx-auto px-4 space-y-6">
+    <div className="min-h-screen bg-sand-100 py-6 sm:py-8 pb-24 lg:pb-8">
+      <div className="max-w-7xl mx-auto px-3 sm:px-4 space-y-6">
         <div className="flex justify-end">
           <AdminNavTabs />
         </div>
 
         {/* Header Title */}
-        <div className="relative rounded-3xl bg-sahel-900 text-white p-8 overflow-hidden shadow-sahel-deep border border-sahel-800 flex flex-col md:flex-row md:items-center justify-between gap-6">
+        <div className="relative rounded-3xl bg-sahel-900 text-white p-5 sm:p-8 overflow-hidden shadow-sahel-deep border border-sahel-800 flex flex-col md:flex-row md:items-center justify-between gap-4 sm:gap-6">
           <PatternClaustra className="opacity-15 text-terracotta-500" />
-          <div className="relative z-10 space-y-2">
+          <div className="relative z-10 space-y-2 min-w-0">
             <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-terracotta-500/20 border border-terracotta-500/40 text-terracotta-300 text-xs font-semibold">
-              <ShieldCheck className="w-4 h-4" />
+              <ShieldCheck className="w-4 h-4 shrink-0" />
               <span>Modération, Vérification des Pièces & Statuts de Publication</span>
             </div>
             <h1 className="font-display font-bold text-2xl md:text-3xl">Espace Modération Administrateur</h1>
@@ -307,7 +308,7 @@ export const AdminVerificationPage: React.FC = () => {
               Inspectez chaque pièce justificative (images et PDF protégés) avant d'attribuer le badge vérifié, et gérez le statut de publication des annonces (suspension administrative ou réactivation).
             </p>
           </div>
-          <div className="relative z-10 shrink-0 flex flex-col sm:flex-row items-end sm:items-center gap-2">
+          <div className="relative z-10 shrink-0 flex flex-col sm:flex-row items-start md:items-end sm:items-center gap-2">
             <Badge variant="warning" size="lg" className="text-sm px-4 py-2">
               {pendingAnnonces.length} bien(s) en attente
             </Badge>
@@ -315,12 +316,12 @@ export const AdminVerificationPage: React.FC = () => {
         </div>
 
         {/* View Mode Selector */}
-        <div className="flex flex-wrap items-center justify-between gap-3 bg-white p-4 rounded-2xl border border-sand-300">
+        <div className="flex flex-wrap items-center justify-between gap-3 bg-white p-3 sm:p-4 rounded-2xl border border-sand-300">
           <div className="flex flex-wrap items-center gap-2">
             <button
               type="button"
               onClick={() => setViewMode('EN_ATTENTE')}
-              className={`px-4 py-2 rounded-xl text-xs font-bold transition-all ${
+              className={`px-3 sm:px-4 py-2 rounded-xl text-xs font-bold transition-all ${
                 viewMode === 'EN_ATTENTE'
                   ? 'bg-terracotta-600 text-white shadow-xs'
                   : 'bg-sand-100 text-sahel-800 hover:bg-sand-200'
@@ -331,7 +332,7 @@ export const AdminVerificationPage: React.FC = () => {
             <button
               type="button"
               onClick={() => setViewMode('TOUTES')}
-              className={`px-4 py-2 rounded-xl text-xs font-bold transition-all ${
+              className={`px-3 sm:px-4 py-2 rounded-xl text-xs font-bold transition-all ${
                 viewMode === 'TOUTES'
                   ? 'bg-terracotta-600 text-white shadow-xs'
                   : 'bg-sand-100 text-sahel-800 hover:bg-sand-200'
@@ -385,10 +386,16 @@ export const AdminVerificationPage: React.FC = () => {
                     <div className="flex flex-col lg:flex-row gap-6">
                       {/* Thumbnail */}
                       <div className="w-full lg:w-56 h-40 rounded-xl overflow-hidden bg-sand-200 shrink-0 relative">
-                        <img
-                          src={getPhotoUrl(annonce.photos?.[0]?.url)}
-                          alt={annonce.titre}
-                          className="w-full h-full object-cover"
+                        <PropertyVisual
+                          mode="thumbnail"
+                          rawUrl={annonce.photos?.[0]?.url}
+                          listingId={annonce.id}
+                          type={annonce.type}
+                          title={annonce.titre}
+                          quartier={annonce.quartier}
+                          className="w-full h-full"
+                          showIllustrativeBadge={true}
+                          illustrativeBadgeCompact={false}
                         />
                         <div className="absolute top-2 left-2 flex gap-1">
                           <Badge variant="neutral">{annonce.type}</Badge>
@@ -413,10 +420,10 @@ export const AdminVerificationPage: React.FC = () => {
                                 <Badge variant="rose">Vérification : REJETEE</Badge>
                               )}
                             </div>
-                            <div className="flex flex-wrap items-center gap-3 text-xs text-sahel-700 mt-1">
+                            <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-sahel-700 mt-1 min-w-0">
                               <span><strong>Ville :</strong> {annonce.ville} ({annonce.quartier})</span>
-                              <span>
-                                <strong>Auteur :</strong> {annonce.auteur?.prenom} {annonce.auteur?.nom} ({annonce.auteur?.email})
+                              <span className="min-w-0 break-words">
+                                <strong>Auteur :</strong> {annonce.auteur?.prenom} {annonce.auteur?.nom} (<span className="break-all">{annonce.auteur?.email}</span>)
                                 {(annonce.auteurRole === 'AGENT' || annonce.auteur?.role === 'AGENT') && (
                                   <span className="ml-1.5 text-[10px] font-bold px-2 py-0.5 rounded bg-ocher-100 text-ocher-900">
                                     AGENT
@@ -426,7 +433,7 @@ export const AdminVerificationPage: React.FC = () => {
                               <span><strong>Publiée le :</strong> {new Date(annonce.dateCreation).toLocaleDateString('fr-FR')}</span>
                             </div>
                           </div>
-                          <span className="font-display font-bold text-lg text-terracotta-700">
+                          <span className="font-display font-bold text-lg text-terracotta-700 shrink-0">
                             {annonce.prix.toLocaleString('fr-FR')} FCFA
                           </span>
                         </div>
@@ -614,7 +621,7 @@ export const AdminVerificationPage: React.FC = () => {
                       </div>
 
                       {/* Action buttons */}
-                      <div className="flex lg:flex-col justify-end gap-3 shrink-0 lg:w-44 border-t lg:border-t-0 lg:border-l border-sand-300 pt-4 lg:pt-0 lg:pl-6">
+                      <div className="flex flex-col xs:flex-row lg:flex-col justify-end gap-2.5 sm:gap-3 shrink-0 lg:w-44 border-t lg:border-t-0 lg:border-l border-sand-300 pt-4 lg:pt-0 lg:pl-6">
                         <Button
                           variant="primary"
                           disabled={!isComplete}

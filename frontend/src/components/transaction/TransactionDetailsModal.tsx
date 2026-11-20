@@ -267,13 +267,13 @@ export const TransactionDetailsModal: React.FC<TransactionDetailsModalProps> = (
       <div className="space-y-6">
         
         {/* Header Summary */}
-        <div className="p-4 rounded-2xl bg-sand-50 border border-sand-200 flex flex-col md:flex-row md:items-center justify-between gap-4">
-          <div>
+        <div className="p-3.5 sm:p-4 rounded-2xl bg-sand-50 border border-sand-200 flex flex-col md:flex-row md:items-center justify-between gap-3 sm:gap-4">
+          <div className="min-w-0">
             <div className="flex items-center gap-2 mb-1">
-              <Building className="w-4 h-4 text-terracotta-500" />
-              <h3 className="font-display font-bold text-base text-sahel-900">{transaction.annonceTitre}</h3>
+              <Building className="w-4 h-4 text-terracotta-500 shrink-0" />
+              <h3 className="font-display font-bold text-base text-sahel-900 break-words">{transaction.annonceTitre}</h3>
             </div>
-            <p className="text-xs text-sahel-600">
+            <p className="text-xs text-sahel-600 break-words">
               {isVente ? (
                 <>Acheteur : <span className="font-semibold text-sahel-900">{transaction.locataireNomComplet}</span> | Vendeur : <span className="font-semibold text-sahel-900">{transaction.proprietaireNomComplet || 'Agent'}</span></>
               ) : (
@@ -281,31 +281,31 @@ export const TransactionDetailsModal: React.FC<TransactionDetailsModalProps> = (
               )}
             </p>
           </div>
-          <div className="flex flex-wrap gap-2">
+          <div className="flex flex-wrap gap-2 shrink-0">
             {renderSequestreBadge()}
             {renderBailBadge()}
           </div>
         </div>
 
         {/* Step 1: Escrow Payment */}
-        <div className="p-5 rounded-2xl border border-sand-300 bg-white space-y-4">
-          <div className="flex items-center justify-between">
+        <div className="p-4 sm:p-5 rounded-2xl border border-sand-300 bg-white space-y-4">
+          <div className="flex flex-wrap items-center justify-between gap-2">
             <h4 className="font-display font-bold text-sm text-sahel-900 flex items-center gap-2">
-              <CreditCard className="w-4 h-4 text-terracotta-500" />
+              <CreditCard className="w-4 h-4 text-terracotta-500 shrink-0" />
               <span>{isVente ? '1. Séquestre Bancaire — Acompte de réservation (10 % du prix)' : '1. Séquestre Bancaire (Caution + 1er Loyer)'}</span>
             </h4>
             {transaction.statutSequestre === 'BLOQUE' || transaction.statutSequestre === 'LIBERE' ? (
-              <span className="text-xs font-bold text-emerald-700 flex items-center gap-1">
+              <span className="text-xs font-bold text-emerald-700 flex items-center gap-1 shrink-0">
                 <CheckCircle2 className="w-4 h-4 text-emerald-600" /> Dépôt validé
               </span>
             ) : transaction.statutSequestre === 'ANNULE' ? (
-              <span className="text-xs font-bold text-sahel-600">Transaction annulée</span>
+              <span className="text-xs font-bold text-sahel-600 shrink-0">Transaction annulée</span>
             ) : transaction.statutSequestre === 'EXPIRE' ? (
-              <span className="text-xs font-bold text-rose-700">Délai expiré</span>
+              <span className="text-xs font-bold text-rose-700 shrink-0">Délai expiré</span>
             ) : transaction.statutSequestre === 'REMBOURSE' ? (
-              <span className="text-xs font-bold text-sahel-600">Séquestre remboursé</span>
+              <span className="text-xs font-bold text-sahel-600 shrink-0">Séquestre remboursé</span>
             ) : (
-              <span className="text-xs font-bold text-amber-700 flex items-center gap-1">
+              <span className="text-xs font-bold text-amber-700 flex items-center gap-1 shrink-0">
                 <Clock className="w-4 h-4 text-amber-600" /> En attente de paiement
               </span>
             )}
@@ -329,7 +329,7 @@ export const TransactionDetailsModal: React.FC<TransactionDetailsModalProps> = (
               </div>
             </div>
           ) : (
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-xs">
+            <div className="grid grid-cols-1 xs:grid-cols-2 md:grid-cols-4 gap-3 text-xs">
               <div className="p-3 rounded-xl bg-sand-50 border border-sand-200">
                 <p className="text-sahel-600">Caution</p>
                 <p className="font-display font-bold text-sm text-sahel-900">{transaction.montantCaution.toLocaleString('fr-FR')} FCFA</p>
@@ -352,8 +352,8 @@ export const TransactionDetailsModal: React.FC<TransactionDetailsModalProps> = (
           )}
 
           {transaction.referenceWave && (
-            <div className="p-3 rounded-xl bg-emerald-50 border border-emerald-200 text-xs text-emerald-900 flex items-center justify-between">
-              <span>Référence Wave Sandbox : <strong>{transaction.referenceWave}</strong></span>
+            <div className="p-3 rounded-xl bg-emerald-50 border border-emerald-200 text-xs text-emerald-900 flex flex-wrap items-center justify-between gap-2">
+              <span className="break-all">Référence Wave Sandbox : <strong>{transaction.referenceWave}</strong></span>
               {transaction.statutSequestre === 'BLOQUE' ? (
                 <Badge variant="success">Séquestre bloqué</Badge>
               ) : transaction.statutSequestre === 'LIBERE' ? (
@@ -545,59 +545,59 @@ export const TransactionDetailsModal: React.FC<TransactionDetailsModalProps> = (
         </div>
 
         {/* Step 2: Lease or Sale Reservation Signature */}
-        <div className="p-5 rounded-2xl border border-sand-300 bg-white space-y-4">
-          <div className="flex items-center justify-between">
+        <div className="p-4 sm:p-5 rounded-2xl border border-sand-300 bg-white space-y-4">
+          <div className="flex flex-wrap items-center justify-between gap-2">
             <h4 className="font-display font-bold text-sm text-sahel-900 flex items-center gap-2">
-              <FileCheck className="w-4 h-4 text-terracotta-500" />
+              <FileCheck className="w-4 h-4 text-terracotta-500 shrink-0" />
               <span>{isVente ? "2. Signature Numérique du Récapitulatif de Réservation d'Achat" : "2. Signature Numérique du Contrat de Bail"}</span>
             </h4>
             {transaction.statutBail === 'SIGNE_COMPLET' ? (
-              <span className="text-xs font-bold text-emerald-700 flex items-center gap-1">
+              <span className="text-xs font-bold text-emerald-700 flex items-center gap-1 shrink-0">
                 <CheckCircle2 className="w-4 h-4 text-emerald-600" /> {isVente ? 'Document signé complet' : 'Bail signé complet'}
               </span>
             ) : (
-              <span className="text-xs font-bold text-amber-700 flex items-center gap-1">
+              <span className="text-xs font-bold text-amber-700 flex items-center gap-1 shrink-0">
                 <Clock className="w-4 h-4 text-amber-600" /> Signature en cours
               </span>
             )}
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs">
-            <div className={`p-3.5 rounded-xl border flex items-center justify-between ${
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3 sm:gap-4 text-xs">
+            <div className={`p-3.5 rounded-xl border flex flex-wrap items-center justify-between gap-2 ${
               transaction.dateSignatureLocataire ? 'bg-emerald-50 border-emerald-200 text-emerald-900' : 'bg-sand-50 border-sand-200 text-sahel-700'
             }`}>
-              <div className="flex items-center gap-2">
-                <UserCheck className={`w-4 h-4 ${transaction.dateSignatureLocataire ? 'text-emerald-600' : 'text-sahel-500'}`} />
-                <div>
+              <div className="flex items-center gap-2 min-w-0">
+                <UserCheck className={`w-4 h-4 shrink-0 ${transaction.dateSignatureLocataire ? 'text-emerald-600' : 'text-sahel-500'}`} />
+                <div className="min-w-0">
                   <p className="font-bold">{isVente ? 'Signature Acheteur' : 'Signature Locataire'}</p>
-                  <p className="text-[11px]">{transaction.locataireNomComplet}</p>
+                  <p className="text-[11px] truncate">{transaction.locataireNomComplet}</p>
                 </div>
               </div>
               {transaction.dateSignatureLocataire ? (
-                <span className="text-[11px] font-semibold text-emerald-700">
+                <span className="text-[11px] font-semibold text-emerald-700 shrink-0">
                   {new Date(transaction.dateSignatureLocataire).toLocaleDateString('fr-FR')}
                 </span>
               ) : (
-                <span className="text-[11px] text-amber-700 font-semibold">En attente</span>
+                <span className="text-[11px] text-amber-700 font-semibold shrink-0">En attente</span>
               )}
             </div>
 
-            <div className={`p-3.5 rounded-xl border flex items-center justify-between ${
+            <div className={`p-3.5 rounded-xl border flex flex-wrap items-center justify-between gap-2 ${
               transaction.dateSignatureProprietaire ? 'bg-emerald-50 border-emerald-200 text-emerald-900' : 'bg-sand-50 border-sand-200 text-sahel-700'
             }`}>
-              <div className="flex items-center gap-2">
-                <UserCheck className={`w-4 h-4 ${transaction.dateSignatureProprietaire ? 'text-emerald-600' : 'text-sahel-500'}`} />
-                <div>
+              <div className="flex items-center gap-2 min-w-0">
+                <UserCheck className={`w-4 h-4 shrink-0 ${transaction.dateSignatureProprietaire ? 'text-emerald-600' : 'text-sahel-500'}`} />
+                <div className="min-w-0">
                   <p className="font-bold">{isVente ? 'Signature Vendeur' : 'Signature Propriétaire'}</p>
-                  <p className="text-[11px]">{transaction.proprietaireNomComplet || (isVente ? 'Vendeur' : 'Propriétaire')}</p>
+                  <p className="text-[11px] truncate">{transaction.proprietaireNomComplet || (isVente ? 'Vendeur' : 'Propriétaire')}</p>
                 </div>
               </div>
               {transaction.dateSignatureProprietaire ? (
-                <span className="text-[11px] font-semibold text-emerald-700">
+                <span className="text-[11px] font-semibold text-emerald-700 shrink-0">
                   {new Date(transaction.dateSignatureProprietaire).toLocaleDateString('fr-FR')}
                 </span>
               ) : (
-                <span className="text-[11px] text-amber-700 font-semibold">En attente</span>
+                <span className="text-[11px] text-amber-700 font-semibold shrink-0">En attente</span>
               )}
             </div>
           </div>

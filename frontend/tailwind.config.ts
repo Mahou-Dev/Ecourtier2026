@@ -16,18 +16,18 @@ const config: Config = {
     },
     extend: {
       colors: {
-        // E-Courtier Custom Senegal Architectural Palette
+        // E-Courtier Custom Senegal Architectural Palette (Aligned with Sahel Premium)
         terracotta: {
           50: '#FDF6F3',
           100: '#F9EBE5',
           200: '#F3D4C7',
           300: '#E7B29D',
           400: '#D78465',
-          500: '#C85A32', // Main Brand Accent (Terre Cuite)
-          600: '#B24723',
-          700: '#94371A',
-          800: '#7B2E18',
-          900: '#652917',
+          500: '#B85C42', // Main Brand Accent (Terre Cuite Sahel Premium)
+          600: '#9D4A32',
+          700: '#823B26',
+          800: '#6C2F1F',
+          900: '#582619',
         },
         sahel: {
           50: '#F2F7F5',
@@ -37,64 +37,66 @@ const config: Config = {
           400: '#6F9F8F',
           500: '#4D8272',
           600: '#3A685A',
-          700: '#2F544A',
-          800: '#1D3E35', // Deep Forest / Sahel Green
-          900: '#152E28',
+          700: '#274940',
+          800: '#1C352E', // Deep Forest / Sahel Green
+          900: '#152722',
         },
         sand: {
-          50: '#FFFFFF',
-          100: '#FDFBF7', // Primary Warm Off-White / Blanc Cassé
-          200: '#F9F5EC',
-          300: '#F3ECDB',
-          400: '#EAE0C7',
-          500: '#DFCEAA',
-          600: '#C7B288',
-          700: '#9F8B65',
-          800: '#77674A',
-          900: '#524734',
+          50: '#FAF7F2',
+          100: '#F5F0E8', // Primary Warm Ivory / Sand
+          200: '#EDE6D8',
+          300: '#E2DACB',
+          400: '#D7CCBA',
+          500: '#C8BA9F',
+          600: '#B19F7E',
+          700: '#8E7D5E',
+          800: '#6D5E45',
+          900: '#4D4231',
         },
         ocher: {
           50: '#FEFBF3',
           100: '#FDF5E1',
           200: '#FBE8BC',
-          300: '#F7D68E',
-          400: '#EFBD57',
-          500: '#E09F3E', // Warm Sun Ocher
-          600: '#C7822A',
-          700: '#A46120',
-          800: '#844B1D',
-          900: '#6D3D1B',
+          300: '#F2D29A',
+          400: '#E0BD87',
+          500: '#D5AD72', // Warm Sun Ocher
+          600: '#BC8C49',
+          700: '#9A6C2E',
+          800: '#7B5321',
+          900: '#63421B',
         },
         charcoal: {
-          50: '#F6F7F9',
-          100: '#EBEFF3',
-          200: '#D2DBE3',
-          300: '#ADC0D0',
-          400: '#7E9BB3',
-          500: '#577692',
-          600: '#425C75',
-          700: '#354A5F',
-          800: '#1E232A', // Main High Contrast Text
-          900: '#13171C',
+          50: '#F6F7F8',
+          100: '#ECEEF0',
+          200: '#D5DAE0',
+          300: '#B2BBC4',
+          400: '#83919F',
+          500: '#5C6974',
+          600: '#47525A',
+          700: '#353C3B',
+          800: '#252A29', // Main High Contrast Charcoal
+          900: '#18211F',
         },
         argile: {
-          100: '#FAF7F0',
-          200: '#E5DEC9', // Soft Border & Divider Neutral
-          300: '#D5CBB0',
+          100: '#FAF7F2',
+          200: '#E2DACB', // Soft Border & Divider Neutral
+          300: '#D6CCB8',
         }
       },
       fontFamily: {
-        display: ['"Plus Jakarta Sans"', 'sans-serif'],
-        body: ['"Plus Jakarta Sans"', '"Inter"', 'sans-serif'],
+        display: ['"Manrope"', '"Plus Jakarta Sans"', 'sans-serif'],
+        editorial: ['"Manrope"', '"Plus Jakarta Sans"', 'sans-serif'],
+        body: ['"Inter"', '"Plus Jakarta Sans"', 'sans-serif'],
       },
       boxShadow: {
-        'terracotta-glow': '0 10px 30px -5px rgba(200, 90, 50, 0.28)',
-        'terracotta-card': '0 8px 24px -4px rgba(200, 90, 50, 0.16)',
-        'sahel-glow': '0 10px 30px -5px rgba(29, 62, 53, 0.28)',
-        'sahel-card': '0 8px 24px -4px rgba(29, 62, 53, 0.20)',
-        'sand-glow': '0 8px 24px -4px rgba(224, 159, 62, 0.18)',
-        'warm-card': '0 4px 20px -2px rgba(82, 71, 52, 0.08), 0 2px 6px -1px rgba(200, 90, 50, 0.04)',
-        'warm-hover': '0 14px 36px -4px rgba(200, 90, 50, 0.22), 0 4px 14px -2px rgba(82, 71, 52, 0.10)',
+        'terracotta-glow': '0 10px 30px -5px rgba(184, 92, 66, 0.28)',
+        'terracotta-card': '0 8px 24px -4px rgba(184, 92, 66, 0.16)',
+        'sahel-glow': '0 10px 30px -5px rgba(28, 53, 46, 0.28)',
+        'sahel-deep': '0 16px 40px -12px rgba(21, 39, 34, 0.45)',
+        'sahel-card': '0 8px 24px -4px rgba(28, 53, 46, 0.20)',
+        'sand-glow': '0 8px 24px -4px rgba(213, 173, 114, 0.18)',
+        'warm-card': '0 4px 20px -2px rgba(37, 42, 41, 0.08), 0 2px 6px -1px rgba(184, 92, 66, 0.04)',
+        'warm-hover': '0 14px 36px -4px rgba(184, 92, 66, 0.20), 0 4px 14px -2px rgba(37, 42, 41, 0.10)',
       },
       borderRadius: {
         'xs': '0.125rem',

@@ -25,7 +25,7 @@ export const ProximiteBadge: React.FC<{ code: string; className?: string }> = ({
   const Icon = meta.icon;
   return (
     <span
-      className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-clay-50 border border-clay-200 text-xs font-medium text-sahel-800 ${className}`}
+      className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-sahel-50 border border-sahel-200 text-xs font-medium text-sahel-800 ${className}`}
     >
       <Icon className="w-3.5 h-3.5 text-sahel-600 shrink-0" />
       <span>{meta.label}</span>

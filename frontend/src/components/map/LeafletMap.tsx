@@ -1,10 +1,12 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
+import { Link, useLocation } from 'react-router-dom';
 import { MapContainer, TileLayer, Marker, Popup, useMap } from 'react-leaflet';
 import MarkerClusterGroup from 'react-leaflet-cluster';
+import { ArrowRight } from 'lucide-react';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import { AnnonceDTO } from '../../types';
-import { getPhotoUrl } from '../../services/api';
+import { PropertyVisual } from '../property/PropertyVisual';
 
 export interface LeafletMapProps {
   properties: AnnonceDTO[];
@@ -13,6 +15,7 @@ export interface LeafletMapProps {
   center?: [number, number];
   zoom?: number;
   className?: string;
+  showPopupAction?: boolean;
 }
 
 // Reactive controller component inside MapContainer to auto-pan and fit bounds
@@ -23,36 +26,92 @@ const MapController: React.FC<{
   defaultZoom: number;
 }> = ({ properties, selectedPropertyId, defaultCenter, defaultZoom }) => {
   const map = useMap();
+  const [layoutTick, setLayoutTick] = useState(0);
 
   useEffect(() => {
+    let isMounted = true;
+    const container = map.getContainer();
+    const isMapReady = () => isMounted && container.isConnected && Boolean(map.getPane('mapPane'));
+    let wasHidden = container.clientWidth === 0 || container.clientHeight === 0;
+    const rafId = requestAnimationFrame(() => {
+      if (isMapReady()) {
+        map.invalidateSize({ pan: false });
+      }
+    });
+
+    if (typeof ResizeObserver === 'undefined') {
+      return () => {
+        isMounted = false;
+        cancelAnimationFrame(rafId);
+      };
+    }
+
+    const observer = new ResizeObserver(() => {
+      if (!isMapReady()) return;
+      map.invalidateSize({ pan: false });
+      const isVisible = container.clientWidth > 0 && container.clientHeight > 0;
+      if (wasHidden && isVisible) {
+        wasHidden = false;
+        setLayoutTick((tick) => tick + 1);
+      } else if (!isVisible) {
+        wasHidden = true;
+      }
+    });
+    observer.observe(container);
+
+    return () => {
+      isMounted = false;
+      cancelAnimationFrame(rafId);
+      observer.disconnect();
+    };
+  }, [map]);
+
+  useEffect(() => {
+    const container = map.getContainer();
+    if (!container?.isConnected || !map.getPane('mapPane')) {
+      return;
+    }
+    map.invalidateSize({ pan: false });
+    const size = map.getSize();
+    // Leaflet flyTo/fitBounds throw Invalid LatLng (NaN, NaN) on 0x0 hidden containers
+    if (size.x <= 0 || size.y <= 0) {
+      return;
+    }
+
+    const validProperties = properties.filter(
+      (p) =>
+        typeof p.latitude === 'number' &&
+        typeof p.longitude === 'number' &&
+        Number.isFinite(p.latitude) &&
+        Number.isFinite(p.longitude)
+    );
+
     if (selectedPropertyId) {
-      const selected = properties.find((p) => p.id === selectedPropertyId);
-      if (selected && selected.latitude && selected.longitude) {
+      const selected = validProperties.find((p) => p.id === selectedPropertyId);
+      if (selected) {
         map.flyTo([selected.latitude, selected.longitude], 15, {
-          duration: 0.8,
+          duration: 0.6,
           easeLinearity: 0.25,
         });
       }
-    } else if (properties.length > 1) {
-      const validPoints = properties
-        .filter((p) => p.latitude && p.longitude)
-        .map((p) => [p.latitude, p.longitude] as [number, number]);
-      if (validPoints.length > 0) {
-        const bounds = L.latLngBounds(validPoints);
-        map.fitBounds(bounds, { padding: [40, 40], maxZoom: 15, animate: true, duration: 0.8 });
-      }
-    } else if (properties.length === 1 && properties[0].latitude && properties[0].longitude) {
-      map.flyTo([properties[0].latitude, properties[0].longitude], 14, {
-        duration: 0.8,
-        easeLinearity: 0.25,
-      });
+    } else if (validProperties.length > 1) {
+      const validPoints = validProperties.map((p) => [p.latitude, p.longitude] as [number, number]);
+      const bounds = L.latLngBounds(validPoints);
+      map.fitBounds(bounds, { padding: [40, 40], maxZoom: 15, animate: false });
+    } else if (validProperties.length === 1) {
+      map.setView([validProperties[0].latitude, validProperties[0].longitude], 14, { animate: false });
     } else {
-      map.flyTo(defaultCenter, defaultZoom, {
-        duration: 0.8,
-        easeLinearity: 0.25,
-      });
+      map.setView(defaultCenter, defaultZoom, { animate: false });
     }
-  }, [map, properties, selectedPropertyId, defaultCenter, defaultZoom]);
+
+    return () => {
+      try {
+        map.stop();
+      } catch {
+        // Ignore teardown race if Leaflet has already removed internal panes
+      }
+    };
+  }, [map, properties, selectedPropertyId, defaultCenter, defaultZoom, layoutTick]);
 
   return null;
 };
@@ -83,7 +142,9 @@ export const LeafletMap: React.FC<LeafletMapProps> = ({
   center = [14.6937, -17.4441], // Default Dakar
   zoom = 12,
   className = 'w-full h-full min-h-[300px]',
+  showPopupAction = true,
 }) => {
+  const location = useLocation();
   return (
     <div className={`w-full max-w-full overflow-hidden relative ${className}`}>
       <MapContainer
@@ -106,17 +167,25 @@ export const LeafletMap: React.FC<LeafletMapProps> = ({
           defaultZoom={zoom}
         />
 
-        <MarkerClusterGroup chunkedLoading maxClusterRadius={50}>
+        <MarkerClusterGroup maxClusterRadius={50}>
           {properties
-            .filter((p) => p.latitude && p.longitude)
+            .filter(
+              (p) =>
+                typeof p.latitude === 'number' &&
+                typeof p.longitude === 'number' &&
+                Number.isFinite(p.latitude) &&
+                Number.isFinite(p.longitude)
+            )
             .map((property) => {
               const isSelected = property.id === selectedPropertyId;
-              const photoUrl = property.photos && property.photos.length > 0 ? getPhotoUrl(property.photos[0].url) : getPhotoUrl();
               return (
                 <Marker
                   key={property.id}
                   position={[property.latitude, property.longitude]}
                   icon={createCustomIcon(property, isSelected)}
+                  title={property.titre}
+                  alt={`${property.titre} — ${property.prix.toLocaleString('fr-FR')} FCFA`}
+                  keyboard={true}
                   eventHandlers={{
                     click: () => {
                       if (onSelectProperty) onSelectProperty(property.id);
@@ -124,21 +193,45 @@ export const LeafletMap: React.FC<LeafletMapProps> = ({
                   }}
                 >
                   <Popup>
-                    <div className="p-1 max-w-[200px] font-body text-xs">
-                      <img
-                        src={photoUrl}
-                        alt={property.titre}
-                        className="w-full h-24 object-cover rounded-lg mb-2"
+                    <div
+                      className="p-1 w-[205px] max-w-[calc(100vw-5rem)] font-body text-xs"
+                      onClick={(e) => e.stopPropagation()}
+                      onMouseDown={(e) => e.stopPropagation()}
+                    >
+                      <PropertyVisual
+                        mode="thumbnail"
+                        rawUrl={property.photos?.[0]?.url}
+                        listingId={property.id}
+                        type={property.type}
+                        title={property.titre}
+                        quartier={property.quartier}
+                        className="w-full h-24 rounded-lg mb-2"
+                        showIllustrativeBadge={true}
+                        illustrativeBadgeCompact={true}
                       />
                       <div className="font-bold text-charcoal-900 line-clamp-1">
                         {property.titre}
                       </div>
                       <div className="text-terracotta-600 font-extrabold text-sm mt-1">
                         {property.prix.toLocaleString('fr-FR')} FCFA
+                        {property.modeTransaction === 'LOCATION' && (
+                          <span className="text-[11px] font-normal text-charcoal-500"> /mois</span>
+                        )}
                       </div>
-                      <div className="text-charcoal-500 text-[11px] mt-0.5">
-                        {property.quartier}, {property.ville}
+                      <div className="text-charcoal-500 text-[11px] mt-0.5 line-clamp-1">
+                        {property.quartier ? `${property.quartier}, ` : ''}{property.ville}
                       </div>
+                      {showPopupAction && location.pathname !== `/annonce/${property.id}` && (
+                        <Link
+                          to={`/annonce/${property.id}`}
+                          onClick={(e) => e.stopPropagation()}
+                          onMouseDown={(e) => e.stopPropagation()}
+                          className="mt-2.5 inline-flex w-full items-center justify-center gap-1.5 rounded-xl bg-terracotta-500 px-3 py-1.5 text-xs font-bold !text-white no-underline shadow-sm hover:bg-terracotta-600 focus:outline-none focus:ring-2 focus:ring-terracotta-500/40 transition-colors"
+                        >
+                          <span>Voir la fiche</span>
+                          <ArrowRight className="w-3.5 h-3.5 shrink-0" aria-hidden="true" />
+                        </Link>
+                      )}
                     </div>
                   </Popup>
                 </Marker>

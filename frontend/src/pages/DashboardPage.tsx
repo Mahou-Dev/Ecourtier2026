@@ -1,184 +1,262 @@
-import React, { useState } from 'react';
-import { 
-  Home, 
-  Calendar, 
-  Lock, 
-  Plus, 
-  Eye, 
-  LogOut,
-  ShieldCheck,
-  CheckCircle2,
-  Clock,
-  Building,
-  MessageSquare,
-  Pencil,
-  Trash2,
-  Smartphone
-} from 'lucide-react';
-import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { apiFetch, getPhotoUrl } from '../services/api';
-import { messagerieService } from '../services/messagerie.service';
-import { AnnonceDTO, PageResponse, RendezVousResponseDTO, TransactionResponseDTO } from '../types';
-import { useAuthStore } from '../store/useAuthStore';
-import { Button } from '../components/ui/Button';
-import { Badge } from '../components/ui/Badge';
-import { Card, CardBody } from '../components/ui/Card';
-import { Avatar } from '../components/ui/Avatar';
-import { Skeleton } from '../components/ui/Skeleton';
-import { Modal } from '../components/ui/Modal';
+import React, { useEffect, useMemo, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
+import { useQueryClient } from '@tanstack/react-query';
+import {
+  Building2,
+  CalendarCheck,
+  CalendarClock,
+  Lock,
+  LogOut,
+  Mail,
+  Plus,
+  ShieldCheck,
+} from 'lucide-react';
+import { useAuthStore } from '../store/useAuthStore';
+import { getRoleLabel } from '../lib/roleLabels';
+import {
+  canManageListings,
+  canManageVisit,
+  canPublishListings,
+  countOwnPendingRequests,
+  countPendingRequestsToProcess,
+  countUpcomingConfirmedVisits,
+  isTransactionOpen,
+  resolveDashboardTab,
+  type DashboardTabId,
+} from '../lib/dashboardModel';
+import {
+  useMyAnnoncesCount,
+  useMyTransactions,
+  useMyVisites,
+  useUnreadMessagesCount,
+} from '../hooks/useDashboardData';
+import type { TransactionResponseDTO } from '../types';
+import { Avatar } from '../components/ui/Avatar';
+import { Button } from '../components/ui/Button';
 import { CreateAnnonceModal } from '../components/dashboard/CreateAnnonceModal';
-import { EditAnnonceModal } from '../components/dashboard/EditAnnonceModal';
-import { SmsSimulesTab } from '../components/dashboard/SmsSimulesTab';
 import { TransactionDetailsModal } from '../components/transaction/TransactionDetailsModal';
 import { ConversationsTab } from '../components/messagerie/ConversationsTab';
-import { toast } from 'sonner';
-import { getErrorMessage } from '../lib/errors';
+import { SmsSimulesTab } from '../components/dashboard/SmsSimulesTab';
+import {
+  DASHBOARD_TAB_ICONS,
+  DashboardNav,
+  type DashboardNavItem,
+} from '../components/dashboard/DashboardNav';
+import { DashboardSummary, type DashboardMetric } from '../components/dashboard/DashboardSummary';
+import { AnnoncesTab } from '../components/dashboard/AnnoncesTab';
+import { VisitesTab } from '../components/dashboard/VisitesTab';
+import { TransactionsTab } from '../components/dashboard/TransactionsTab';
 
 export const DashboardPage: React.FC = () => {
   const navigate = useNavigate();
-  const [searchParams] = useSearchParams();
+  const [searchParams, setSearchParams] = useSearchParams();
   const queryClient = useQueryClient();
   const { utilisateur, logout } = useAuthStore();
-  const [activeTab, setActiveTab] = useState<'ANNONCES' | 'VISITES' | 'SEQUESTRES' | 'MESSAGES' | 'SMS'>(() => {
-    const t = searchParams.get('tab');
-    if (t === 'messages') return 'MESSAGES';
-    if (t === 'sms') return 'SMS';
-    if (t === 'visites') return 'VISITES';
-    if (t === 'sequestres') return 'SEQUESTRES';
-    return utilisateur?.role === 'LOCATAIRE' ? 'VISITES' : 'ANNONCES';
-  });
 
-  React.useEffect(() => {
-    let cancelled = false;
-    const t = searchParams.get('tab');
-    if (t === 'messages' || t === 'sms' || t === 'visites' || t === 'sequestres') {
-      void Promise.resolve().then(() => {
-        if (!cancelled) {
-          setActiveTab(
-            t === 'messages'
-              ? 'MESSAGES'
-              : t === 'sms'
-                ? 'SMS'
-                : t === 'visites'
-                  ? 'VISITES'
-                  : 'SEQUESTRES'
-          );
-        }
-      });
+  const isStaff = canManageListings(utilisateur?.role);
+  const canPublish = canPublishListings(utilisateur?.role);
+
+  // 1. Résolution stricte et synchronisation de l'onglet actif avec l'URL
+  const rawTab = searchParams.get('tab');
+  const { tab: activeTab, needsNormalization } = useMemo(
+    () => resolveDashboardTab(rawTab, utilisateur?.role),
+    [rawTab, utilisateur?.role]
+  );
+
+  useEffect(() => {
+    if (needsNormalization && utilisateur) {
+      const next = new URLSearchParams(searchParams);
+      next.set('tab', activeTab);
+      setSearchParams(next, { replace: true });
     }
-    return () => {
-      cancelled = true;
-    };
-  }, [searchParams]);
+  }, [needsNormalization, activeTab, searchParams, setSearchParams, utilisateur]);
+
+  const handleSelectTab = (newTab: DashboardTabId) => {
+    const next = new URLSearchParams(searchParams);
+    next.set('tab', newTab);
+    setSearchParams(next);
+  };
+
+  // 2. Modales de gestion
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
-  const [annonceEnEdition, setAnnonceEnEdition] = useState<AnnonceDTO | null>(null);
-  const [annonceASupprimer, setAnnonceASupprimer] = useState<AnnonceDTO | null>(null);
-  const [isDeleting, setIsDeleting] = useState(false);
   const [selectedTransaction, setSelectedTransaction] = useState<TransactionResponseDTO | null>(null);
   const [isTxModalOpen, setIsTxModalOpen] = useState(false);
-  const [actionLoadingId, setActionLoadingId] = useState<string | null>(null);
 
-  const handleConfirmSuppression = async () => {
-    if (!annonceASupprimer) return;
-    setIsDeleting(true);
-    try {
-      await apiFetch(`/api/v1/annonces/${annonceASupprimer.id}`, { method: 'DELETE' });
-      toast.success('Annonce supprimée avec succès');
-      setAnnonceASupprimer(null);
-      queryClient.invalidateQueries({ queryKey: ['my-annonces'] });
-    } catch (err: unknown) {
-      toast.error(getErrorMessage(err, "Erreur lors de la suppression de l'annonce"));
-    } finally {
-      setIsDeleting(false);
-    }
-  };
+  // 3. Données métier réelles — chargement conditionnel par rôle
+  // Pour un LOCATAIRE, useMyAnnoncesCount est désactivé (enabled: false)
+  const { data: annoncesCount, isLoading: isLoadingAnnoncesCount } = useMyAnnoncesCount(
+    {},
+    Boolean(utilisateur && isStaff)
+  );
 
-  // Redirect to login if unauthenticated
-  React.useEffect(() => {
-    if (!utilisateur) {
-      navigate('/connexion');
-    }
-  }, [utilisateur, navigate]);
+  const {
+    data: visitsData,
+    isLoading: isLoadingVisits,
+    isError: isVisitsError,
+    isRefetching: isVisitsRefetching,
+    refetch: refetchVisites,
+  } = useMyVisites(Boolean(utilisateur));
 
-  // 1. Fetch user listings
-  const { data: annoncesData, isLoading: isLoadingAnnonces } = useQuery<PageResponse<AnnonceDTO>>({
-    queryKey: ['my-annonces'],
-    queryFn: () => apiFetch<PageResponse<AnnonceDTO>>('/api/v1/annonces?mes_annonces=true&page=0&size=50'),
-    enabled: !!utilisateur,
-  });
+  const {
+    data: transactionsData,
+    isLoading: isLoadingTransactions,
+    isError: isTxError,
+    isRefetching: isTxRefetching,
+    refetch: refetchTransactions,
+  } = useMyTransactions(Boolean(utilisateur));
 
-  // 2. Fetch user visits
-  const { data: visitsData, isLoading: isLoadingVisits } = useQuery<RendezVousResponseDTO[]>({
-    queryKey: ['my-visites'],
-    queryFn: () => apiFetch<RendezVousResponseDTO[]>('/api/v1/rendez-vous/mes-rendez-vous'),
-    enabled: !!utilisateur,
-  });
+  const { data: unreadCountData } = useUnreadMessagesCount(Boolean(utilisateur));
 
-  // 3. Fetch user transactions
-  const { data: transactionsData, isLoading: isLoadingTransactions } = useQuery<TransactionResponseDTO[]>({
-    queryKey: ['my-transactions'],
-    queryFn: () => apiFetch<TransactionResponseDTO[]>('/api/v1/transactions/mes-transactions'),
-    enabled: !!utilisateur,
-  });
+  const visitsList = useMemo(() => visitsData ?? [], [visitsData]);
+  const transactionsList = useMemo(() => transactionsData ?? [], [transactionsData]);
+  const unreadCount = typeof unreadCountData === 'number' ? unreadCountData : 0;
 
-  // 4. Fetch unread messages count
-  const { data: unreadCountData } = useQuery({
-    queryKey: ['messages-unread-count'],
-    queryFn: () => messagerieService.compterMessagesNonLus(),
-    enabled: !!utilisateur,
-    refetchInterval: 10000,
-  });
+  // Calcul réel des demandes à traiter par annonce
+  const pendingRequestsByAnnonce = useMemo(() => {
+    if (!utilisateur || !isStaff) return {};
+    const map: Record<string, number> = {};
+    visitsList.forEach((v) => {
+      if (v.statut === 'DEMANDE' && canManageVisit(v, utilisateur)) {
+        map[v.annonceId] = (map[v.annonceId] ?? 0) + 1;
+      }
+    });
+    return map;
+  }, [visitsList, utilisateur, isStaff]);
 
-  const annoncesList = annoncesData?.content || [];
-  const visitsList = visitsData || [];
-  const transactionsList = transactionsData || [];
-  const unreadCount = unreadCountData || 0;
-
-  // Action Handlers for Visits
-  const handleConfirmVisit = async (visitId: string) => {
-    setActionLoadingId(visitId);
-    try {
-      await apiFetch<RendezVousResponseDTO>(`/api/v1/rendez-vous/${visitId}/confirmer`, { method: 'PUT' });
-      toast.success('Rendez-vous confirmé avec succès !');
-      queryClient.invalidateQueries({ queryKey: ['my-visites'] });
-    } catch (err: unknown) {
-      toast.error(getErrorMessage(err, 'Échec de la confirmation du rendez-vous'));
-    } finally {
-      setActionLoadingId(null);
-    }
-  };
-
-  const handleCancelVisit = async (visitId: string) => {
-    setActionLoadingId(visitId);
-    try {
-      await apiFetch<RendezVousResponseDTO>(`/api/v1/rendez-vous/${visitId}/annuler`, {
-        method: 'PUT',
-        body: JSON.stringify({ motif: 'Annulé depuis le tableau de bord' }),
+  // 4. Configuration de la navigation selon le rôle
+  const navItems = useMemo<DashboardNavItem[]>(() => {
+    const items: DashboardNavItem[] = [];
+    if (isStaff) {
+      items.push({
+        id: 'annonces',
+        label: utilisateur?.role === 'AGENT' ? 'Mon Portefeuille' : 'Mes Annonces',
+        icon: DASHBOARD_TAB_ICONS.annonces,
+        count: annoncesCount ?? null,
       });
-      toast.success('Rendez-vous annulé.');
-      queryClient.invalidateQueries({ queryKey: ['my-visites'] });
-    } catch (err: unknown) {
-      toast.error(getErrorMessage(err, "Échec de l'annulation"));
-    } finally {
-      setActionLoadingId(null);
     }
-  };
+    items.push(
+      {
+        id: 'visites',
+        label: utilisateur?.role === 'LOCATAIRE' ? 'Mes Visites' : 'Agenda Visites',
+        icon: DASHBOARD_TAB_ICONS.visites,
+        count: visitsList.length,
+      },
+      {
+        id: 'transactions',
+        label: 'Suivi Transactions',
+        icon: DASHBOARD_TAB_ICONS.transactions,
+        count: transactionsList.length,
+      },
+      {
+        id: 'messages',
+        label: 'Messagerie',
+        icon: DASHBOARD_TAB_ICONS.messages,
+        count: unreadCount,
+        alert: unreadCount > 0,
+      },
+      {
+        id: 'sms',
+        label: 'SMS simulés',
+        icon: DASHBOARD_TAB_ICONS.sms,
+      }
+    );
+    return items;
+  }, [isStaff, utilisateur?.role, annoncesCount, visitsList.length, transactionsList.length, unreadCount]);
 
-  const handleMarkEffectueVisit = async (visitId: string) => {
-    setActionLoadingId(visitId);
-    try {
-      await apiFetch<RendezVousResponseDTO>(`/api/v1/rendez-vous/${visitId}/marquer-effectue`, { method: 'PUT' });
-      toast.success('Rendez-vous marqué comme EFFECTUÉ !');
-      queryClient.invalidateQueries({ queryKey: ['my-visites'] });
-    } catch (err: unknown) {
-      toast.error(getErrorMessage(err, 'Échec du changement de statut'));
-    } finally {
-      setActionLoadingId(null);
+  // 5. Indicateurs synthétiques strictement calculés sur les données réelles
+  const summaryMetrics = useMemo<DashboardMetric[]>(() => {
+    if (!utilisateur) return [];
+    const openTxCount = transactionsList.filter(isTransactionOpen).length;
+
+    if (utilisateur.role === 'LOCATAIRE') {
+      const upcoming = countUpcomingConfirmedVisits(visitsList);
+      const pending = countOwnPendingRequests(visitsList, utilisateur);
+      return [
+        {
+          id: 'loc-visites-confirmees',
+          label: 'Visites confirmées',
+          value: isLoadingVisits ? undefined : upcoming,
+          hint: upcoming > 0 ? 'À venir' : 'Aucune visite prévue',
+          icon: CalendarCheck,
+          tab: 'visites',
+        },
+        {
+          id: 'loc-demandes-attente',
+          label: 'Demandes en attente',
+          value: isLoadingVisits ? undefined : pending,
+          hint: pending > 0 ? 'En cours de réponse' : 'Toutes traitées',
+          icon: CalendarClock,
+          tab: 'visites',
+        },
+        {
+          id: 'loc-transactions',
+          label: 'Dossiers en cours',
+          value: isLoadingTransactions ? undefined : openTxCount,
+          hint: openTxCount > 0 ? 'Séquestre / bail' : 'Aucun dossier',
+          icon: Lock,
+          tab: 'transactions',
+        },
+        {
+          id: 'loc-messages',
+          label: 'Messages non lus',
+          value: unreadCount,
+          icon: Mail,
+          tab: 'messages',
+          tone: unreadCount > 0 ? 'attention' : 'default',
+        },
+      ];
     }
-  };
 
-  const openTransactionModal = (tx: TransactionResponseDTO) => {
+    // PROPRIETAIRE & AGENT
+    const toProcess = countPendingRequestsToProcess(visitsList, utilisateur);
+    const isAgent = utilisateur.role === 'AGENT';
+
+    return [
+      {
+        id: 'prop-annonces',
+        label: isAgent ? 'Biens en gestion' : 'Annonces enregistrées',
+        value: isLoadingAnnoncesCount ? undefined : annoncesCount,
+        icon: Building2,
+        tab: 'annonces',
+      },
+      {
+        id: 'prop-demandes',
+        label: 'Demandes à traiter',
+        value: isLoadingVisits ? undefined : toProcess,
+        hint: toProcess > 0 ? 'Réponse attendue' : 'À jour',
+        icon: CalendarClock,
+        tab: 'visites',
+        tone: toProcess > 0 ? 'attention' : 'default',
+      },
+      {
+        id: 'prop-transactions',
+        label: 'Dossiers actifs',
+        value: isLoadingTransactions ? undefined : openTxCount,
+        hint: openTxCount > 0 ? 'Sous séquestre' : 'Aucun dossier',
+        icon: Lock,
+        tab: 'transactions',
+      },
+      {
+        id: 'prop-messages',
+        label: 'Messages non lus',
+        value: unreadCount,
+        icon: Mail,
+        tab: 'messages',
+        tone: unreadCount > 0 ? 'attention' : 'default',
+      },
+    ];
+  }, [
+    utilisateur,
+    visitsList,
+    transactionsList,
+    annoncesCount,
+    unreadCount,
+    isLoadingVisits,
+    isLoadingTransactions,
+    isLoadingAnnoncesCount,
+  ]);
+
+  const handleOpenTransaction = (tx: TransactionResponseDTO) => {
     setSelectedTransaction(tx);
     setIsTxModalOpen(true);
   };
@@ -191,508 +269,183 @@ export const DashboardPage: React.FC = () => {
   if (!utilisateur) return null;
 
   return (
-    <div className="min-h-[calc(100vh-80px)] flex flex-col md:flex-row bg-sand-100">
-      
-      {/* SIDEBAR NAVIGATION */}
-      <aside className="w-full md:w-64 bg-sahel-900 text-white shrink-0 border-r border-sahel-800 p-4 space-y-6 flex flex-col justify-between">
-        <div className="space-y-6">
-          {/* User profile snippet */}
-          <div className="flex items-center gap-3 p-3 rounded-2xl bg-sahel-800 border border-sahel-700">
+    <div className="min-h-[calc(100vh-80px)] flex flex-col lg:flex-row bg-sand-100">
+      {/* BARRE SUPÉRIEURE TABLETTE ET MOBILE (< 1024px) */}
+      <header className="lg:hidden bg-sahel-900 text-white border-b border-sahel-800 px-3.5 py-3 space-y-3 shrink-0">
+        <div className="flex items-center justify-between gap-3">
+          <div className="flex items-center gap-2.5 min-w-0">
             <Avatar
-              src={utilisateur?.photoProfilUrl}
-              name={utilisateur ? `${utilisateur.prenom} ${utilisateur.nom}` : 'Utilisateur'}
-              size="md"
-              isVerified
+              src={utilisateur.photoProfilUrl}
+              name={`${utilisateur.prenom} ${utilisateur.nom}`}
+              size="sm"
             />
             <div className="min-w-0">
-              <h3 className="font-display font-bold text-sm text-white truncate">{utilisateur?.prenom} {utilisateur?.nom}</h3>
-              <p className="text-[11px] text-ocher-300 font-semibold">{utilisateur?.role}</p>
+              <h2 className="font-display font-bold text-xs sm:text-sm text-white truncate">
+                {utilisateur.prenom} {utilisateur.nom}
+              </h2>
+              <p className="text-[10px] sm:text-[11px] text-ocher-300 font-semibold truncate">
+                {getRoleLabel(utilisateur.role)}
+              </p>
             </div>
           </div>
 
-          {/* Admin Moderation Button shortcut */}
+          <div className="flex items-center gap-1.5 shrink-0">
+            {canPublish && (
+              <Button
+                variant="primary"
+                size="sm"
+                onClick={() => setIsCreateModalOpen(true)}
+                className="min-h-[38px] text-[11px] px-2.5 py-1"
+                leftIcon={<Plus className="w-3.5 h-3.5" aria-hidden="true" />}
+              >
+                <span>Créer</span>
+              </Button>
+            )}
+            {utilisateur.role === 'ADMIN' && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => navigate('/admin/verification')}
+                className="border-ocher-500 text-ocher-300 hover:bg-sahel-800 text-[11px] px-2 py-1 min-h-[38px]"
+                leftIcon={<ShieldCheck className="w-3.5 h-3.5 text-ocher-400" aria-hidden="true" />}
+              >
+                <span>Modération</span>
+              </Button>
+            )}
+            <button
+              type="button"
+              onClick={handleLogout}
+              title="Déconnexion"
+              aria-label="Déconnexion"
+              className="min-h-[38px] min-w-[38px] p-2 rounded-xl text-rose-300 hover:bg-rose-950/40 transition-colors flex items-center justify-center focus:outline-none focus:ring-2 focus:ring-rose-400"
+            >
+              <LogOut className="w-4 h-4" aria-hidden="true" />
+            </button>
+          </div>
+        </div>
+
+        <DashboardNav items={navItems} activeTab={activeTab} onSelect={handleSelectTab} />
+      </header>
+
+      {/* PANNEAU LATÉRAL DESKTOP (>= 1024px) */}
+      <aside
+        aria-label="Navigation principale du tableau de bord"
+        className="hidden lg:flex lg:w-72 bg-sahel-900 text-white shrink-0 border-r border-sahel-800 p-5 flex-col justify-between"
+      >
+        <div className="space-y-6">
+          {/* Fiche d'identité utilisateur */}
+          <div className="flex items-center gap-3 p-3.5 rounded-2xl bg-sahel-800/90 border border-sahel-700">
+            <Avatar
+              src={utilisateur.photoProfilUrl}
+              name={`${utilisateur.prenom} ${utilisateur.nom}`}
+              size="md"
+            />
+            <div className="min-w-0 flex-1">
+              <h2 className="font-display font-bold text-sm text-white truncate">
+                {utilisateur.prenom} {utilisateur.nom}
+              </h2>
+              <p className="text-[11px] text-ocher-300 font-semibold truncate">{getRoleLabel(utilisateur.role)}</p>
+            </div>
+          </div>
+
+          {/* Raccourci d'action rapide selon le rôle */}
+          {canPublish && (
+            <Button
+              variant="primary"
+              size="sm"
+              onClick={() => setIsCreateModalOpen(true)}
+              className="w-full min-h-[44px] text-xs flex items-center justify-center gap-2"
+              leftIcon={<Plus className="w-4 h-4" aria-hidden="true" />}
+            >
+              <span>Créer une annonce</span>
+            </Button>
+          )}
+
           {utilisateur.role === 'ADMIN' && (
             <Button
               variant="outline"
               size="sm"
               onClick={() => navigate('/admin/verification')}
-              className="w-full border-ocher-500 text-ocher-300 hover:bg-sahel-800 text-xs flex items-center justify-center gap-2"
+              className="w-full min-h-[44px] border-ocher-500 text-ocher-300 hover:bg-sahel-800 text-xs flex items-center justify-center gap-2"
+              leftIcon={<ShieldCheck className="w-4 h-4 text-ocher-400" aria-hidden="true" />}
             >
-              <ShieldCheck className="w-4 h-4 text-ocher-400" />
               <span>Modération Annonces</span>
             </Button>
           )}
 
-          {/* Sidebar Nav Items */}
-          <nav className="space-y-1">
-            {(utilisateur.role === 'PROPRIETAIRE' || utilisateur.role === 'AGENT' || utilisateur.role === 'ADMIN') && (
-              <button
-                onClick={() => setActiveTab('ANNONCES')}
-                className={`w-full flex items-center justify-between px-4 py-3 rounded-xl text-xs font-semibold transition-colors ${
-                  activeTab === 'ANNONCES' ? 'bg-terracotta-500 text-white shadow-terracotta-glow' : 'text-sahel-200 hover:bg-sahel-800'
-                }`}
-              >
-                <div className="flex items-center gap-2.5">
-                  <Home className="w-4 h-4" />
-                  <span>Mes Annonces</span>
-                </div>
-                <Badge variant="neutral" className="bg-sahel-800 text-white border-0 text-[10px]">
-                  {annoncesList.length}
-                </Badge>
-              </button>
-            )}
-
-            <button
-              onClick={() => setActiveTab('VISITES')}
-              className={`w-full flex items-center justify-between px-4 py-3 rounded-xl text-xs font-semibold transition-colors ${
-                activeTab === 'VISITES' ? 'bg-terracotta-500 text-white shadow-terracotta-glow' : 'text-sahel-200 hover:bg-sahel-800'
-              }`}
-            >
-              <div className="flex items-center gap-2.5">
-                <Calendar className="w-4 h-4" />
-                <span>Agenda Visites</span>
-              </div>
-              <Badge variant="neutral" className="bg-sahel-800 text-white border-0 text-[10px]">
-                {visitsList.length}
-              </Badge>
-            </button>
-
-            <button
-              onClick={() => setActiveTab('SEQUESTRES')}
-              className={`w-full flex items-center justify-between px-4 py-3 rounded-xl text-xs font-semibold transition-colors ${
-                activeTab === 'SEQUESTRES' ? 'bg-terracotta-500 text-white shadow-terracotta-glow' : 'text-sahel-200 hover:bg-sahel-800'
-              }`}
-            >
-              <div className="flex items-center gap-2.5">
-                <Lock className="w-4 h-4" />
-                <span>Suivi Transactions</span>
-              </div>
-              <Badge variant="neutral" className="bg-sahel-800 text-white border-0 text-[10px]">
-                {transactionsList.length}
-              </Badge>
-            </button>
-
-            <button
-              onClick={() => setActiveTab('MESSAGES')}
-              className={`w-full flex items-center justify-between px-4 py-3 rounded-xl text-xs font-semibold transition-colors ${
-                activeTab === 'MESSAGES' ? 'bg-terracotta-500 text-white shadow-terracotta-glow' : 'text-sahel-200 hover:bg-sahel-800'
-              }`}
-            >
-              <div className="flex items-center gap-2.5">
-                <MessageSquare className="w-4 h-4 text-amber-400" />
-                <span>Messagerie</span>
-              </div>
-              {unreadCount > 0 && (
-                <Badge variant="neutral" className="bg-amber-500 text-white border-0 text-[10px] font-bold">
-                  {unreadCount}
-                </Badge>
-              )}
-            </button>
-
-            <button
-              onClick={() => setActiveTab('SMS')}
-              className={`w-full flex items-center justify-between px-4 py-3 rounded-xl text-xs font-semibold transition-colors ${
-                activeTab === 'SMS' ? 'bg-terracotta-500 text-white shadow-terracotta-glow' : 'text-sahel-200 hover:bg-sahel-800'
-              }`}
-            >
-              <div className="flex items-center gap-2.5">
-                <Smartphone className="w-4 h-4 text-emerald-400" />
-                <span>SMS simulés</span>
-              </div>
-            </button>
-          </nav>
+          <DashboardNav items={navItems} activeTab={activeTab} onSelect={handleSelectTab} />
         </div>
 
-        {/* Logout Button */}
+        {/* Bouton de déconnexion */}
         <button
+          type="button"
           onClick={handleLogout}
-          className="w-full flex items-center gap-2 px-4 py-3 rounded-xl text-xs font-semibold text-rose-300 hover:bg-rose-950/40 transition-colors"
+          className="w-full min-h-[44px] flex items-center gap-2.5 px-4 py-2.5 rounded-xl text-xs font-semibold text-rose-300 hover:bg-rose-950/40 transition-colors focus:outline-none focus:ring-2 focus:ring-rose-400"
         >
-          <LogOut className="w-4 h-4" />
+          <LogOut className="w-4 h-4 shrink-0" aria-hidden="true" />
           <span>Déconnexion</span>
         </button>
       </aside>
 
-      {/* MAIN DASHBOARD CONTENT */}
-      <main className="flex-1 p-6 md:p-8 space-y-6 overflow-y-auto">
-        
-        {/* TAB 1: MES ANNONCES */}
-        {activeTab === 'ANNONCES' && (
-          <div className="space-y-6">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-              <div>
-                <h1 className="font-display font-bold text-2xl text-sahel-900">Mes Annonces Immobilières</h1>
-                <p className="text-xs text-sahel-600">Gérez vos propriétés, vérifiez le statut de publication et contrôlez vos annonces.</p>
-              </div>
-              {(utilisateur.role === 'PROPRIETAIRE' || utilisateur.role === 'AGENT') && (
-                <Button
-                  variant="primary"
-                  onClick={() => setIsCreateModalOpen(true)}
-                  className="flex items-center gap-2 shrink-0"
-                >
-                  <Plus className="w-4 h-4" />
-                  <span>Créer une annonce</span>
-                </Button>
-              )}
-            </div>
+      {/* ZONE CENTRALE DE CONTENU */}
+      <main
+        tabIndex={-1}
+        className="flex-1 min-w-0 p-4 sm:p-6 lg:p-8 space-y-6 overflow-y-auto outline-none"
+      >
+        {/* Résumé des indicateurs métier */}
+        <DashboardSummary metrics={summaryMetrics} onSelectTab={handleSelectTab} />
 
-            {isLoadingAnnonces ? (
-              <div className="space-y-4">
-                <Skeleton variant="card" className="h-24" />
-                <Skeleton variant="card" className="h-24" />
-              </div>
-            ) : annoncesList.length === 0 ? (
-              <Card className="p-12 text-center space-y-4 border border-sand-300 bg-sand-50">
-                <Building className="w-12 h-12 text-sahel-400 mx-auto" />
-                <h3 className="font-display font-bold text-lg text-sahel-900">Aucune annonce enregistrée</h3>
-                <p className="text-xs text-sahel-600 max-w-md mx-auto">
-                  Vous n'avez pas encore publié de propriété. Déposez votre premier bien pour recevoir des demandes de visite.
-                </p>
-                {(utilisateur.role === 'PROPRIETAIRE' || utilisateur.role === 'AGENT') && (
-                  <Button variant="primary" onClick={() => setIsCreateModalOpen(true)} className="inline-flex items-center gap-2">
-                    <Plus className="w-4 h-4" /> Publier un bien
-                  </Button>
-                )}
-              </Card>
-            ) : (
-              <div className="grid grid-cols-1 gap-4">
-                {annoncesList.map((item) => (
-                  <Card key={item.id} className="overflow-hidden border border-sand-300 hover:shadow-warm-hover transition-all">
-                    <CardBody className="p-4 sm:p-5">
-                      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-                        <div className="flex items-center gap-4">
-                          <img
-                            src={getPhotoUrl(item.photos?.[0]?.url)}
-                            alt={item.titre}
-                            className="w-16 h-16 rounded-xl object-cover bg-sand-200 shrink-0"
-                          />
-                          <div>
-                            <h3 className="font-display font-bold text-sm text-sahel-900">{item.titre}</h3>
-                            <p className="text-xs text-sahel-600">
-                              {item.ville} ({item.quartier}) • <strong className="text-terracotta-700">{item.prix.toLocaleString('fr-FR')} FCFA</strong>
-                            </p>
-                            <div className="flex flex-wrap items-center gap-2 mt-2">
-                              {item.statutPublication === 'DISPONIBLE' && <Badge variant="success">Publication: Disponible</Badge>}
-                              {item.statutPublication === 'RESERVEE' && <Badge variant="info">Publication: Réservée</Badge>}
-                              {item.statutPublication === 'LOUEE' && <Badge variant="neutral">Publication: Louée</Badge>}
-                              {item.statutPublication === 'VENDUE' && <Badge variant="neutral">Publication: Vendue</Badge>}
-                              {item.statutPublication === 'SUSPENDUE' && <Badge variant="rose">Publication: Suspendue</Badge>}
-
-                              {item.statutVerification === 'VERIFIEE' && (
-                                <Badge variant="success" className="flex items-center gap-1">
-                                  <ShieldCheck className="w-3 h-3 text-emerald-600" />
-                                  <span>Cadastre Vérifié</span>
-                                </Badge>
-                              )}
-                              {item.statutVerification === 'EN_ATTENTE' && (
-                                <Badge variant="warning" className="flex items-center gap-1">
-                                  <Clock className="w-3 h-3 text-amber-600" />
-                                  <span>Vérification en cours</span>
-                                </Badge>
-                              )}
-                              {item.statutVerification === 'REJETEE' && <Badge variant="rose">Vérification Rejetée</Badge>}
-                            </div>
-                          </div>
-                        </div>
-
-                        <div className="flex items-center gap-2 w-full sm:w-auto justify-end border-t sm:border-t-0 pt-3 sm:pt-0 border-sand-200">
-                          {(utilisateur.role === 'ADMIN' || utilisateur.id === item.auteur?.id) && (
-                            <>
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                onClick={() => setAnnonceEnEdition(item)}
-                                className="text-xs flex items-center gap-1.5 text-sahel-700 hover:bg-sand-200"
-                              >
-                                <Pencil className="w-3.5 h-3.5 text-terracotta-600" />
-                                <span>Modifier</span>
-                              </Button>
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                onClick={() => setAnnonceASupprimer(item)}
-                                className="text-xs flex items-center gap-1.5 text-rose-600 hover:bg-rose-50"
-                              >
-                                <Trash2 className="w-3.5 h-3.5 text-rose-600" />
-                                <span>Supprimer</span>
-                              </Button>
-                            </>
-                          )}
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => navigate(`/annonce/${item.id}`)}
-                            className="text-xs flex items-center gap-1.5"
-                          >
-                            <Eye className="w-4 h-4 text-sahel-600" />
-                            <span>Consulter</span>
-                          </Button>
-                        </div>
-                      </div>
-                    </CardBody>
-                  </Card>
-                ))}
-              </div>
-            )}
-          </div>
+        {/* CONTENU DE L'ONGLET ACTIF */}
+        {activeTab === 'annonces' && isStaff && (
+          <AnnoncesTab
+            utilisateur={utilisateur}
+            pendingRequestsByAnnonce={pendingRequestsByAnnonce}
+            onCreate={() => setIsCreateModalOpen(true)}
+          />
         )}
 
-        {/* TAB 2: AGENDA DES VISITES */}
-        {activeTab === 'VISITES' && (
-          <div className="space-y-6">
-            <div>
-              <h1 className="font-display font-bold text-2xl text-sahel-900">Agenda des Visites</h1>
-              <p className="text-xs text-sahel-600">Suivez et gérez les demandes de rendez-vous de visite programmées sur vos biens.</p>
-            </div>
-
-            {isLoadingVisits ? (
-              <Skeleton variant="card" className="h-32" />
-            ) : visitsList.length === 0 ? (
-              <Card className="p-12 text-center space-y-4 border border-sand-300 bg-sand-50">
-                <Calendar className="w-12 h-12 text-sahel-400 mx-auto" />
-                <h3 className="font-display font-bold text-lg text-sahel-900">Aucun rendez-vous prévu</h3>
-                <p className="text-xs text-sahel-600 max-w-md mx-auto">
-                  Vos demandes de visite apparaîtront ici au fur et à mesure des réservations des utilisateurs.
-                </p>
-              </Card>
-            ) : (
-              <div className="space-y-4">
-                {visitsList.map((rdv) => (
-                  <Card key={rdv.id} className="overflow-hidden border border-sand-300">
-                    <CardBody className="p-5">
-                      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-                        <div className="space-y-1">
-                          <div className="flex items-center gap-2">
-                            <Building className="w-4 h-4 text-terracotta-500 shrink-0" />
-                            <h3 className="font-display font-bold text-sm text-sahel-900">{rdv.annonceTitre}</h3>
-                          </div>
-                          <p className="text-xs text-sahel-600">
-                            Demandeur : <strong className="text-sahel-900">{rdv.demandeurNomComplet}</strong> ({rdv.demandeurEmail})
-                          </p>
-                          <p className="text-xs text-terracotta-700 font-semibold flex items-center gap-1">
-                            <Clock className="w-3.5 h-3.5" />
-                            {new Date(rdv.dateHeure).toLocaleString('fr-FR', {
-                              dateStyle: 'full',
-                              timeStyle: 'short',
-                            })}
-                          </p>
-                        </div>
-
-                        <div className="flex flex-wrap items-center gap-3">
-                          {rdv.statut === 'DEMANDE' && <Badge variant="warning">Demandé</Badge>}
-                          {rdv.statut === 'CONFIRME' && <Badge variant="info">Confirmé</Badge>}
-                          {rdv.statut === 'ANNULE' && <Badge variant="rose">Annulé</Badge>}
-                          {rdv.statut === 'EFFECTUE' && <Badge variant="success">Visite Effectuée</Badge>}
-
-                          {/* Actions depending on role and status */}
-                          <div className="flex items-center gap-2">
-                            {(() => {
-                              const isVisitOwner =
-                                (utilisateur.role === 'PROPRIETAIRE' ||
-                                  utilisateur.role === 'AGENT' ||
-                                  utilisateur.role === 'ADMIN') &&
-                                rdv.demandeurEmail !== utilisateur.email;
-                              return (
-                                <>
-                                  {rdv.statut === 'DEMANDE' && isVisitOwner && (
-                                    <Button
-                                      variant="primary"
-                                      size="sm"
-                                      isLoading={actionLoadingId === rdv.id}
-                                      onClick={() => handleConfirmVisit(rdv.id)}
-                                    >
-                                      Confirmer
-                                    </Button>
-                                  )}
-
-                                  {rdv.statut === 'CONFIRME' && isVisitOwner && (
-                                    <Button
-                                      variant="outline"
-                                      size="sm"
-                                      className="border-emerald-600 text-emerald-700 hover:bg-emerald-50"
-                                      isLoading={actionLoadingId === rdv.id}
-                                      onClick={() => handleMarkEffectueVisit(rdv.id)}
-                                    >
-                                      <CheckCircle2 className="w-3.5 h-3.5 mr-1" />
-                                      Marquer effectué
-                                    </Button>
-                                  )}
-
-                                  {(rdv.statut === 'DEMANDE' || rdv.statut === 'CONFIRME') && (
-                                    <Button
-                                      variant="ghost"
-                                      size="sm"
-                                      className="text-rose-600 hover:bg-rose-50"
-                                      isLoading={actionLoadingId === rdv.id}
-                                      onClick={() => handleCancelVisit(rdv.id)}
-                                    >
-                                      Annuler
-                                    </Button>
-                                  )}
-                                </>
-                              );
-                            })()}
-
-                            {rdv.statut === 'EFFECTUE' && utilisateur.role === 'LOCATAIRE' && (
-                              <Button
-                                variant="primary"
-                                size="sm"
-                                onClick={() => navigate(`/annonce/${rdv.annonceId}`)}
-                              >
-                                Initier location / achat
-                              </Button>
-                            )}
-                          </div>
-                        </div>
-                      </div>
-                    </CardBody>
-                  </Card>
-                ))}
-              </div>
-            )}
-          </div>
+        {activeTab === 'visites' && (
+          <VisitesTab
+            utilisateur={utilisateur}
+            visits={visitsList}
+            transactions={transactionsList}
+            isLoading={isLoadingVisits}
+            isError={isVisitsError}
+            isRefetching={isVisitsRefetching}
+            onRetry={() => void refetchVisites()}
+            onSelectTab={handleSelectTab}
+          />
         )}
 
-        {/* TAB 3: SUIVI DES DOSSIERS / TRANSACTIONS */}
-        {activeTab === 'SEQUESTRES' && (
-          <div className="space-y-6">
-            <div>
-              <h1 className="font-display font-bold text-2xl text-sahel-900">Suivi des Transactions & Séquestres</h1>
-              <p className="text-xs text-sahel-600">Contrôlez les dépôts de caution consignés et suivez la signature du contrat de bail numérique.</p>
-            </div>
-
-            {isLoadingTransactions ? (
-              <Skeleton variant="card" className="h-32" />
-            ) : transactionsList.length === 0 ? (
-              <Card className="p-12 text-center space-y-4 border border-sand-300 bg-sand-50">
-                <Lock className="w-12 h-12 text-sahel-400 mx-auto" />
-                <h3 className="font-display font-bold text-lg text-sahel-900">Aucune transaction en cours</h3>
-                <p className="text-xs text-sahel-600 max-w-md mx-auto">
-                  Les dossiers de location initiés suite aux visites effectuées s'afficheront ici.
-                </p>
-              </Card>
-            ) : (
-              <div className="space-y-4">
-                {transactionsList.map((tx) => (
-                  <Card key={tx.id} className="overflow-hidden border border-sand-300 hover:shadow-warm-hover transition-all">
-                    <CardBody className="p-5">
-                      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-                        <div className="space-y-1">
-                          <div className="flex items-center gap-2">
-                            <Building className="w-4 h-4 text-terracotta-500 shrink-0" />
-                            <h3 className="font-display font-bold text-base text-sahel-900">{tx.annonceTitre}</h3>
-                          </div>
-                          <p className="text-xs text-sahel-600">
-                            {tx.modeTransaction === 'VENTE' ? (
-                              <>Acheteur : <strong>{tx.locataireNomComplet}</strong> | Vendeur : <strong>{tx.proprietaireNomComplet || 'Agent'}</strong></>
-                            ) : (
-                              <>Locataire : <strong>{tx.locataireNomComplet}</strong> | Propriétaire : <strong>{tx.proprietaireNomComplet || 'Agent'}</strong></>
-                            )}
-                          </p>
-                          <p className="text-xs text-terracotta-700 font-bold">
-                            Total séquestre : {(tx.montantTotalSequestre ?? (tx.montantCaution + (tx.montantPremierLoyer || 0) + tx.fraisDossier)).toLocaleString('fr-FR')} FCFA
-                            {tx.modeTransaction === 'VENTE'
-                              ? ` (Acompte de réservation (${tx.acomptePourcentage || 10} % du prix) : ${tx.montantCaution.toLocaleString('fr-FR')} FCFA + Frais: 5 000 FCFA)`
-                              : tx.montantPremierLoyer > 0
-                                ? ` (Caution: ${tx.montantCaution.toLocaleString('fr-FR')} + 1er Loyer: ${tx.montantPremierLoyer.toLocaleString('fr-FR')} + Frais: 5 000)`
-                                : ` (Caution: ${tx.montantCaution.toLocaleString('fr-FR')} + Frais: 5 000)`}
-                          </p>
-                        </div>
-
-                        <div className="flex flex-wrap items-center gap-3">
-                          {tx.statutSequestre === 'INITIALISE' && <Badge variant="warning">Séquestre : À consigner</Badge>}
-                          {tx.statutSequestre === 'BLOQUE' && <Badge variant="info">Séquestre : Bloqué</Badge>}
-                          {tx.statutSequestre === 'LIBERE' && <Badge variant="success">Séquestre : Libéré</Badge>}
-                          {tx.statutSequestre === 'REMBOURSE' && <Badge variant="neutral">Séquestre : Remboursé</Badge>}
-                          {tx.statutSequestre === 'ANNULE' && <Badge variant="neutral">Transaction : Annulée</Badge>}
-                          {tx.statutSequestre === 'EXPIRE' && <Badge variant="rose">Transaction : Expirée</Badge>}
-
-                          {tx.statutBail === 'NON_SIGNE' && <Badge variant="neutral">Bail : Non signé</Badge>}
-                          {(tx.statutBail === 'SIGNE_LOCATAIRE' || tx.statutBail === 'SIGNE_PROPRIETAIRE') && (
-                            <Badge variant="info">Bail : 1/2 Signature</Badge>
-                          )}
-                          {tx.statutBail === 'SIGNE_COMPLET' && <Badge variant="success">Bail : Signé complet</Badge>}
-
-                          <Button
-                            variant="primary"
-                            size="sm"
-                            onClick={() => openTransactionModal(tx)}
-                          >
-                            Ouvrir le dossier
-                          </Button>
-                        </div>
-                      </div>
-                    </CardBody>
-                  </Card>
-                ))}
-              </div>
-            )}
-          </div>
+        {activeTab === 'transactions' && (
+          <TransactionsTab
+            utilisateur={utilisateur}
+            transactions={transactionsList}
+            isLoading={isLoadingTransactions}
+            isError={isTxError}
+            isRefetching={isTxRefetching}
+            onRetry={() => void refetchTransactions()}
+            onOpen={handleOpenTransaction}
+          />
         )}
 
-        {/* TAB 4: MESSAGERIE */}
-        {activeTab === 'MESSAGES' && <ConversationsTab />}
+        {activeTab === 'messages' && <ConversationsTab />}
 
-        {/* TAB 5: SMS SIMULÉS */}
-        {activeTab === 'SMS' && <SmsSimulesTab />}
-
+        {activeTab === 'sms' && <SmsSimulesTab />}
       </main>
 
-      {/* CREATE LISTING MODAL */}
-      <CreateAnnonceModal
-        isOpen={isCreateModalOpen}
-        onClose={() => setIsCreateModalOpen(false)}
-        onSuccess={() => {
-          queryClient.invalidateQueries({ queryKey: ['my-annonces'] });
-        }}
-      />
+      {/* MODALE DE CRÉATION D'ANNONCE */}
+      {canPublish && (
+        <CreateAnnonceModal
+          isOpen={isCreateModalOpen}
+          onClose={() => setIsCreateModalOpen(false)}
+          onSuccess={() => {
+            void queryClient.invalidateQueries({ queryKey: ['my-annonces'] });
+          }}
+        />
+      )}
 
-      {/* EDIT LISTING MODAL */}
-      <EditAnnonceModal
-        isOpen={!!annonceEnEdition}
-        onClose={() => setAnnonceEnEdition(null)}
-        annonce={annonceEnEdition}
-        onSuccess={() => {
-          queryClient.invalidateQueries({ queryKey: ['my-annonces'] });
-        }}
-      />
-
-      {/* DELETE CONFIRMATION MODAL */}
-      <Modal
-        isOpen={!!annonceASupprimer}
-        onClose={() => setAnnonceASupprimer(null)}
-        title="Confirmer la suppression"
-        size="sm"
-      >
-        <div className="space-y-4">
-          <p className="text-sm text-charcoal-700">
-            Êtes-vous sûr de vouloir supprimer l'annonce <strong>« {annonceASupprimer?.titre} »</strong> ?
-          </p>
-          <p className="text-xs text-charcoal-500 bg-sand-100 p-3 rounded-xl border border-sand-300">
-            Cette action effectue une <strong>suppression logique</strong> : le bien ne sera plus accessible aux recherches publiques, mais restera archivé pour l'historique administratif.
-          </p>
-          <div className="flex justify-end gap-3 pt-3">
-            <Button
-              variant="ghost"
-              type="button"
-              onClick={() => setAnnonceASupprimer(null)}
-              disabled={isDeleting}
-            >
-              Annuler
-            </Button>
-            <Button
-              variant="primary"
-              className="bg-rose-600 hover:bg-rose-700 text-white"
-              onClick={handleConfirmSuppression}
-              isLoading={isDeleting}
-            >
-              Confirmer la suppression
-            </Button>
-          </div>
-        </div>
-      </Modal>
-
-      {/* TRANSACTION DETAILS & SIGNATURE MODAL */}
+      {/* MODALE DE DÉTAIL TRANSACTION ET SIGNATURE */}
       <TransactionDetailsModal
         isOpen={isTxModalOpen}
         onClose={() => {
@@ -705,11 +458,10 @@ export const DashboardPage: React.FC = () => {
           selectedTransaction
         }
         onRefresh={() => {
-          queryClient.invalidateQueries({ queryKey: ['my-transactions'] });
-          queryClient.invalidateQueries({ queryKey: ['my-annonces'] });
+          void queryClient.invalidateQueries({ queryKey: ['my-transactions'] });
+          void queryClient.invalidateQueries({ queryKey: ['my-annonces'] });
         }}
       />
-
     </div>
   );
 };
