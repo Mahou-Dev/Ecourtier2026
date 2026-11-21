@@ -15,6 +15,8 @@ export interface ChatMessageItem {
   timestamp: string;
   questionDeRelance?: string;
   suggestedProperties?: AnnonceDTO[];
+  explicationsAnnonces?: Record<string, string>;
+  modeSecours?: boolean;
   isError?: boolean;
 }
 
@@ -95,13 +97,25 @@ const AiAssistantWidgetInner: React.FC<{ currentUserId: string }> = ({ currentUs
         if (history && history.messages && history.messages.length > 0) {
           const restored: ChatMessageItem[] = history.messages.map((m, idx) => ({
             id: m.id || `msg-restored-${idx}`,
-            sender: m.role === 'UTILISATEUR' ? 'user' : 'ai',
+            sender: m.role === 'UTILISATEUR' || m.role === 'USER' ? 'user' : 'ai',
             text: m.contenu,
             timestamp: formatTimeLabel(m.dateEnvoi),
             questionDeRelance:
-              typeof m.criteresExtraits?.questionDeRelance === 'string'
+              m.questionDeRelance ??
+              (typeof m.criteresExtraits?.questionDeRelance === 'string'
                 ? m.criteresExtraits.questionDeRelance
+                : undefined),
+            suggestedProperties:
+              m.annoncesSuggeres && m.annoncesSuggeres.length > 0
+                ? m.annoncesSuggeres
                 : undefined,
+            explicationsAnnonces:
+              m.criteresExtraits?.explicationsAnnonces &&
+              typeof m.criteresExtraits.explicationsAnnonces === 'object'
+                ? (m.criteresExtraits.explicationsAnnonces as Record<string, string>)
+                : undefined,
+            modeSecours:
+              m.role !== 'UTILISATEUR' && m.role !== 'USER' && m.criteresExtraits?.modeSecours === true,
           }));
           setMessages(restored);
         }
@@ -158,6 +172,11 @@ const AiAssistantWidgetInner: React.FC<{ currentUserId: string }> = ({ currentUs
       (typeof msg.criteresExtraits?.questionDeRelance === 'string'
         ? msg.criteresExtraits.questionDeRelance
         : undefined);
+    const explications =
+      msg.criteresExtraits?.explicationsAnnonces &&
+      typeof msg.criteresExtraits.explicationsAnnonces === 'object'
+        ? (msg.criteresExtraits.explicationsAnnonces as Record<string, string>)
+        : undefined;
     const aiMsg: ChatMessageItem = {
       id: msg.id || nextSequenceId('ai'),
       sender: 'ai',
@@ -165,6 +184,8 @@ const AiAssistantWidgetInner: React.FC<{ currentUserId: string }> = ({ currentUs
       timestamp: formatTimeLabel(),
       questionDeRelance: relance,
       suggestedProperties: msg.annoncesSuggeres && msg.annoncesSuggeres.length > 0 ? msg.annoncesSuggeres : undefined,
+      explicationsAnnonces: explications,
+      modeSecours: msg.criteresExtraits?.modeSecours === true,
     };
     setMessages((prev) => [...prev, aiMsg]);
   };
@@ -387,6 +408,14 @@ const AiAssistantWidgetInner: React.FC<{ currentUserId: string }> = ({ currentUs
                           ❓ {msg.questionDeRelance}
                         </p>
                       )}
+                      {msg.sender === 'ai' && !msg.isError && msg.modeSecours && (
+                        <span
+                          data-testid="ia-fallback-badge"
+                          className="inline-flex items-center gap-1 mt-1.5 px-2 py-0.5 rounded-full text-[10px] font-medium bg-argile-100 text-charcoal-600 border border-argile-200"
+                        >
+                          Mode secours local
+                        </span>
+                      )}
                       <span className={`block text-[10px] mt-1 text-right ${msg.sender === 'user' ? 'text-terracotta-200' : 'text-charcoal-400'}`}>
                         {msg.timestamp}
                       </span>
@@ -425,6 +454,11 @@ const AiAssistantWidgetInner: React.FC<{ currentUserId: string }> = ({ currentUs
                                     <CheckCircle2 className="w-3 h-3 text-sahel-600" />
                                     <span>{prop.quartier}, {prop.ville}</span>
                                   </div>
+                                  {msg.explicationsAnnonces?.[prop.id] && (
+                                    <p className="text-[10px] text-charcoal-500 mt-1 line-clamp-2 italic">
+                                      Pertinence : {msg.explicationsAnnonces[prop.id]}
+                                    </p>
+                                  )}
                                 </div>
                               </div>
                             </Link>

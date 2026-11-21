@@ -14,7 +14,7 @@ interface AuthState {
   logout: () => Promise<void>;
 }
 
-const clearClientSessionData = () => {
+const clearClientSessionData = (preserveUserId?: string) => {
   if (typeof window !== 'undefined' && 'caches' in window) {
     caches.keys().then((names) => {
       names.forEach((name) => {
@@ -25,8 +25,9 @@ const clearClientSessionData = () => {
   try {
     queryClient.clear();
     if (typeof window !== 'undefined' && window.localStorage) {
+      const preserveKey = preserveUserId ? `ecourtier_ia_conversation_${preserveUserId}` : null;
       Object.keys(localStorage).forEach((k) => {
-        if (k.startsWith('ecourtier_ia_conversation_')) {
+        if (k.startsWith('ecourtier_ia_conversation_') && k !== preserveKey) {
           localStorage.removeItem(k);
         }
       });
@@ -45,7 +46,7 @@ export const useAuthStore = create<AuthState>()(
       setAuth: (data) => {
         const currentUserId = get().utilisateur?.id;
         if (currentUserId && currentUserId !== data.utilisateur.id) {
-          clearClientSessionData();
+          clearClientSessionData(data.utilisateur.id);
         }
         set({
           utilisateur: data.utilisateur,

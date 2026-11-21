@@ -1,283 +1,422 @@
 package com.ecourtier.domain.ia.service;
 
+import com.ecourtier.domain.annonce.dto.AnnonceResponseDTO;
+import com.ecourtier.domain.annonce.entity.ModeTransaction;
+import com.ecourtier.domain.annonce.entity.TypeBien;
+import com.ecourtier.domain.ia.client.ClaudeLLMProvider;
+import com.ecourtier.domain.ia.client.GeminiLLMProvider;
 import com.ecourtier.domain.ia.client.GroqClientService;
+import com.ecourtier.domain.ia.client.OpenAILLMProvider;
 import com.ecourtier.domain.ia.dto.CriteresExtraitsDTO;
+import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.http.HttpEntity;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
+import org.springframework.http.ResponseEntity;
 import org.springframework.http.client.SimpleClientHttpRequestFactory;
 import org.springframework.stereotype.Service;
-import org.springframework.web.client.RestClient;
+import org.springframework.web.client.RestTemplate;
 
-import java.time.Duration;
+import java.math.BigDecimal;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 
+/**
+ * Orchestrateur IA strictement mono-fournisseur externe (RENDER-GEMINI-01) :
+ * Google Gemini (principal et unique LLM externe autorisé) -> Fallback déterministe local ({@link RuleBasedCriteriaExtractor}).
+ * Groq, OpenAI et Claude ne sont jamais appelés ni utilisés comme fournisseurs alternatifs.
+ */
 @Service
 @Slf4j
 public class LlmExtractionService {
 
-    private final RuleBasedCriteriaExtractor ruleBasedExtractor;
-    private final ObjectMapper objectMapper;
-    private final GroqClientService groqClientService;
+    private static final String PROVIDER_GEMINI = "gemini";
+    private static final String PROVIDER_LOCAL = "local";
 
-    @Value("${ecourtier.ia.enabled:true}")
+    @Value("${ecourtier.ia.enabled:${IA_ENABLED:true}}")
     private boolean iaEnabled = true;
 
     @Value("${ecourtier.ia.api-key:}")
     private String apiKey;
 
-    @Value("${ecourtier.ia.provider:groq}")
-    private String provider = "groq";
+    @Value("${ecourtier.ia.provider:${AI_PROVIDER:${IA_PROVIDER:gemini}}}")
+    private String provider = PROVIDER_GEMINI;
+
+    @Value("${ecourtier.ia.fallback-provider:${AI_FALLBACK_PROVIDER:${IA_FALLBACK_PROVIDER:local}}}")
+    private String fallbackProvider = PROVIDER_LOCAL;
 
     @Value("${ecourtier.ia.base-url:}")
     private String baseUrl;
 
-    private static final int TIMEOUT_MS = 2500; // 2.5s timeout requirement
+    @Value("${ecourtier.ia.timeout-ms:2500}")
+    private int llmTimeoutMs;
+
+    private final RuleBasedCriteriaExtractor ruleBasedExtractor;
+    private final ObjectMapper objectMapper;
+    @SuppressWarnings("unused")
+    private final GroqClientService groqClientService;
+    private final GeminiLLMProvider geminiLLMProvider;
+    @SuppressWarnings("unused")
+    private final OpenAILLMProvider openAILLMProvider;
+    @SuppressWarnings("unused")
+    private final ClaudeLLMProvider claudeLLMProvider;
 
     @Autowired
-    public LlmExtractionService(RuleBasedCriteriaExtractor ruleBasedExtractor, ObjectMapper objectMapper, GroqClientService groqClientService) {
+    public LlmExtractionService(
+            RuleBasedCriteriaExtractor ruleBasedExtractor,
+            ObjectMapper objectMapper,
+            GroqClientService groqClientService,
+            GeminiLLMProvider geminiLLMProvider,
+            OpenAILLMProvider openAILLMProvider,
+            ClaudeLLMProvider claudeLLMProvider
+    ) {
         this.ruleBasedExtractor = ruleBasedExtractor;
         this.objectMapper = objectMapper;
         this.groqClientService = groqClientService;
+        this.geminiLLMProvider = geminiLLMProvider;
+        this.openAILLMProvider = openAILLMProvider;
+        this.claudeLLMProvider = claudeLLMProvider;
     }
 
-    public LlmExtractionService(RuleBasedCriteriaExtractor ruleBasedExtractor, ObjectMapper objectMapper) {
-        this(ruleBasedExtractor, objectMapper, new GroqClientService(objectMapper));
+    public LlmExtractionService(
+            RuleBasedCriteriaExtractor ruleBasedExtractor,
+            ObjectMapper objectMapper,
+            GroqClientService groqClientService
+    ) {
+        this(ruleBasedExtractor, objectMapper, groqClientService, null, null, null);
+    }
+
+    public LlmExtractionService(
+            RuleBasedCriteriaExtractor ruleBasedExtractor,
+            ObjectMapper objectMapper
+    ) {
+        this(ruleBasedExtractor, objectMapper, null, null, null, null);
+    }
+
+    private RestTemplate buildTimedRestTemplate() {
+        SimpleClientHttpRequestFactory factory = new SimpleClientHttpRequestFactory();
+        int timeout = llmTimeoutMs > 0 ? llmTimeoutMs : 2500;
+        factory.setConnectTimeout(timeout);
+        factory.setReadTimeout(timeout);
+        return new RestTemplate(factory);
     }
 
     public CriteresExtraitsDTO extractCriteria(String userMessage) {
-        // Step 1: Sanitization & injection check
-        ruleBasedExtractor.sanitizeAndValidate(userMessage);
-
-        if (!iaEnabled || "none".equalsIgnoreCase(provider) || "disabled".equalsIgnoreCase(provider) || "rules".equalsIgnoreCase(provider)) {
-            log.info("[MODE DÉTERMINISTE IA] Intégration LLM externe désactivée (enabled={}, provider={}).", iaEnabled, provider);
-            return ruleBasedExtractor.extractCriteria(userMessage);
-        }
-
-        // Step 2: Route to Groq provider if selected
-        if ("groq".equalsIgnoreCase(provider)) {
-            if (groqClientService != null && groqClientService.isConfigured()) {
-                try {
-                    log.info("[MODE LLM IA] Extraction via Groq (modèle: {})", groqClientService.getEffectiveModel());
-                    CriteresExtraitsDTO result = groqClientService.extractCriteria(userMessage);
-                    if (result != null) {
-                        return result;
-                    }
-                } catch (Exception e) {
-                    log.warn("[MODE FALLBACK IA] Échec appel Groq: {}. Bascule sur le moteur de règles déterministe.", e.getMessage());
-                }
-            } else {
-                log.info("[MODE DÉMO IA] Fournisseur Groq sélectionné mais clé non configurée. Extraction par le moteur de règles déterministe.");
-            }
-            return ruleBasedExtractor.extractCriteria(userMessage);
-        }
-
-        // Step 3: Check API key availability for other providers
-        if (apiKey == null || apiKey.trim().isEmpty()) {
-            log.info("[MODE DÉMO IA] Clé API IA_API_KEY non configurée. Extraction par le moteur de règles déterministe.");
-            return ruleBasedExtractor.extractCriteria(userMessage);
-        }
-
-        // Step 4: Other LLM API Calls with Retry on malformed JSON and immediate fallback on timeout
-        int maxAttempts = 2;
-        for (int attempt = 1; attempt <= maxAttempts; attempt++) {
-            try {
-                log.info("[MODE LLM IA] Appel à l'API LLM (provider: {}, essai {}/{})", provider, attempt, maxAttempts);
-                return callLlmApiWithTimeout(userMessage);
-            } catch (Exception e) {
-                log.warn("[MODE LLM IA] Échec de l'essai {}/{}: {}", attempt, maxAttempts, e.getMessage());
-
-                // En cas de timeout ou erreur HTTP client (401/403/404), basculer immédiatement sur le moteur de règles
-                boolean isNonRetryableError = e instanceof org.springframework.web.client.HttpClientErrorException;
-                boolean isTimeout = e instanceof org.springframework.web.client.ResourceAccessException
-                        || (e.getCause() != null && e.getCause() instanceof java.net.SocketTimeoutException);
-
-                if (isTimeout || isNonRetryableError || attempt == maxAttempts) {
-                    log.warn("[MODE FALLBACK IA] Retombée sur le moteur de règles (timeout = {}, nonRetryable = {}, max essais = {}).", isTimeout, isNonRetryableError, attempt);
-                    return ruleBasedExtractor.extractCriteria(userMessage);
-                }
-            }
-        }
-
-        return ruleBasedExtractor.extractCriteria(userMessage);
+        return extractCriteria(userMessage, null);
     }
 
-    private CriteresExtraitsDTO callLlmApiWithTimeout(String userMessage) throws Exception {
-        SimpleClientHttpRequestFactory factory = new SimpleClientHttpRequestFactory();
-        factory.setConnectTimeout(TIMEOUT_MS);
-        factory.setReadTimeout(TIMEOUT_MS);
+    public CriteresExtraitsDTO extractCriteria(String userMessage, CriteresExtraitsDTO previousContext) {
+        // 1. Validation de sécurité immédiate (longueur <= 500 + filtre Prompt Injection) avant tout appel réseau
+        ruleBasedExtractor.validateAndSanitize(userMessage);
 
-        RestClient client = RestClient.builder()
-                .requestFactory(factory)
-                .build();
+        // 2. Analyse déterministe de référence (pour détecter hors-sujet, intentions spéciales et compléments NLU)
+        CriteresExtraitsDTO deterministic = ruleBasedExtractor.extractCriteria(userMessage);
+        if (Boolean.TRUE.equals(deterministic.getHorsSujet())) {
+            return deterministic;
+        }
 
+        // 3. Politique RENDER-GEMINI-01 : Gemini est le SEUL fournisseur LLM externe autorisé (zéro appel Groq/OpenAI/Claude)
+        if (!iaEnabled) {
+            return buildLocalFallback(deterministic);
+        }
+
+        String requestedProvider = getActivePrimaryProviderName();
+        if (!PROVIDER_GEMINI.equals(requestedProvider)) {
+            if (!PROVIDER_LOCAL.equals(requestedProvider) && !"none".equals(requestedProvider) && !"disabled".equals(requestedProvider)) {
+                log.warn("Fournisseur IA '{}' ignoré (RENDER-GEMINI-01 : seul Google Gemini est autorisé). Bascule directe sur le moteur local déterministe.",
+                        requestedProvider);
+            }
+            return buildLocalFallback(deterministic);
+        }
+
+        if (geminiLLMProvider != null && geminiLLMProvider.isConfigured()) {
+            try {
+                CriteresExtraitsDTO llmResult = geminiLLMProvider.extractCriteria(userMessage, previousContext);
+                if (llmResult == null) {
+                    llmResult = geminiLLMProvider.extractCriteria(userMessage);
+                }
+                if (llmResult != null) {
+                    CriteresExtraitsDTO enriched = enrichLlmResultWithDeterministicRules(llmResult, deterministic);
+                    enriched.setFournisseurIa(PROVIDER_GEMINI);
+                    enriched.setModeSecours(false);
+                    return enriched;
+                }
+            } catch (Exception e) {
+                log.warn("Échec extraction Gemini ({}) -> bascule directe sur le moteur local déterministe",
+                        e.getClass().getSimpleName());
+            }
+        }
+
+        // 4. Support de compatibilité directe Gemini si apiKey est injectée sur LlmExtractionService (ex: LlmExtractionMockServerTest)
+        if (geminiLLMProvider == null && apiKey != null && !apiKey.isBlank()) {
+            try {
+                CriteresExtraitsDTO legacyResult = attemptLegacyDirectExtractionWithSingleRetry(userMessage);
+                legacyResult.setFournisseurIa(PROVIDER_GEMINI);
+                legacyResult.setModeSecours(false);
+                return enrichLlmResultWithDeterministicRules(legacyResult, deterministic);
+            } catch (Exception e) {
+                log.warn("Échec définitif de l'appel Gemini direct ({}). Bascule sur le moteur local déterministe.",
+                        e.getClass().getSimpleName());
+            }
+        }
+
+        // 5. Fallback déterministe local final (unique solution de secours)
+        return buildLocalFallback(deterministic);
+    }
+
+    /**
+     * Génère une réponse conversationnelle uniquement via Google Gemini.
+     * Retourne null si Gemini est désactivé, non configuré ou en erreur afin que IAService utilise le générateur déterministe local.
+     */
+    public String generateConversationalResponse(
+            String userMessage,
+            CriteresExtraitsDTO criteres,
+            List<AnnonceResponseDTO> annoncesTrouvees,
+            String questionDeRelance
+    ) {
+        if (!iaEnabled || !PROVIDER_GEMINI.equals(getActivePrimaryProviderName())) {
+            return null;
+        }
+        if (geminiLLMProvider == null || !geminiLLMProvider.isConfigured()) {
+            return null;
+        }
+        try {
+            String response = geminiLLMProvider.generateConversationalResponse(
+                    userMessage,
+                    criteres,
+                    annoncesTrouvees,
+                    questionDeRelance
+            );
+            if (response != null && !response.isBlank()) {
+                return response;
+            }
+        } catch (Exception e) {
+            log.warn("Échec génération conversationnelle Gemini ({}) -> bascule sur le générateur local déterministe",
+                    e.getClass().getSimpleName());
+        }
+        return null;
+    }
+
+    public boolean isExternalGeminiActive() {
+        return iaEnabled
+                && PROVIDER_GEMINI.equals(getActivePrimaryProviderName())
+                && ((geminiLLMProvider != null && geminiLLMProvider.isConfigured())
+                || (geminiLLMProvider == null && apiKey != null && !apiKey.isBlank()));
+    }
+
+    public boolean isAnyLlmProviderConfigured() {
+        return isExternalGeminiActive();
+    }
+
+    public String getActivePrimaryProviderName() {
+        return (provider != null && !provider.isBlank()) ? provider.trim().toLowerCase(Locale.ROOT) : PROVIDER_GEMINI;
+    }
+
+    public String getFallbackProviderName() {
+        return PROVIDER_LOCAL;
+    }
+
+    private CriteresExtraitsDTO buildLocalFallback(CriteresExtraitsDTO deterministic) {
+        deterministic.setFournisseurIa("fallback-local");
+        deterministic.setModeSecours(true);
+        return deterministic;
+    }
+
+    private CriteresExtraitsDTO enrichLlmResultWithDeterministicRules(
+            CriteresExtraitsDTO llm,
+            CriteresExtraitsDTO det
+    ) {
+        if (det == null) return llm;
+        if (det.getCriteresASupprimer() != null && !det.getCriteresASupprimer().isEmpty()) {
+            llm.setCriteresASupprimer(det.getCriteresASupprimer());
+        }
+        if (det.getIntentionSpeciale() != null) {
+            llm.setIntentionSpeciale(det.getIntentionSpeciale());
+        }
+        if (llm.getBudgetMax() == null && det.getBudgetMax() != null) {
+            llm.setBudgetMax(det.getBudgetMax());
+        }
+        if (llm.getBudgetMin() == null && det.getBudgetMin() != null) {
+            llm.setBudgetMin(det.getBudgetMin());
+        }
+        if (llm.getQuartier() == null && det.getQuartier() != null) {
+            llm.setQuartier(det.getQuartier());
+        }
+        if ((llm.getQuartiers() == null || llm.getQuartiers().isEmpty()) && det.getQuartiers() != null && !det.getQuartiers().isEmpty()) {
+            llm.setQuartiers(det.getQuartiers());
+        }
+        if (llm.getVille() == null && det.getVille() != null) {
+            llm.setVille(det.getVille());
+        }
+        if (llm.getEtage() == null && det.getEtage() != null) {
+            llm.setEtage(det.getEtage());
+        }
+        if (llm.getAscenseur() == null && det.getAscenseur() != null) {
+            llm.setAscenseur(det.getAscenseur());
+        }
+        if (llm.getSuperficieMin() == null && det.getSuperficieMin() != null) {
+            llm.setSuperficieMin(det.getSuperficieMin());
+        }
+        if (llm.getSuperficieMax() == null && det.getSuperficieMax() != null) {
+            llm.setSuperficieMax(det.getSuperficieMax());
+        }
+        if (llm.getAnimauxAcceptes() == null && det.getAnimauxAcceptes() != null) {
+            llm.setAnimauxAcceptes(det.getAnimauxAcceptes());
+        }
+        if (llm.getNombreChambres() == null && det.getNombreChambres() != null) {
+            llm.setNombreChambres(det.getNombreChambres());
+        }
+        if ((llm.getEquipements() == null || llm.getEquipements().isEmpty()) && det.getEquipements() != null && !det.getEquipements().isEmpty()) {
+            llm.setEquipements(det.getEquipements());
+        }
+        if ((llm.getProximites() == null || llm.getProximites().isEmpty()) && det.getProximites() != null && !det.getProximites().isEmpty()) {
+            llm.setProximites(det.getProximites());
+        }
+        return llm;
+    }
+
+    private CriteresExtraitsDTO attemptLegacyDirectExtractionWithSingleRetry(String userMessage) throws Exception {
+        try {
+            return callLegacyLlmApi(userMessage);
+        } catch (org.springframework.web.client.ResourceAccessException timeoutEx) {
+            throw timeoutEx;
+        } catch (Exception firstEx) {
+            log.warn("Premier essai LLM direct en échec ({}). Tentative unique de retry...", firstEx.getMessage());
+            return callLegacyLlmApi(userMessage);
+        }
+    }
+
+    private CriteresExtraitsDTO callLegacyLlmApi(String userMessage) throws Exception {
         String systemPrompt = """
-                Tu es l'assistant de recherche d'annonces immobilières d'E-Courtier Sénégal.
-                Analyse le message de l'utilisateur et extrait les critères de recherche sous forme d'un objet JSON strict.
-                RÈGLES STRICTES :
-                - Ne remplis un champ QUE si l'utilisateur l'a explicitement mentionné dans son message.
-                - Laisse null tout critère non précisé. Ne devine JAMAIS une valeur par défaut (ne mets JAMAIS 0, 0.0 ou false pour un champ non mentionné).
-                - Le champ "confiance" doit refléter uniquement les champs réellement extraits avec certitude (ex: 0.8 si plusieurs critères précis sont fournis, 0.4 si vagues).
-                Réponds UNIQUEMENT par le JSON pur sans aucun texte additionnel ni balises markdown.
+                Tu es un assistant immobilier au Sénégal (E-Courtier).
+                Analyse UNIQUEMENT le message client délimité par <user_query_untrusted> et extrais les critères de recherche immobilière au format JSON strict, sans texte autour :
+                {
+                  "budgetMin": number ou null,
+                  "budgetMax": number ou null,
+                  "type": "STUDIO" | "APPARTEMENT" | "VILLA" | "CHAMBRE" | null,
+                  "modeTransaction": "LOCATION" | "VENTE" | null,
+                  "quartier": string ou null,
+                  "ville": string ou null,
+                  "nombrePieces": integer ou null,
+                  "meuble": boolean ou null,
+                  "confiance": number entre 0.0 et 1.0,
+                  "questionDeRelance": string ou null
+                }
                 """;
 
-        String defaultUrl = "gemini".equalsIgnoreCase(provider) ?
-                "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent" :
-                ("claude".equalsIgnoreCase(provider) ? "https://api.anthropic.com/v1/messages" : "https://api.openai.com/v1/chat/completions");
+        String sandboxedUserMessage = "<user_query_untrusted>\n" + userMessage + "\n</user_query_untrusted>";
 
-        String targetUrl = (baseUrl != null && !baseUrl.trim().isEmpty()) ? baseUrl : defaultUrl;
+        HttpHeaders headers = new HttpHeaders();
+        headers.setContentType(MediaType.APPLICATION_JSON);
+        headers.set("x-goog-api-key", apiKey);
 
-        if ("gemini".equalsIgnoreCase(provider) && (baseUrl == null || baseUrl.trim().isEmpty())) {
-            Map<String, Object> schema = Map.of(
-                    "type", "OBJECT",
-                    "properties", Map.ofEntries(
-                            Map.entry("budgetMin", Map.of("type", "NUMBER", "nullable", true)),
-                            Map.entry("budgetMax", Map.of("type", "NUMBER", "nullable", true)),
-                            Map.entry("type", Map.of("type", "STRING", "enum", List.of("STUDIO", "APPARTEMENT", "VILLA"), "nullable", true)),
-                            Map.entry("modeTransaction", Map.of("type", "STRING", "enum", List.of("LOCATION", "VENTE"), "nullable", true)),
-                            Map.entry("quartier", Map.of("type", "STRING", "nullable", true)),
-                            Map.entry("ville", Map.of("type", "STRING", "nullable", true)),
-                            Map.entry("nombrePieces", Map.of("type", "INTEGER", "nullable", true)),
-                            Map.entry("etage", Map.of("type", "INTEGER", "nullable", true)),
-                            Map.entry("meuble", Map.of("type", "BOOLEAN", "nullable", true)),
-                            Map.entry("animauxAcceptes", Map.of("type", "BOOLEAN", "nullable", true)),
-                            Map.entry("superficieMin", Map.of("type", "NUMBER", "nullable", true)),
-                            Map.entry("confiance", Map.of("type", "NUMBER")),
-                            Map.entry("questionDeRelance", Map.of("type", "STRING", "nullable", true))
-                    ),
-                    "required", List.of("confiance")
-            );
+        String endpoint = (baseUrl != null && !baseUrl.isBlank())
+                ? baseUrl
+                : "https://generativelanguage.googleapis.com/v1beta/models/gemini-flash-lite-latest:generateContent";
+        Map<String, Object> requestBody = Map.of(
+                "contents", List.of(
+                        Map.of("parts", List.of(Map.of("text", systemPrompt + "\n\nMessage client : " + sandboxedUserMessage)))
+                )
+        );
 
-            Map<String, Object> body = Map.of(
-                    "contents", List.of(
-                            Map.of("role", "user", "parts", List.of(Map.of("text", userMessage)))
-                    ),
-                    "systemInstruction", Map.of(
-                            "parts", List.of(Map.of("text", systemPrompt))
-                    ),
-                    "generationConfig", Map.of(
-                            "responseMimeType", "application/json",
-                            "responseSchema", schema
-                    )
-            );
+        HttpEntity<Map<String, Object>> entity = new HttpEntity<>(requestBody, headers);
+        RestTemplate restTemplate = buildTimedRestTemplate();
+        ResponseEntity<String> response = restTemplate.postForEntity(endpoint, entity, String.class);
 
-            String rawResponse = client.post()
-                    .uri(targetUrl)
-                    .header("x-goog-api-key", apiKey)
-                    .contentType(MediaType.APPLICATION_JSON)
-                    .body(body)
-                    .retrieve()
-                    .body(String.class);
-
-            return parseLlmJsonResponse(rawResponse);
-        } else if ("claude".equalsIgnoreCase(provider)) {
-            Map<String, Object> body = Map.of(
-                    "model", "claude-sonnet-4-6",
-                    "max_tokens", 500,
-                    "system", systemPrompt,
-                    "messages", List.of(Map.of("role", "user", "content", userMessage))
-            );
-
-            String rawResponse = client.post()
-                    .uri(targetUrl)
-                    .header("x-api-key", apiKey)
-                    .header("anthropic-version", "2023-06-01")
-                    .contentType(MediaType.APPLICATION_JSON)
-                    .body(body)
-                    .retrieve()
-                    .body(String.class);
-
-            return parseLlmJsonResponse(rawResponse);
-        } else {
-            // Fallback OpenAI Chat Completions API
-            Map<String, Object> body = Map.of(
-                    "model", "gpt-4o-mini",
-                    "messages", List.of(
-                            Map.of("role", "system", "content", systemPrompt),
-                            Map.of("role", "user", "content", userMessage)
-                    )
-            );
-
-            String rawResponse = client.post()
-                    .uri(targetUrl)
-                    .header(HttpHeaders.AUTHORIZATION, "Bearer " + apiKey)
-                    .contentType(MediaType.APPLICATION_JSON)
-                    .body(body)
-                    .retrieve()
-                    .body(String.class);
-
-            return parseLlmJsonResponse(rawResponse);
+        if (!response.getStatusCode().is2xxSuccessful() || response.getBody() == null) {
+            throw new IllegalStateException("Réponse non-2xx du fournisseur Gemini : " + response.getStatusCode());
         }
+
+        JsonNode root = objectMapper.readTree(response.getBody());
+        JsonNode candidates = root.path("candidates");
+        if (!candidates.isArray() || candidates.isEmpty()) {
+            throw new IllegalStateException("Réponse Gemini sans candidats exploitables");
+        }
+        JsonNode parts = candidates.get(0).path("content").path("parts");
+        StringBuilder textBuilder = new StringBuilder();
+        if (parts.isArray()) {
+            for (JsonNode part : parts) {
+                if (part.path("thought").asBoolean(false)) {
+                    continue;
+                }
+                String partText = part.path("text").asText("");
+                if (!partText.isBlank()) {
+                    if (!textBuilder.isEmpty()) {
+                        textBuilder.append('\n');
+                    }
+                    textBuilder.append(partText);
+                }
+            }
+        }
+        String rawText = textBuilder.toString().trim();
+        if (rawText.isEmpty()) {
+            throw new IllegalStateException("Réponse Gemini vide hors blocs de réflexion");
+        }
+
+        return parseAndValidateStrictDto(rawText);
     }
 
-    private CriteresExtraitsDTO parseLlmJsonResponse(String rawResponse) {
-        try {
-            var node = objectMapper.readTree(rawResponse);
-            String jsonText = "";
-            if (node.has("candidates") && node.get("candidates").isArray() && !node.get("candidates").isEmpty()) {
-                jsonText = node.get("candidates").get(0).get("content").get("parts").get(0).get("text").asText();
-            } else if (node.has("content") && node.get("content").isArray()) {
-                jsonText = node.get("content").get(0).get("text").asText();
-            } else if (node.has("choices") && node.get("choices").isArray()) {
-                jsonText = node.get("choices").get(0).get("message").get("content").asText();
-            } else {
-                jsonText = rawResponse;
-            }
-
-            if (jsonText.startsWith("```")) {
-                jsonText = jsonText.replaceAll("^```[a-z]*\\n", "").replaceAll("\\n```$", "").trim();
-            }
-
-            CriteresExtraitsDTO result = objectMapper.readValue(jsonText, CriteresExtraitsDTO.class);
-            return sanitizeAndCalibrate(result);
-        } catch (Exception e) {
-            log.error("Erreur de parsing de la réponse JSON du LLM", e);
-            throw new RuntimeException("Réponse JSON LLM invalide", e);
+    private CriteresExtraitsDTO parseAndValidateStrictDto(String jsonText) throws Exception {
+        String cleaned = jsonText.trim();
+        if (cleaned.startsWith("```json")) {
+            cleaned = cleaned.substring(7);
+        } else if (cleaned.startsWith("```")) {
+            cleaned = cleaned.substring(3);
         }
-    }
-
-    private CriteresExtraitsDTO sanitizeAndCalibrate(CriteresExtraitsDTO criteres) {
-        if (criteres == null) return null;
-
-        if (criteres.getBudgetMin() != null && criteres.getBudgetMin().compareTo(java.math.BigDecimal.ZERO) <= 0) {
-            criteres.setBudgetMin(null);
+        if (cleaned.endsWith("```")) {
+            cleaned = cleaned.substring(0, cleaned.length() - 3);
         }
-        if (criteres.getBudgetMax() != null && criteres.getBudgetMax().compareTo(java.math.BigDecimal.ZERO) <= 0) {
-            criteres.setBudgetMax(null);
-        }
-        if (criteres.getSuperficieMin() != null && criteres.getSuperficieMin() <= 0) {
-            criteres.setSuperficieMin(null);
-        }
-        if (criteres.getNombrePieces() != null && criteres.getNombrePieces() <= 0) {
-            criteres.setNombrePieces(null);
-        }
+        cleaned = cleaned.trim();
 
-        // Recalibrer la confiance basée uniquement sur les critères réellement extraits
-        int count = 0;
-        if (criteres.getBudgetMin() != null || criteres.getBudgetMax() != null) count++;
-        if (criteres.getType() != null) count++;
-        if (criteres.getModeTransaction() != null) count++;
-        if (criteres.getQuartier() != null || criteres.getVille() != null) count++;
-        if (criteres.getNombrePieces() != null) count++;
-        if (criteres.getMeuble() != null) count++;
-        if (criteres.getAnimauxAcceptes() != null) count++;
-        if (criteres.getSuperficieMin() != null) count++;
+        JsonNode node = objectMapper.readTree(cleaned);
 
-        if (count == 0) {
-            criteres.setConfiance(0.2);
+        CriteresExtraitsDTO.CriteresExtraitsDTOBuilder builder = CriteresExtraitsDTO.builder();
+
+        if (node.hasNonNull("budgetMin") && node.get("budgetMin").isNumber()) {
+            BigDecimal val = node.get("budgetMin").decimalValue();
+            if (val.compareTo(BigDecimal.ZERO) > 0) builder.budgetMin(val);
+        }
+        if (node.hasNonNull("budgetMax") && node.get("budgetMax").isNumber()) {
+            BigDecimal val = node.get("budgetMax").decimalValue();
+            if (val.compareTo(BigDecimal.ZERO) > 0) builder.budgetMax(val);
+        }
+        if (node.hasNonNull("type")) {
+            try {
+                builder.type(TypeBien.valueOf(node.get("type").asText().toUpperCase()));
+            } catch (IllegalArgumentException ignored) {}
+        }
+        if (node.hasNonNull("modeTransaction")) {
+            try {
+                builder.modeTransaction(ModeTransaction.valueOf(node.get("modeTransaction").asText().toUpperCase()));
+            } catch (IllegalArgumentException ignored) {}
+        }
+        if (node.hasNonNull("quartier") && !node.get("quartier").asText().isBlank()) {
+            builder.quartier(node.get("quartier").asText().trim());
+        }
+        if (node.hasNonNull("ville") && !node.get("ville").asText().isBlank()) {
+            builder.ville(node.get("ville").asText().trim());
+        }
+        if (node.hasNonNull("nombrePieces") && node.get("nombrePieces").isInt()) {
+            int pieces = node.get("nombrePieces").asInt();
+            if (pieces > 0 && pieces <= 30) builder.nombrePieces(pieces);
+        }
+        if (node.hasNonNull("meuble") && node.get("meuble").isBoolean()) {
+            builder.meuble(node.get("meuble").asBoolean());
+        }
+        if (node.hasNonNull("confiance") && node.get("confiance").isNumber()) {
+            builder.confiance(node.get("confiance").asDouble());
         } else {
-            double calibrated = Math.min(1.0, 0.4 + (count * 0.15));
-            criteres.setConfiance(Math.round(calibrated * 100.0) / 100.0);
+            builder.confiance(0.8);
+        }
+        if (node.hasNonNull("questionDeRelance") && !node.get("questionDeRelance").asText().isBlank()) {
+            builder.questionDeRelance(node.get("questionDeRelance").asText().trim());
         }
 
-        if (criteres.getBudgetMax() == null && criteres.getBudgetMin() == null && (criteres.getQuestionDeRelance() == null || criteres.getQuestionDeRelance().trim().isEmpty())) {
-            criteres.setQuestionDeRelance("Quel est votre budget approximatif et le type de bien souhaité (ex: appartement, villa, studio) ?");
-        }
-
-        return criteres;
+        return builder.build();
     }
 }

@@ -26,11 +26,13 @@ ecourtier:
       max-attempts: 20
       window-ms: 60000
   ia:
-    provider: ${IA_PROVIDER:groq}
-    groq:
-      api-key: ${GROQ_API_KEY:}
-      base-url: ${GROQ_BASE_URL:https://api.groq.com/openai/v1}
-      model: ${GROQ_MODEL:openai/gpt-oss-20b}
+    enabled: ${IA_ENABLED:true}
+    provider: ${AI_PROVIDER:${IA_PROVIDER:gemini}}
+    fallback-provider: local
+    gemini:
+      api-key: ${GEMINI_API_KEY:}
+      base-url: ${GEMINI_BASE_URL:https://generativelanguage.googleapis.com/v1beta}
+      model: ${GEMINI_MODEL:gemini-flash-lite-latest}
       timeout-ms: 3500
   transactions:
     initialise-expiration: PT24H

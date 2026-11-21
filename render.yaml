@@ -36,12 +36,16 @@ services:
         sync: false
       - key: IA_ENABLED
         value: "true"
+      - key: AI_PROVIDER
+        value: gemini
       - key: IA_PROVIDER
-        value: groq
-      - key: GROQ_API_KEY
+        value: gemini
+      - key: GEMINI_API_KEY
         sync: false
-      - key: IA_API_KEY
-        sync: false
+      - key: GEMINI_MODEL
+        value: gemini-flash-lite-latest
+      - key: GEMINI_TIMEOUT_MS
+        value: "4000"
       - key: ECOURTIER_CORS_ALLOWED_ORIGINS
         value: https://ecourtier-frontend.onrender.com
 

@@ -17,7 +17,8 @@ import java.util.Set;
  * Validateur de configuration de production.
  *
  * En profil 'prod' ou 'production', vérifie que les secrets critiques, les origines CORS
- * et les intégrations externes activées sont correctement configurés.
+ * et l'intégration IA (Google Gemini + secours déterministe local RuleBasedCriteriaExtractor)
+ * sont correctement configurés sans jamais exposer les secrets.
  */
 @Component
 @Slf4j
@@ -34,17 +35,17 @@ public class ProductionConfigurationValidator implements ApplicationRunner {
     @Value("${ecourtier.cors.allowed-origins:}")
     private String corsAllowedOrigins;
 
-    @Value("${ecourtier.ia.enabled:true}")
+    @Value("${ecourtier.ia.enabled:${IA_ENABLED:true}}")
     private boolean iaEnabled = true;
 
-    @Value("${ecourtier.ia.provider:groq}")
-    private String iaProvider = "groq";
+    @Value("${ecourtier.ia.provider:${AI_PROVIDER:${IA_PROVIDER:gemini}}}")
+    private String iaProvider;
 
-    @Value("${ecourtier.ia.groq.api-key:}")
-    private String groqApiKey;
+    @Value("${ecourtier.ia.gemini.api-key:${GEMINI_API_KEY:}}")
+    private String geminiApiKey;
 
-    @Value("${ecourtier.ia.api-key:}")
-    private String iaApiKey;
+    @Value("${ecourtier.ia.gemini.model:gemini-flash-lite-latest}")
+    private String geminiModel;
 
     private static final List<String> KNOWN_INSECURE_SECRETS = List.of(
             "dev-secret-key-for-local-testing-only-replace-in-production-123456789",
@@ -60,7 +61,7 @@ public class ProductionConfigurationValidator implements ApplicationRunner {
             "12345678901234567890123456789012"
     );
 
-    private static final Set<String> DISABLED_IA_PROVIDERS = Set.of("none", "disabled", "rules", "off", "false");
+    private static final Set<String> DISABLED_IA_PROVIDERS = Set.of("none", "disabled", "rules", "local", "off", "false");
 
     public ProductionConfigurationValidator(Environment environment) {
         this.environment = environment;
@@ -159,27 +160,67 @@ public class ProductionConfigurationValidator implements ApplicationRunner {
 
     private void validateIaIntegrationConfiguration() {
         Boolean enabledProp = environment.getProperty("ecourtier.ia.enabled", Boolean.class);
+        if (enabledProp == null) {
+            enabledProp = environment.getProperty("IA_ENABLED", Boolean.class);
+        }
         boolean effectiveEnabled = enabledProp != null ? enabledProp : iaEnabled;
 
         String rawProvider = resolveText(iaProvider, "ecourtier.ia.provider");
-        String normalizedProvider = rawProvider.isBlank() ? "groq" : rawProvider.toLowerCase(Locale.ROOT);
+        if (rawProvider.isBlank()) {
+            rawProvider = resolveText("", "AI_PROVIDER");
+        }
+        if (rawProvider.isBlank()) {
+            rawProvider = resolveText("", "IA_PROVIDER");
+        }
+        String normalizedProvider = rawProvider.isBlank() ? "gemini" : rawProvider.toLowerCase(Locale.ROOT);
 
         if (!effectiveEnabled || DISABLED_IA_PROVIDERS.contains(normalizedProvider)) {
-            log.info("[VÉRIFICATION PRODUCTION] Intégration LLM externe désactivée (ia.enabled={}, ia.provider={}) : clé API facultative.",
+            log.info("[VÉRIFICATION PRODUCTION] Intégration LLM externe désactivée (ia.enabled={}, ia.provider={}) : moteur local déterministe RuleBasedCriteriaExtractor actif uniquement.",
                     effectiveEnabled, normalizedProvider);
             return;
         }
 
-        String effectiveKey = resolveText(groqApiKey, "ecourtier.ia.groq.api-key");
-        if (effectiveKey.isBlank()) {
-            effectiveKey = resolveText(iaApiKey, "ecourtier.ia.api-key");
-        }
-        if (effectiveKey.isBlank() || KNOWN_INSECURE_SECRETS.contains(effectiveKey)) {
+        if (!"gemini".equals(normalizedProvider)) {
             throw new IllegalStateException(
-                    "ÉCHEC DÉMARRAGE PRODUCTION : L'intégration IA externe (provider=" + normalizedProvider
-                            + ") est activée mais aucune clé API valide (GROQ_API_KEY / IA_API_KEY) n'est fournie."
+                    "ÉCHEC DÉMARRAGE PRODUCTION : Fournisseur IA incompatible '" + sanitizeProviderLabel(normalizedProvider)
+                            + "'. Seul 'gemini' (ou 'local'/'disabled' avec IA_ENABLED=false) est autorisé."
             );
         }
+
+        String effectiveGeminiKey = resolveText(geminiApiKey, "ecourtier.ia.gemini.api-key");
+        if (effectiveGeminiKey.isBlank()) {
+            effectiveGeminiKey = resolveText("", "GEMINI_API_KEY");
+        }
+
+        if (effectiveGeminiKey.isBlank()) {
+            log.warn("[VÉRIFICATION PRODUCTION] Variable GEMINI_API_KEY absente (AI_PROVIDER=gemini) : démarrage autorisé en mode dégradé local sécurisé avec RuleBasedCriteriaExtractor uniquement.");
+            return;
+        }
+
+        if (KNOWN_INSECURE_SECRETS.contains(effectiveGeminiKey)
+                || KNOWN_INSECURE_SECRETS.contains(effectiveGeminiKey.toLowerCase(Locale.ROOT))) {
+            throw new IllegalStateException(
+                    "ÉCHEC DÉMARRAGE PRODUCTION : La variable GEMINI_API_KEY utilise une valeur de développement ou de test non sécurisée."
+            );
+        }
+
+        String effectiveModel = resolveText(geminiModel, "ecourtier.ia.gemini.model");
+        if (effectiveModel.isBlank()) {
+            effectiveModel = resolveText("", "GEMINI_MODEL");
+        }
+        log.info("[VÉRIFICATION PRODUCTION] Fournisseur IA Google Gemini configuré (modèle={}, secours=RuleBasedCriteriaExtractor, aucun fournisseur tiers requis).",
+                effectiveModel.isBlank() ? "gemini-flash-lite-latest" : effectiveModel);
+    }
+
+    private String sanitizeProviderLabel(String providerLabel) {
+        if (providerLabel == null || providerLabel.isBlank()) {
+            return "inconnu";
+        }
+        String sanitized = providerLabel.replaceAll("[\\r\\n\\t]", "").trim();
+        if (sanitized.length() > 32) {
+            return sanitized.substring(0, 32);
+        }
+        return sanitized;
     }
 
     private String resolveText(String fieldValue, String propertyName) {
