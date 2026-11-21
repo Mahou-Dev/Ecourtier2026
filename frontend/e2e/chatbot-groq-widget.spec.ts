@@ -310,6 +310,22 @@ test.describe('PHASE CHATBOT-GROQ-5 — ANO-RES-02 : Validation E2E Widget Chatb
               criteresExtraits: {
                 questionDeRelance: 'Quel budget visez-vous ?',
               },
+              annoncesSuggeres: [
+                {
+                  id: 'ann-studio-ouakam-3003',
+                  titre: 'Studio moderne Ouakam Cité Avion',
+                  description: 'Studio lumineux proche axe principal.',
+                  type: 'STUDIO',
+                  modeTransaction: 'LOCATION',
+                  prix: 120000,
+                  superficie: 35.0,
+                  nombrePieces: 1,
+                  quartier: 'Ouakam',
+                  ville: 'Dakar',
+                  statutPublication: 'DISPONIBLE',
+                  photos: [],
+                },
+              ],
             },
           ],
         }),
@@ -326,10 +342,11 @@ test.describe('PHASE CHATBOT-GROQ-5 — ANO-RES-02 : Validation E2E Widget Chatb
     // 2. Ouvrir le widget
     await page.locator('button:has-text("Assistant IA E-Courtier")').click();
 
-    // 3. Vérifier que l'historique a été réhydraté
+    // 3. Vérifier que l'historique et les annonces suggérées (ANO-IA-03) ont été réhydratés
     expect(getHistoryCalled).toBe(true);
     await expect(page.locator('text=Je cherche un studio à Ouakam')).toBeVisible();
     await expect(page.locator('text=Parfait, quel est votre budget mensuel ?')).toBeVisible();
+    await expect(page.locator('a[href="/annonce/ann-studio-ouakam-3003"]')).toBeVisible();
 
     // Le message de bienvenue par défaut ne doit PAS écraser ou doubler la conversation
     await expect(page.locator('text=Na nga def ! Je suis Samba')).not.toBeVisible();
@@ -340,9 +357,10 @@ test.describe('PHASE CHATBOT-GROQ-5 — ANO-RES-02 : Validation E2E Widget Chatb
     // 5. Réouverture du widget après F5
     await page.locator('button:has-text("Assistant IA E-Courtier")').click();
 
-    // 6. Les messages restent fidèlement restitués
+    // 6. Les messages et les cartes d'annonces recommandées restent fidèlement restitués après F5
     await expect(page.locator('text=Je cherche un studio à Ouakam')).toBeVisible();
     await expect(page.locator('text=Parfait, quel est votre budget mensuel ?')).toBeVisible();
+    await expect(page.locator('a[href="/annonce/ann-studio-ouakam-3003"]')).toBeVisible();
 
     // Vérifier la valeur persistée dans le localStorage
     const savedId = await page.evaluate(() => localStorage.getItem('ecourtier_ia_conversation_anon'));
@@ -366,6 +384,28 @@ test.describe('PHASE CHATBOT-GROQ-5 — ANO-RES-02 : Validation E2E Widget Chatb
       accessToken: 'token-e2e-scenario-d',
       refreshToken: 'refresh-e2e-scenario-d',
     };
+
+    // Mocker les appels API de fond pour que le faux jeton E2E ne déclenche pas un 401/refresh automatique au chargement
+    await page.route('**/api/v1/**', async (route) => {
+      const url = route.request().url();
+      if (url.includes('/api/v1/ia/conversations/conv-user-private-99')) {
+        await route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          body: JSON.stringify({
+            conversationId: 'conv-user-private-99',
+            dateCreation: '2026-11-11T10:00:00Z',
+            messages: [],
+          }),
+        });
+        return;
+      }
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({ content: [], totalPages: 0, totalElements: 0 }),
+      });
+    });
 
     // 1. Initialiser la session utilisateur connecté et un conversationId associé
     await page.addInitScript(({ session, userId }) => {
@@ -457,6 +497,103 @@ test.describe('PHASE CHATBOT-GROQ-5 — ANO-RES-02 : Validation E2E Widget Chatb
     await expect(resetBtn).toBeVisible();
     await resetBtn.click();
     await expect(page.locator('text=Na nga def ! Je suis Samba')).toBeVisible();
+  });
+
+  // =========================================================================
+  // SCÉNARIO F : VALIDATION RESPONSIVE MULTI-VIEWPORTS (320px -> 1440px)
+  // =========================================================================
+  test('Scénario F : Responsive mobile/tablette/desktop (320px, 360px, 375px, 390px, 768px, 1440px) sans débordement horizontal', async ({ page }) => {
+    await page.route('**/api/v1/**', async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({ content: [], totalPages: 0, totalElements: 0 }),
+      });
+    });
+
+    const viewports = [
+      { width: 320, height: 568 },
+      { width: 360, height: 640 },
+      { width: 375, height: 667 },
+      { width: 390, height: 844 },
+      { width: 768, height: 1024 },
+      { width: 1440, height: 900 },
+    ];
+
+    for (const vp of viewports) {
+      await page.setViewportSize(vp);
+      await page.goto('/');
+
+      // Widget fermé : vérifier l'absence de débordement horizontal
+      const launcherBtn = page.locator('button:has-text("Assistant IA E-Courtier")');
+      await expect(launcherBtn).toBeVisible();
+
+      // Ouvrir le widget
+      await launcherBtn.click();
+      const headerTitle = page.locator('h3:has-text("Samba — IA Immobilier")');
+      await expect(headerTitle).toBeVisible();
+
+      // Vérifier que le panneau de chat et le champ de saisie tiennent entièrement dans le viewport
+      const panelBox = await page.locator('form:has(input[placeholder*="français wolofisé"])').boundingBox();
+      expect(panelBox).not.toBeNull();
+      expect(panelBox!.x).toBeGreaterThanOrEqual(0);
+      expect(panelBox!.x + panelBox!.width).toBeLessThanOrEqual(vp.width + 1);
+
+      // Fermer avant le viewport suivant
+      await page.locator('button[aria-label="Fermer l\'assistant"]').click();
+    }
+  });
+
+  // =========================================================================
+  // SCÉNARIO G : AFFICHAGE CLAIR DU MODE SECOURS LOCAL QUAND GEMINI EST INDISPONIBLE
+  // =========================================================================
+  test('Scénario G : Affichage du badge Mode secours local lorsque criteresExtraits.modeSecours=true', async ({ page }) => {
+    const CONV_ID = 'conv-fallback-g-7007';
+
+    await page.route('**/api/v1/ia/conversations', async (route) => {
+      if (route.request().method() === 'POST') {
+        await route.fulfill({
+          status: 201,
+          contentType: 'application/json',
+          body: JSON.stringify({ conversationId: CONV_ID }),
+        });
+      }
+    });
+
+    await page.route(`**/api/v1/ia/conversations/${CONV_ID}/messages`, async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          id: 'msg-fallback-g1',
+          reponse: 'J\'ai analysé votre demande (type : studio, ville : Dakar). Voici 1 annonce(s) vérifiée(s). (Mode secours local activé : recherche effectuée directement sur nos annonces vérifiées.)',
+          criteresExtraits: {
+            fournisseurIa: 'fallback-local',
+            modeSecours: true,
+          },
+          annoncesSuggeres: [],
+          dateReponse: '2026-11-21T16:00:00Z',
+        }),
+      });
+    });
+
+    await page.route('**/api/v1/annonces**', async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({ content: [], totalPages: 0, totalElements: 0 }),
+      });
+    });
+
+    await page.goto('/');
+    await page.locator('button:has-text("Assistant IA E-Courtier")').click();
+
+    const input = page.locator('input[placeholder*="français wolofisé"]');
+    await input.fill('Studio à louer à Dakar');
+    await page.locator('button[type="submit"]:has(svg.lucide-send)').click();
+
+    await expect(page.locator('[data-testid="ia-fallback-badge"]')).toBeVisible();
+    await expect(page.locator('[data-testid="ia-fallback-badge"]')).toContainText('Mode secours local');
   });
 
 });

@@ -8,6 +8,7 @@ import org.springframework.core.env.Environment;
 import org.springframework.test.util.ReflectionTestUtils;
 
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.Mockito.when;
@@ -20,8 +21,9 @@ class ProductionConfigurationValidatorTest {
         ReflectionTestUtils.setField(validator, "dbPassword", "ultra_secure_postgres_pass_2026");
         ReflectionTestUtils.setField(validator, "corsAllowedOrigins", "https://ecourtier.sn,https://app.ecourtier.sn");
         ReflectionTestUtils.setField(validator, "iaEnabled", true);
-        ReflectionTestUtils.setField(validator, "iaProvider", "groq");
-        ReflectionTestUtils.setField(validator, "groqApiKey", "gsk_valid_production_test_placeholder_key_2026");
+        ReflectionTestUtils.setField(validator, "iaProvider", "gemini");
+        ReflectionTestUtils.setField(validator, "geminiApiKey", "AIzaSyDummyValidTestPlaceholderKeyForProd2026");
+        ReflectionTestUtils.setField(validator, "geminiModel", "gemini-flash-lite-latest");
         return validator;
     }
 
@@ -81,42 +83,94 @@ class ProductionConfigurationValidatorTest {
     }
 
     @Test
-    @DisplayName("A3 : En profil de production, intégration IA désactivée sans clé API démarre sans erreur")
+    @DisplayName("RENDER-GEMINI-01 : En profil de production, intégration IA désactivée ou en mode local démarre sans clé Gemini")
     void testProdWithIaDisabledWithoutKeySucceeds() {
         Environment env = Mockito.mock(Environment.class);
         when(env.getActiveProfiles()).thenReturn(new String[]{"production"});
 
         ProductionConfigurationValidator validator = createValidProdValidator(env);
         ReflectionTestUtils.setField(validator, "iaEnabled", false);
-        ReflectionTestUtils.setField(validator, "groqApiKey", "");
-        ReflectionTestUtils.setField(validator, "iaApiKey", "");
+        ReflectionTestUtils.setField(validator, "geminiApiKey", "");
 
         assertDoesNotThrow(() -> validator.run(new DefaultApplicationArguments(new String[0])));
 
         ProductionConfigurationValidator rulesValidator = createValidProdValidator(env);
         ReflectionTestUtils.setField(rulesValidator, "iaEnabled", true);
-        ReflectionTestUtils.setField(rulesValidator, "iaProvider", "rules");
-        ReflectionTestUtils.setField(rulesValidator, "groqApiKey", "");
+        ReflectionTestUtils.setField(rulesValidator, "iaProvider", "local");
+        ReflectionTestUtils.setField(rulesValidator, "geminiApiKey", "");
 
         assertDoesNotThrow(() -> rulesValidator.run(new DefaultApplicationArguments(new String[0])));
     }
 
     @Test
-    @DisplayName("A3 : En profil de production, intégration IA activée sans clé API bloque le démarrage")
-    void testProdWithIaEnabledWithoutKeyFails() {
+    @DisplayName("RENDER-GEMINI-01 : En profil prod Render, GEMINI_API_KEY absente n'empêche pas le démarrage (secours local)")
+    void testProdWithGeminiWithoutKeyStartsInFallbackMode() {
         Environment env = Mockito.mock(Environment.class);
         when(env.getActiveProfiles()).thenReturn(new String[]{"prod"});
 
         ProductionConfigurationValidator validator = createValidProdValidator(env);
         ReflectionTestUtils.setField(validator, "iaEnabled", true);
-        ReflectionTestUtils.setField(validator, "iaProvider", "groq");
-        ReflectionTestUtils.setField(validator, "groqApiKey", "");
-        ReflectionTestUtils.setField(validator, "iaApiKey", "");
+        ReflectionTestUtils.setField(validator, "iaProvider", "gemini");
+        ReflectionTestUtils.setField(validator, "geminiApiKey", "");
+
+        assertDoesNotThrow(() -> validator.run(new DefaultApplicationArguments(new String[0])));
+    }
+
+    @Test
+    @DisplayName("RENDER-GEMINI-02 Cas 3 : Un fournisseur incompatible (groq/openai/claude/autre) en prod échoue explicitement sans bascule")
+    void testProdRejectsIncompatibleProvidersExplicitly() {
+        for (String legacyProvider : new String[]{"groq", "openai", "claude", "unknown"}) {
+            Environment env = Mockito.mock(Environment.class);
+            when(env.getActiveProfiles()).thenReturn(new String[]{"prod"});
+
+            ProductionConfigurationValidator validator = createValidProdValidator(env);
+            ReflectionTestUtils.setField(validator, "iaProvider", legacyProvider);
+            ReflectionTestUtils.setField(validator, "geminiApiKey", "");
+
+            IllegalStateException ex = assertThrows(IllegalStateException.class,
+                    () -> validator.run(new DefaultApplicationArguments(new String[0])),
+                    "Le fournisseur incompatible " + legacyProvider + " doit être rejeté explicitement en production");
+            assertTrue(ex.getMessage().contains("Fournisseur IA incompatible"));
+            assertFalse(ex.getMessage().contains("GROQ_API_KEY"));
+            assertFalse(ex.getMessage().contains("IA_API_KEY"));
+        }
+    }
+
+    @Test
+    @DisplayName("RENDER-GEMINI-02 Cas 1 : Configuration Render exacte via Environment (sans GROQ_API_KEY ni IA_API_KEY) acceptée en prod")
+    void testProdRenderEnvironmentVariablesAcceptedWithoutGroqOrIaApiKey() {
+        org.springframework.mock.env.MockEnvironment env = new org.springframework.mock.env.MockEnvironment();
+        env.setActiveProfiles("prod");
+        env.setProperty("ecourtier.jwt.secret", "aVeryStrongAndSecretProductionKeyWithEnoughEntropy2026!!");
+        env.setProperty("spring.datasource.password", "ultra_secure_postgres_pass_2026");
+        env.setProperty("ecourtier.cors.allowed-origins", "https://ecourtier-frontend.onrender.com");
+        env.setProperty("IA_ENABLED", "true");
+        env.setProperty("IA_PROVIDER", "gemini");
+        env.setProperty("AI_PROVIDER", "gemini");
+        env.setProperty("GEMINI_API_KEY", "dummy-valid-render-gemini-test-key-2026");
+        env.setProperty("GEMINI_MODEL", "gemini-flash-lite-latest");
+
+        ProductionConfigurationValidator validator = new ProductionConfigurationValidator(env);
+        assertDoesNotThrow(() -> validator.run(new DefaultApplicationArguments(new String[0])));
+    }
+
+    @Test
+    @DisplayName("RENDER-GEMINI-01 : Une valeur de développement connue pour GEMINI_API_KEY en prod est bloquée sans fuite")
+    void testProdWithInsecurePlaceholderGeminiKeyThrowsWithoutLeakingKey() {
+        Environment env = Mockito.mock(Environment.class);
+        when(env.getActiveProfiles()).thenReturn(new String[]{"prod"});
+
+        String insecurePlaceholder = "changeme";
+        ProductionConfigurationValidator validator = createValidProdValidator(env);
+        ReflectionTestUtils.setField(validator, "iaEnabled", true);
+        ReflectionTestUtils.setField(validator, "iaProvider", "gemini");
+        ReflectionTestUtils.setField(validator, "geminiApiKey", insecurePlaceholder);
 
         IllegalStateException ex = assertThrows(IllegalStateException.class,
                 () -> validator.run(new DefaultApplicationArguments(new String[0])));
 
-        assertTrue(ex.getMessage().contains("GROQ_API_KEY"));
+        assertTrue(ex.getMessage().contains("GEMINI_API_KEY"));
+        assertFalse(ex.getMessage().contains(insecurePlaceholder), "Le secret ne doit jamais être exposé");
     }
 
     @Test
@@ -185,5 +239,58 @@ class ProductionConfigurationValidatorTest {
         IllegalStateException ex = assertThrows(IllegalStateException.class,
                 () -> validator.run(new DefaultApplicationArguments(new String[0])));
         assertTrue(ex.getMessage().contains("SPRING_DATASOURCE_PASSWORD"));
+    }
+
+    @Test
+    @DisplayName("RENDER-GEMINI-02 : Injection @Value réelle depuis application.yml + application-prod.yml avec les variables Render exactes")
+    void testSpringProdYamlBindingWithRenderGeminiVariablesSucceeds() throws Exception {
+        assertDoesNotThrow(() -> runValidatorWithProdYaml(true));
+    }
+
+    @Test
+    @DisplayName("RENDER-GEMINI-02 : Injection @Value réelle depuis application-prod.yml sans GEMINI_API_KEY ni GROQ_API_KEY démarre en fallback local")
+    void testSpringProdYamlBindingWithRenderMissingGeminiKeyStartsInFallbackMode() throws Exception {
+        assertDoesNotThrow(() -> runValidatorWithProdYaml(false));
+    }
+
+    private void runValidatorWithProdYaml(boolean includeGeminiKey) throws Exception {
+        org.springframework.boot.env.YamlPropertySourceLoader loader = new org.springframework.boot.env.YamlPropertySourceLoader();
+        java.util.List<org.springframework.core.env.PropertySource<?>> baseSources =
+                loader.load("application", new org.springframework.core.io.ClassPathResource("application.yml"));
+        java.util.List<org.springframework.core.env.PropertySource<?>> prodSources =
+                loader.load("application-prod", new org.springframework.core.io.ClassPathResource("application-prod.yml"));
+
+        try (org.springframework.context.annotation.AnnotationConfigApplicationContext ctx =
+                     new org.springframework.context.annotation.AnnotationConfigApplicationContext()) {
+            ctx.getEnvironment().setActiveProfiles("prod");
+            java.util.Map<String, Object> renderEnv = new java.util.HashMap<>();
+            renderEnv.put("SPRING_DATASOURCE_URL", "postgres://user:pass@dpg-example:5432/ecourtier_db");
+            renderEnv.put("SPRING_DATASOURCE_PASSWORD", "ultra_secure_postgres_pass_2026");
+            renderEnv.put("JWT_SECRET", "aVeryStrongAndSecretProductionKeyWithEnoughEntropy2026!!");
+            renderEnv.put("ECOURTIER_CORS_ALLOWED_ORIGINS", "https://ecourtier-frontend.onrender.com");
+            renderEnv.put("IA_ENABLED", "true");
+            renderEnv.put("IA_PROVIDER", "gemini");
+            renderEnv.put("AI_PROVIDER", "gemini");
+            renderEnv.put("GEMINI_MODEL", "gemini-flash-lite-latest");
+            renderEnv.put("GEMINI_TIMEOUT_MS", "4000");
+            if (includeGeminiKey) {
+                renderEnv.put("GEMINI_API_KEY", "dummy-valid-render-gemini-test-key-2026");
+            }
+            ctx.getEnvironment().getPropertySources().addFirst(
+                    new org.springframework.core.env.MapPropertySource("renderMockEnv", renderEnv)
+            );
+            for (org.springframework.core.env.PropertySource<?> ps : prodSources) {
+                ctx.getEnvironment().getPropertySources().addAfter("renderMockEnv", ps);
+            }
+            for (org.springframework.core.env.PropertySource<?> ps : baseSources) {
+                ctx.getEnvironment().getPropertySources().addLast(ps);
+            }
+            ctx.registerBean(org.springframework.context.support.PropertySourcesPlaceholderConfigurer.class);
+            ctx.registerBean(ProductionConfigurationValidator.class);
+            ctx.refresh();
+
+            ProductionConfigurationValidator validator = ctx.getBean(ProductionConfigurationValidator.class);
+            validator.run(new DefaultApplicationArguments(new String[0]));
+        }
     }
 }

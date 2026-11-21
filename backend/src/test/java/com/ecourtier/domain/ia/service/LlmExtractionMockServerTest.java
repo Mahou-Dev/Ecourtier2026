@@ -38,9 +38,13 @@ class LlmExtractionMockServerTest {
         mockPort = mockHttpServer.getAddress().getPort();
         mockHttpServer.start();
 
-        ReflectionTestUtils.setField(llmExtractionService, "apiKey", "test-api-key-123");
-        ReflectionTestUtils.setField(llmExtractionService, "provider", "claude");
-        ReflectionTestUtils.setField(llmExtractionService, "baseUrl", "http://localhost:" + mockPort + "/v1/messages");
+        ReflectionTestUtils.setField(llmExtractionService, "apiKey", "dummy-gemini-mock-key");
+        ReflectionTestUtils.setField(llmExtractionService, "provider", "gemini");
+        ReflectionTestUtils.setField(
+                llmExtractionService,
+                "baseUrl",
+                "http://localhost:" + mockPort + "/v1beta/models/gemini-flash-lite-latest:generateContent"
+        );
     }
 
     @AfterEach
@@ -51,14 +55,14 @@ class LlmExtractionMockServerTest {
     }
 
     @Test
-    @DisplayName("Scénario 1 : Mock HTTP 200 avec JSON malformé -> Vérifie 1 retry puis retombée sur le moteur de règles")
+    @DisplayName("Scénario 1 : Mock HTTP 200 Gemini avec JSON malformé -> Vérifie 1 retry puis retombée sur le moteur de règles")
     void testMalformedJsonTriggersRetryThenFallback() {
         AtomicInteger requestCount = new AtomicInteger(0);
 
-        mockHttpServer.createContext("/v1/messages", exchange -> {
+        mockHttpServer.createContext("/v1beta/models/gemini-flash-lite-latest:generateContent", exchange -> {
             requestCount.incrementAndGet();
-            // Réponse HTTP 200 avec un corps JSON invalide/tronqué (pas une erreur HTTP)
-            String malformedJsonBody = "{ \"content\": [ { \"text\": \"{ budgetMax: 15000, invalid json structure ...\" } ] }";
+            // Réponse HTTP 200 Gemini avec un corps JSON invalide/tronqué (pas une erreur HTTP)
+            String malformedJsonBody = "{ \"candidates\": [ { \"content\": { \"parts\": [ { \"text\": \"{ budgetMax: 15000, invalid json structure ...\" } ] } } ] }";
             byte[] responseBytes = malformedJsonBody.getBytes(StandardCharsets.UTF_8);
 
             exchange.getResponseHeaders().set("Content-Type", "application/json");
@@ -71,10 +75,12 @@ class LlmExtractionMockServerTest {
         CriteresExtraitsDTO result = llmExtractionService.extractCriteria("3 pièces à Nema, budget 150000 FCFA, meublé");
 
         // Vérification 1 : Le service a bien tenté l'appel initial + 1 retry (total 2 requêtes)
-        assertEquals(2, requestCount.get(), "Le client LLM aurait dû effectuer exactement 2 tentatives (essai initial + 1 retry)");
+        assertEquals(2, requestCount.get(), "Le client Gemini aurait dû effectuer exactement 2 tentatives (essai initial + 1 retry)");
 
         // Vérification 2 : Après l'échec du retry, fallback sur le moteur de règles avec extraction cohérente
         assertNotNull(result);
+        assertEquals("fallback-local", result.getFournisseurIa());
+        assertEquals(Boolean.TRUE, result.getModeSecours());
         assertEquals("Nema", result.getQuartier());
         assertEquals(new BigDecimal("150000"), result.getBudgetMax());
         assertEquals(3, result.getNombrePieces());
@@ -82,16 +88,16 @@ class LlmExtractionMockServerTest {
     }
 
     @Test
-    @DisplayName("Scénario 2 : Mock simulant une latence de 4s -> Vérifie fallback sous 2.5s grâce au timeout")
+    @DisplayName("Scénario 2 : Mock Gemini simulant une latence de 4s -> Vérifie fallback sous 2.5s grâce au timeout")
     void testLatencyTimeoutTriggersFallbackUnderLimit() {
-        mockHttpServer.createContext("/v1/messages", exchange -> {
+        mockHttpServer.createContext("/v1beta/models/gemini-flash-lite-latest:generateContent", exchange -> {
             try {
                 // Simulation d'une latence serveur de 4.0 secondes (> 2.5s)
                 Thread.sleep(4000);
             } catch (InterruptedException e) {
                 Thread.currentThread().interrupt();
             }
-            String validResponse = "{ \"content\": [ { \"text\": \"{\\\"budgetMax\\\":95000}\" } ] }";
+            String validResponse = "{ \"candidates\": [ { \"content\": { \"parts\": [ { \"text\": \"{\\\"budgetMax\\\":95000}\" } ] } } ] }";
             byte[] responseBytes = validResponse.getBytes(StandardCharsets.UTF_8);
             exchange.sendResponseHeaders(200, responseBytes.length);
             try (OutputStream os = exchange.getResponseBody()) {
@@ -108,6 +114,8 @@ class LlmExtractionMockServerTest {
 
         // Vérification 2 : Le fallback moteur de règles a pris le relais et extrait correctement les critères
         assertNotNull(result);
+        assertEquals("fallback-local", result.getFournisseurIa());
+        assertEquals(Boolean.TRUE, result.getModeSecours());
         assertEquals(TypeBien.STUDIO, result.getType());
         assertEquals("Boucotte", result.getQuartier());
         assertEquals(new BigDecimal("95000"), result.getBudgetMax());

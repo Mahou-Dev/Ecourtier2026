@@ -161,9 +161,11 @@ export interface MessageIAResponseDTO {
 
 export interface MessageHistoryItemDTO {
   id: string;
-  role: 'UTILISATEUR' | 'ASSISTANT';
+  role: 'UTILISATEUR' | 'ASSISTANT' | 'USER';
   contenu: string;
   criteresExtraits?: Record<string, unknown>;
+  annoncesSuggeres?: AnnonceDTO[];
+  questionDeRelance?: string;
   dateEnvoi: string;
 }
 
