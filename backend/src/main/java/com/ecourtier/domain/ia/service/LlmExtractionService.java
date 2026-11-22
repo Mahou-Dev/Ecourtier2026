@@ -118,24 +118,28 @@ public class LlmExtractionService {
 
         // 2. Analyse déterministe de référence (pour détecter hors-sujet, intentions spéciales et compléments NLU)
         CriteresExtraitsDTO deterministic = ruleBasedExtractor.extractCriteria(userMessage);
-        if (Boolean.TRUE.equals(deterministic.getHorsSujet())
-                || "FAQ_VERIFICATION_JURIDIQUE".equals(deterministic.getIntentionSpeciale())) {
-            if (isExternalGeminiActive() && "FAQ_VERIFICATION_JURIDIQUE".equals(deterministic.getIntentionSpeciale())) {
+        if (Boolean.TRUE.equals(deterministic.getHorsSujet())) {
+            return deterministic;
+        }
+        String configFallbackMotif = resolveConfigFallbackMotif();
+        if ("FAQ_VERIFICATION_JURIDIQUE".equals(deterministic.getIntentionSpeciale())) {
+            if (configFallbackMotif == null) {
                 // Intention juridique détectée localement pour garantir le routage, mais Gemini reste éligible pour la rédaction
                 deterministic.setModeSecours(false);
                 deterministic.setFournisseurIa(PROVIDER_GEMINI);
                 deterministic.setMotifSecours(null);
+                return deterministic;
             }
-            return deterministic;
+            return buildLocalFallback(deterministic, configFallbackMotif);
         }
 
         // 3. Politique RENDER-GEMINI-01 : Gemini est le SEUL fournisseur LLM externe autorisé (zéro appel Groq/OpenAI/Claude)
-        if (!iaEnabled) {
+        if ("IA_DESACTIVEE".equals(configFallbackMotif)) {
             return buildLocalFallback(deterministic, "IA_DESACTIVEE");
         }
 
         String requestedProvider = getActivePrimaryProviderName();
-        if (!PROVIDER_GEMINI.equals(requestedProvider)) {
+        if ("FOURNISSEUR_NON_AUTORISE".equals(configFallbackMotif)) {
             if (!PROVIDER_LOCAL.equals(requestedProvider) && !"none".equals(requestedProvider) && !"disabled".equals(requestedProvider)) {
                 log.warn("Fournisseur IA '{}' ignoré (RENDER-GEMINI-01 : seul Google Gemini est autorisé). Bascule directe sur le moteur local déterministe.",
                         requestedProvider);
@@ -204,14 +208,9 @@ public class LlmExtractionService {
             List<AnnonceResponseDTO> annoncesTrouvees,
             String questionDeRelance
     ) {
-        if (!iaEnabled) {
-            return new GenerationOutcome(null, "IA_DESACTIVEE");
-        }
-        if (!PROVIDER_GEMINI.equals(getActivePrimaryProviderName())) {
-            return new GenerationOutcome(null, "FOURNISSEUR_NON_AUTORISE");
-        }
-        if (geminiLLMProvider == null || !geminiLLMProvider.isConfigured()) {
-            return new GenerationOutcome(null, "CLE_ABSENTE");
+        String configMotif = resolveConfigFallbackMotif();
+        if (configMotif != null) {
+            return new GenerationOutcome(null, configMotif);
         }
         try {
             String response = geminiLLMProvider.generateConversationalResponse(
@@ -242,9 +241,17 @@ public class LlmExtractionService {
                     || cursor instanceof java.net.SocketTimeoutException) {
                 return "TIMEOUT";
             }
-            if (cursor instanceof IllegalStateException ise && ise.getMessage() != null
-                    && (ise.getMessage().contains("Quota Gemini") || ise.getMessage().contains("429"))) {
-                return "QUOTA";
+            if (cursor instanceof IllegalStateException ise && ise.getMessage() != null) {
+                String msg = ise.getMessage();
+                if (msg.contains("Quota Gemini") || msg.contains("429")) {
+                    return "QUOTA";
+                }
+                if (msg.contains("GEMINI_API_KEY") || msg.contains("n'est pas configurée")) {
+                    return "CLE_ABSENTE";
+                }
+                if (msg.contains("Réponse") || msg.contains("Contenu textuel")) {
+                    return "REPONSE_INVALIDE";
+                }
             }
             if (cursor instanceof com.fasterxml.jackson.core.JsonProcessingException
                     || cursor instanceof IllegalArgumentException) {
@@ -255,11 +262,27 @@ public class LlmExtractionService {
         return "ERREUR_HTTP";
     }
 
+    /**
+     * Détermine le motif de repli local lié à la configuration sans réaliser d'appel réseau.
+     * Retourne {@code null} lorsque Google Gemini est actif et correctement configuré.
+     */
+    public String resolveConfigFallbackMotif() {
+        if (!iaEnabled) {
+            return "IA_DESACTIVEE";
+        }
+        if (!PROVIDER_GEMINI.equals(getActivePrimaryProviderName())) {
+            return "FOURNISSEUR_NON_AUTORISE";
+        }
+        boolean hasProviderKey = geminiLLMProvider != null && geminiLLMProvider.isConfigured();
+        boolean hasLegacyDirectKey = geminiLLMProvider == null && apiKey != null && !apiKey.isBlank();
+        if (!hasProviderKey && !hasLegacyDirectKey) {
+            return "CLE_ABSENTE";
+        }
+        return null;
+    }
+
     public boolean isExternalGeminiActive() {
-        return iaEnabled
-                && PROVIDER_GEMINI.equals(getActivePrimaryProviderName())
-                && ((geminiLLMProvider != null && geminiLLMProvider.isConfigured())
-                || (geminiLLMProvider == null && apiKey != null && !apiKey.isBlank()));
+        return resolveConfigFallbackMotif() == null;
     }
 
     public boolean isAnyLlmProviderConfigured() {

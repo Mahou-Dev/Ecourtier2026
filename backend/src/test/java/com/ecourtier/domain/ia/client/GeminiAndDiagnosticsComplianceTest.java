@@ -260,4 +260,47 @@ class GeminiAndDiagnosticsComplianceTest {
         assertEquals("REPONSE_INVALIDE", resInvalid.getMotifSecours());
         verifyNoInteractions(groqClientService, openAILLMProvider, claudeLLMProvider);
     }
+
+    @Test
+    @DisplayName("REV-01 : RuleBasedCriteriaExtractor ne fige pas CLE_ABSENTE sur FAQ juridique ; LlmExtractionService reflète le motif réel")
+    void testRev01FaqJuridiqueDiagnosticSelonConfiguration() {
+        String faqQuestion = "Comment être sûr que les annonces sont fiables et authentiques ?";
+
+        // 1. Extracteur local isolé : ne doit pas coder en dur CLE_ABSENTE
+        CriteresExtraitsDTO isolated = ruleBasedExtractor.extractCriteria(faqQuestion);
+        assertEquals("FAQ_VERIFICATION_JURIDIQUE", isolated.getIntentionSpeciale());
+        assertNull(isolated.getMotifSecours(), "RuleBasedCriteriaExtractor ne doit pas hardcoder CLE_ABSENTE");
+
+        // 2. Gemini désactivé -> IA_DESACTIVEE
+        ReflectionTestUtils.setField(extractionService, "iaEnabled", false);
+        CriteresExtraitsDTO disabledRes = extractionService.extractCriteria(faqQuestion);
+        assertEquals("fallback-local", disabledRes.getFournisseurIa());
+        assertEquals(Boolean.TRUE, disabledRes.getModeSecours());
+        assertEquals("IA_DESACTIVEE", disabledRes.getMotifSecours());
+
+        // 3. Fournisseur non autorisé -> FOURNISSEUR_NON_AUTORISE
+        ReflectionTestUtils.setField(extractionService, "iaEnabled", true);
+        ReflectionTestUtils.setField(extractionService, "provider", "groq");
+        CriteresExtraitsDTO forbiddenRes = extractionService.extractCriteria(faqQuestion);
+        assertEquals("fallback-local", forbiddenRes.getFournisseurIa());
+        assertEquals(Boolean.TRUE, forbiddenRes.getModeSecours());
+        assertEquals("FOURNISSEUR_NON_AUTORISE", forbiddenRes.getMotifSecours());
+
+        // 4. Clé absente -> CLE_ABSENTE
+        ReflectionTestUtils.setField(extractionService, "provider", "gemini");
+        ReflectionTestUtils.setField(geminiProvider, "apiKey", "");
+        CriteresExtraitsDTO noKeyRes = extractionService.extractCriteria(faqQuestion);
+        assertEquals("fallback-local", noKeyRes.getFournisseurIa());
+        assertEquals(Boolean.TRUE, noKeyRes.getModeSecours());
+        assertEquals("CLE_ABSENTE", noKeyRes.getMotifSecours());
+
+        // 5. Gemini actif et configuré -> éligible Gemini (modeSecours=false, motifSecours=null)
+        ReflectionTestUtils.setField(geminiProvider, "apiKey", FAKE_SECRET_KEY);
+        CriteresExtraitsDTO activeRes = extractionService.extractCriteria(faqQuestion);
+        assertEquals("gemini", activeRes.getFournisseurIa());
+        assertEquals(Boolean.FALSE, activeRes.getModeSecours());
+        assertNull(activeRes.getMotifSecours());
+
+        verifyNoInteractions(groqClientService, openAILLMProvider, claudeLLMProvider);
+    }
 }

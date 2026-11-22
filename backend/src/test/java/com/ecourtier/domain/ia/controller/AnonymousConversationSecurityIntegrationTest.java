@@ -15,9 +15,12 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.boot.test.system.CapturedOutput;
+import org.springframework.boot.test.system.OutputCaptureExtension;
 import org.springframework.http.MediaType;
 import org.springframework.security.test.context.support.WithMockUser;
 import org.springframework.test.context.ActiveProfiles;
@@ -41,6 +44,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 @AutoConfigureMockMvc
 @ActiveProfiles("test")
 @TestPropertySource(properties = "ecourtier.cors.allowed-origins=https://ecourtier-frontend.onrender.com,http://localhost:3000")
+@ExtendWith(OutputCaptureExtension.class)
 @Transactional
 class AnonymousConversationSecurityIntegrationTest {
 
@@ -387,5 +391,63 @@ class AnonymousConversationSecurityIntegrationTest {
         assertNotNull(allowHeaders);
         assertTrue(allowHeaders.toLowerCase().contains("x-ia-session-token"),
                 "CORS doit autoriser X-IA-Session-Token (reçu: " + allowHeaders + ")");
+    }
+
+    @Test
+    @DisplayName("15. REV-02 : Un jeton fourni par le client à la création est ignoré, jamais journalisé et unique par session")
+    void test15_Rev02CreationIgnoreJetonClientEtNeLogguePasSecret(CapturedOutput output) throws Exception {
+        String clientForgedToken = "client-forged-token-do-not-accept-9876543210";
+
+        MvcResult res1 = mockMvc.perform(post("/api/v1/ia/conversations")
+                        .header(IAService.IA_SESSION_HEADER_NAME, clientForgedToken))
+                .andExpect(status().isCreated())
+                .andReturn();
+        JsonNode json1 = objectMapper.readTree(res1.getResponse().getContentAsString());
+        UUID convId1 = UUID.fromString(json1.get("conversationId").asText());
+        String serverToken1 = json1.get("sessionToken").asText();
+
+        assertNotNull(serverToken1);
+        assertEquals(64, serverToken1.length(), "Le jeton serveur SecureRandom doit faire 64 caractères hexadécimaux");
+        assertNotEquals(clientForgedToken, serverToken1, "Tout jeton client à la création doit être ignoré");
+
+        // Seconde conversation : jeton strictement distinct
+        MvcResult res2 = mockMvc.perform(post("/api/v1/ia/conversations")
+                        .header(IAService.IA_SESSION_HEADER_NAME, clientForgedToken))
+                .andExpect(status().isCreated())
+                .andReturn();
+        String serverToken2 = objectMapper.readTree(res2.getResponse().getContentAsString()).get("sessionToken").asText();
+        assertNotEquals(serverToken1, serverToken2, "Deux conversations anonymes doivent recevoir deux jetons distincts");
+
+        // Le jeton forgé par le client doit être refusé en 403 ; seul le jeton serveur fonctionne
+        mockMvc.perform(get("/api/v1/ia/conversations/" + convId1)
+                        .header(IAService.IA_SESSION_HEADER_NAME, clientForgedToken))
+                .andExpect(status().isForbidden());
+
+        mockMvc.perform(post("/api/v1/ia/conversations/" + convId1 + "/messages")
+                        .header(IAService.IA_SESSION_HEADER_NAME, serverToken1)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(new MessageUserRequestDTO("Studio meublé à Mermoz"))))
+                .andExpect(status().isOk());
+
+        mockMvc.perform(get("/api/v1/ia/conversations/" + convId1)
+                        .header(IAService.IA_SESSION_HEADER_NAME, serverToken1))
+                .andExpect(status().isOk());
+
+        // Test explicite de révocation côté base (invalidation du hash)
+        ConversationIAEntity persisted = conversationIARepository.findById(convId1).orElseThrow();
+        String storedHash = persisted.getSessionTokenHash();
+        assertEquals(IAService.hashToken(serverToken1), storedHash);
+        persisted.setSessionTokenHash(null);
+        conversationIARepository.saveAndFlush(persisted);
+
+        mockMvc.perform(get("/api/v1/ia/conversations/" + convId1)
+                        .header(IAService.IA_SESSION_HEADER_NAME, serverToken1))
+                .andExpect(status().isForbidden());
+
+        // Aucun secret ni hash dans les logs applicatifs capturés
+        String logs = output.getAll();
+        assertFalse(logs.contains(serverToken1), "Le jeton serveur brut ne doit jamais apparaître dans les logs");
+        assertFalse(logs.contains(serverToken2), "Le second jeton brut ne doit jamais apparaître dans les logs");
+        assertFalse(logs.contains(storedHash), "Le hash SHA-256 ne doit pas fuiter dans les logs");
     }
 }

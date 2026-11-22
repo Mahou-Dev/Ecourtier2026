@@ -121,8 +121,8 @@ class IAServiceClockTest {
         Instant creationInstant = Instant.parse("2026-06-15T23:30:00Z");
         iaService.setClock(Clock.fixed(creationInstant, DAKAR_ZONE));
 
-        String rawToken = IAService.generateSecureToken();
-        ConversationCreateResponseDTO created = iaService.creerConversation(null, rawToken);
+        ConversationCreateResponseDTO created = iaService.creerConversation(null);
+        String rawToken = created.getSessionToken();
 
         ConversationIAEntity conv = conversationIARepository.findById(created.getConversationId()).orElseThrow();
         LocalDateTime expectedCreation = LocalDateTime.of(2026, 6, 15, 23, 30, 0);

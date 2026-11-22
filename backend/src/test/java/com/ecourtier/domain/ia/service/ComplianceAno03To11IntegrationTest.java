@@ -145,7 +145,7 @@ class ComplianceAno03To11IntegrationTest {
     }
 
     @Test
-    @DisplayName("ANO-PROD-04 : Compatibilité ascendante avec lignes héritées ayant ordre = 0 et même horodatage")
+    @DisplayName("ANO-PROD-04 : Compatibilité ascendante avec ligne héritée ordre = 0 suivie de nouveaux tours (unicité REV-03 préservée)")
     void testAno04_CompatibiliteLignesHeriteesOrdreZero() {
         LocalDateTime sameTime = LocalDateTime.of(2026, 11, 22, 10, 0, 0);
         ConversationIAEntity conv = conversationIARepository.save(ConversationIAEntity.builder()
@@ -153,15 +153,8 @@ class ComplianceAno03To11IntegrationTest {
                 .dateCreation(sameTime)
                 .build());
 
-        // Insertion inversée volontaire de deux messages à ordre=0 et date identique
-        MessageIAEntity assistant = messageIARepository.save(MessageIAEntity.builder()
-                .conversation(conv)
-                .role(RoleMessageIA.ASSISTANT)
-                .ordre(0L)
-                .contenu("Réponse héritée")
-                .dateEnvoi(sameTime)
-                .build());
-        MessageIAEntity user = messageIARepository.save(MessageIAEntity.builder()
+        // Insertion d'une ligne héritée à ordre=0 (V21/V22 garantissent ensuite l'unicité de (conversation_id, ordre))
+        MessageIAEntity legacyZero = messageIARepository.saveAndFlush(MessageIAEntity.builder()
                 .conversation(conv)
                 .role(RoleMessageIA.UTILISATEUR)
                 .ordre(0L)
@@ -169,12 +162,17 @@ class ComplianceAno03To11IntegrationTest {
                 .dateEnvoi(sameTime)
                 .build());
 
+        iaService.envoyerMessage(
+                conv.getId(),
+                new MessageUserRequestDTO("Suite de ma recherche à Dakar"),
+                locataire.getEmail()
+        );
+
         List<MessageIAEntity> sorted = messageIARepository
                 .findByConversationIdOrderByOrdreAscDateEnvoiAscIdAsc(conv.getId());
-        assertEquals(2, sorted.size());
-        assertEquals(0L, sorted.get(0).getOrdre());
-        assertTrue(sorted.stream().anyMatch(m -> m.getId().equals(user.getId())));
-        assertTrue(sorted.stream().anyMatch(m -> m.getId().equals(assistant.getId())));
+        assertEquals(3, sorted.size());
+        assertEquals(legacyZero.getId(), sorted.get(0).getId());
+        assertEquals(List.of(0L, 1L, 2L), sorted.stream().map(MessageIAEntity::getOrdre).toList());
     }
 
     @Test

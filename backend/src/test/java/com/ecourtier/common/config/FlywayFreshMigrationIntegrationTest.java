@@ -56,23 +56,34 @@ public class FlywayFreshMigrationIntegrationTest {
     @Autowired(required = false)
     private Flyway flyway;
 
+    @Autowired(required = false)
+    private org.springframework.jdbc.core.JdbcTemplate jdbcTemplate;
+
     @Test
-    @DisplayName("CA3-011: Vérifie l'exécution sans erreur de toutes les migrations Flyway (V1 à V21) sur PostgreSQL 16 vierge isolé")
+    @DisplayName("CA3-011: Vérifie l'exécution sans erreur de toutes les migrations Flyway (V1 à V22) sur PostgreSQL 16 vierge isolé")
     void testFlywayMigrationsOnFreshDatabase() {
         assertNotNull(flyway, "Flyway bean doit être disponible");
         MigrationInfo current = flyway.info().current();
         assertNotNull(current, "Une version courante de migration doit être enregistrée");
-        assertEquals("21", current.getVersion().getVersion(), "La dernière migration appliquée doit être la V21");
-        assertTrue(current.getState().isApplied(), "La migration V21 doit être appliquée avec succès");
+        assertEquals("22", current.getVersion().getVersion(), "La dernière migration appliquée doit être la V22");
+        assertTrue(current.getState().isApplied(), "La migration V22 doit être appliquée avec succès");
 
         MigrationInfo[] applied = flyway.info().applied();
-        assertEquals(21, applied.length, "Toutes les migrations V1 à V21 doivent être appliquées");
-        for (int v = 1; v <= 21; v++) {
+        assertEquals(22, applied.length, "Toutes les migrations V1 à V22 doivent être appliquées");
+        for (int v = 1; v <= 22; v++) {
             MigrationInfo migration = applied[v - 1];
             assertEquals(String.valueOf(v), migration.getVersion().getVersion(),
                     "La migration V" + v + " doit être présente dans l'ordre");
             assertTrue(migration.getState().isApplied(),
                     "La migration V" + v + " doit être appliquée avec succès");
         }
+
+        assertNotNull(jdbcTemplate);
+        Integer constraintCount = jdbcTemplate.queryForObject(
+                "SELECT COUNT(*) FROM pg_constraint WHERE conname = 'uq_messages_ia_conversation_ordre'",
+                Integer.class
+        );
+        assertEquals(1, constraintCount,
+                "La contrainte unique uq_messages_ia_conversation_ordre (V22) doit exister sur PostgreSQL 16");
     }
 }

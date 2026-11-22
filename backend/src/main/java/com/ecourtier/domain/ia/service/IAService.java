@@ -28,6 +28,8 @@ import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.dao.PessimisticLockingFailureException;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.PlatformTransactionManager;
@@ -174,24 +176,25 @@ public class IAService {
 
     @Transactional
     public ConversationCreateResponseDTO creerConversation(String userEmail) {
-        return creerConversation(userEmail, (HttpServletRequest) null, (HttpServletResponse) null);
+        return creerConversationInternal(userEmail);
     }
 
+    /**
+     * Surcharge conservée pour compatibilité de signature : tout jeton fourni par l'appelant est
+     * systématiquement ignoré au profit d'un jeton aléatoire généré côté serveur (REV-02).
+     */
     @Transactional
-    public ConversationCreateResponseDTO creerConversation(String userEmail, String sessionToken) {
-        return creerConversationInternal(userEmail, sessionToken);
+    public ConversationCreateResponseDTO creerConversation(String userEmail, String ignoredClientToken) {
+        return creerConversationInternal(userEmail);
     }
 
     @Transactional
     public ConversationCreateResponseDTO creerConversation(String userEmail, HttpServletRequest request, HttpServletResponse response) {
-        String sessionToken = extractSessionToken(request);
-        return creerConversationInternal(userEmail, sessionToken);
+        // Ignorer strictement tout X-IA-Session-Token fourni par le client à la création (REV-02)
+        return creerConversationInternal(userEmail);
     }
 
-    private ConversationCreateResponseDTO creerConversationInternal(
-            String userEmail,
-            String sessionToken
-    ) {
+    private ConversationCreateResponseDTO creerConversationInternal(String userEmail) {
         UtilisateurEntity user = null;
         boolean isAuthentifie = (userEmail != null && !userEmail.trim().isEmpty() && !"anonymousUser".equals(userEmail));
         if (isAuthentifie) {
@@ -204,11 +207,9 @@ public class IAService {
         String issuedTokenForClient = null;
 
         if (user == null) {
-            if (sessionToken == null || sessionToken.isBlank()) {
-                sessionToken = generateSecureToken();
-            }
-            issuedTokenForClient = sessionToken;
-            sessionTokenHash = hashToken(sessionToken);
+            String serverToken = generateSecureToken();
+            issuedTokenForClient = serverToken;
+            sessionTokenHash = hashToken(serverToken);
             expiration = now.plusDays(IA_SESSION_DURATION_DAYS);
         }
 
@@ -371,10 +372,17 @@ public class IAService {
                 } else {
                     criteresFinaux.setModeSecours(true);
                     criteresFinaux.setFournisseurIa("fallback-local");
-                    criteresFinaux.setMotifSecours(genOutcome.motifSecours());
+                    criteresFinaux.setMotifSecours(genOutcome.motifSecours() != null ? genOutcome.motifSecours() : "ERREUR_HTTP");
                     texteReponse = construireReponseTransparenceJuridique();
                 }
             } else {
+                String resolvedMotif = nouveauxCriteres.getMotifSecours();
+                if (resolvedMotif == null || resolvedMotif.isBlank()) {
+                    resolvedMotif = llmExtractionService.resolveConfigFallbackMotif();
+                }
+                criteresFinaux.setModeSecours(true);
+                criteresFinaux.setFournisseurIa("fallback-local");
+                criteresFinaux.setMotifSecours(resolvedMotif != null ? resolvedMotif : "CLE_ABSENTE");
                 texteReponse = construireReponseTransparenceJuridique();
             }
         } else if ("FAQ_DOCUMENTS".equals(intentionSpeciale)) {
@@ -387,7 +395,11 @@ public class IAService {
             criteresFinaux.setModeSecours(true);
             criteresFinaux.setFournisseurIa("fallback-local");
             if (criteresFinaux.getMotifSecours() == null || criteresFinaux.getMotifSecours().isBlank()) {
-                criteresFinaux.setMotifSecours(nouveauxCriteres.getMotifSecours() != null ? nouveauxCriteres.getMotifSecours() : "CLE_ABSENTE");
+                String configMotif = llmExtractionService.resolveConfigFallbackMotif();
+                String resolved = (nouveauxCriteres.getMotifSecours() != null && !nouveauxCriteres.getMotifSecours().isBlank())
+                        ? nouveauxCriteres.getMotifSecours()
+                        : configMotif;
+                criteresFinaux.setMotifSecours(resolved != null ? resolved : "CLE_ABSENTE");
             }
             texteReponse = construireReponseAssistant(criteresFinaux, annoncesSuggerees, explicationsAnnonces, diagnosticCriteresBloquants, false);
         } else {
@@ -420,32 +432,53 @@ public class IAService {
         String criteresJson = serializeCriteres(criteresFinaux);
         LocalDateTime now = nowDakar();
 
-        MessageIAEntity savedAssistantMsg = executeInWriteTx(() -> {
-            ConversationIAEntity conversation = conversationIARepository.findById(conversationId)
-                    .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Conversation IA introuvable"));
+        MessageIAEntity savedAssistantMsg;
+        try {
+            savedAssistantMsg = executeInWriteTx(() -> {
+                // Verrou pessimiste sur la conversation pour sérialiser l'allocation d'ordre (REV-03)
+                ConversationIAEntity conversation = conversationIARepository.findByIdForUpdate(conversationId)
+                        .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Conversation IA introuvable"));
 
-            long nextOrdre = messageIARepository.findMaxOrdreByConversationId(conversationId) + 1L;
+                verifierDroitsConversation(conversation, emailUtilisateur, rawSessionToken);
+                long currentCount = messageIARepository.countByConversationId(conversationId);
+                if (currentCount >= 60) {
+                    throw new ResponseStatusException(
+                            HttpStatus.BAD_REQUEST,
+                            "Cette conversation a atteint la limite maximale de messages. Veuillez démarrer une nouvelle conversation."
+                    );
+                }
 
-            MessageIAEntity userMessageEntity = MessageIAEntity.builder()
-                    .conversation(conversation)
-                    .role(RoleMessageIA.UTILISATEUR)
-                    .ordre(nextOrdre)
-                    .contenu(request.getMessage().trim())
-                    .dateEnvoi(now)
-                    .build();
-            messageIARepository.save(userMessageEntity);
+                long nextOrdre = messageIARepository.findMaxOrdreByConversationId(conversationId) + 1L;
 
-            MessageIAEntity assistantMessageEntity = MessageIAEntity.builder()
-                    .conversation(conversation)
-                    .role(RoleMessageIA.ASSISTANT)
-                    .ordre(nextOrdre + 1L)
-                    .contenu(texteReponseFinal)
-                    .criteresExtraits(criteresJson)
-                    .nombreAnnoncesSuggerees(annoncesSuggerees.size())
-                    .dateEnvoi(now)
-                    .build();
-            return messageIARepository.save(assistantMessageEntity);
-        });
+                MessageIAEntity userMessageEntity = MessageIAEntity.builder()
+                        .conversation(conversation)
+                        .role(RoleMessageIA.UTILISATEUR)
+                        .ordre(nextOrdre)
+                        .contenu(request.getMessage().trim())
+                        .dateEnvoi(now)
+                        .build();
+                messageIARepository.save(userMessageEntity);
+
+                MessageIAEntity assistantMessageEntity = MessageIAEntity.builder()
+                        .conversation(conversation)
+                        .role(RoleMessageIA.ASSISTANT)
+                        .ordre(nextOrdre + 1L)
+                        .contenu(texteReponseFinal)
+                        .criteresExtraits(criteresJson)
+                        .nombreAnnoncesSuggerees(annoncesSuggerees.size())
+                        .dateEnvoi(now)
+                        .build();
+                return messageIARepository.save(assistantMessageEntity);
+            });
+        } catch (PessimisticLockingFailureException | DataIntegrityViolationException ex) {
+            log.warn("Conflit d'écriture concurrente détecté sur la conversation {} ({})",
+                    conversationId, ex.getClass().getSimpleName());
+            throw new ResponseStatusException(
+                    HttpStatus.CONFLICT,
+                    "Une écriture simultanée est en cours sur cette conversation. Veuillez réessayer.",
+                    ex
+            );
+        }
         long tempsPersistanceMs = (System.nanoTime() - tPersistStart) / 1_000_000L;
 
         // =========================================================================

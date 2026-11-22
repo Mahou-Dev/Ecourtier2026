@@ -2,6 +2,7 @@ package com.ecourtier.common.exception;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.dao.PessimisticLockingFailureException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
@@ -149,10 +150,19 @@ public class GlobalExceptionHandler {
 
     @ExceptionHandler(ObjectOptimisticLockingFailureException.class)
     public ResponseEntity<Map<String, Object>> handleOptimisticLockingFailure(ObjectOptimisticLockingFailureException ex) {
+        return buildConflictResponse("Cette annonce ou ressource a été modifiée simultanément. Veuillez recharger avant de réessayer.");
+    }
+
+    @ExceptionHandler(PessimisticLockingFailureException.class)
+    public ResponseEntity<Map<String, Object>> handlePessimisticLockingFailure(PessimisticLockingFailureException ex) {
+        return buildConflictResponse("Une écriture simultanée est en cours sur cette ressource. Veuillez réessayer.");
+    }
+
+    private ResponseEntity<Map<String, Object>> buildConflictResponse(String message) {
         Map<String, Object> response = new HashMap<>();
         response.put("timestamp", now());
         response.put("status", HttpStatus.CONFLICT.value());
-        response.put("error", "Cette annonce ou ressource a été modifiée simultanément. Veuillez recharger avant de réessayer.");
+        response.put("error", message);
 
         return ResponseEntity.status(HttpStatus.CONFLICT)
                 .contentType(APPLICATION_JSON_UTF8)

@@ -216,7 +216,6 @@ public class RuleBasedCriteriaExtractor {
             if ("FAQ_VERIFICATION_JURIDIQUE".equals(specialIntent)) {
                 builder.fournisseurIa("fallback-local");
                 builder.modeSecours(true);
-                builder.motifSecours("CLE_ABSENTE");
                 builder.confiance(0.9);
                 return builder.build();
             }
