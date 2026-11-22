@@ -288,7 +288,7 @@ export const Header: React.FC = () => {
                   size="sm"
                   onClick={handleLogout}
                   title="Se déconnecter"
-                  aria-label="Se déconnecter"
+                  aria-label="Déconnexion"
                   className="hidden sm:inline-flex min-h-[38px]"
                   leftIcon={<LogOut className="w-4 h-4 text-charcoal-600" />}
                 >
