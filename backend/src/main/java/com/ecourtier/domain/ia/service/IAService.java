@@ -24,27 +24,26 @@ import com.ecourtier.domain.utilisateur.entity.UtilisateurEntity;
 import com.ecourtier.domain.utilisateur.repository.UtilisateurRepository;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import jakarta.servlet.http.Cookie;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
-import org.springframework.http.ResponseCookie;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.support.TransactionTemplate;
 import org.springframework.web.server.ResponseStatusException;
 
+import java.math.BigDecimal;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.security.SecureRandom;
+import java.text.DecimalFormat;
+import java.text.DecimalFormatSymbols;
 import java.text.Normalizer;
 import java.time.Clock;
-import java.time.Duration;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.util.ArrayList;
@@ -65,9 +64,9 @@ import java.util.stream.Collectors;
 @Slf4j
 public class IAService {
 
-    public static final String IA_SESSION_COOKIE_NAME = "ecourtier_ia_session";
     public static final String IA_SESSION_HEADER_NAME = "X-IA-Session-Token";
     public static final int IA_SESSION_DURATION_DAYS = 7;
+    private static final int MAX_USER_MESSAGE_LENGTH = 1000;
     private static final SecureRandom SECURE_RANDOM = new SecureRandom();
     private static final ZoneId DAKAR_ZONE = ZoneId.of("Africa/Dakar");
 
@@ -166,16 +165,6 @@ public class IAService {
 
     public static String extractSessionToken(HttpServletRequest request) {
         if (request == null) return null;
-        if (request.getCookies() != null) {
-            for (Cookie cookie : request.getCookies()) {
-                if (IA_SESSION_COOKIE_NAME.equals(cookie.getName())) {
-                    String val = cookie.getValue();
-                    if (val != null && !val.isBlank()) {
-                        return val.trim();
-                    }
-                }
-            }
-        }
         String headerToken = request.getHeader(IA_SESSION_HEADER_NAME);
         if (headerToken != null && !headerToken.isBlank()) {
             return headerToken.trim();
@@ -190,20 +179,18 @@ public class IAService {
 
     @Transactional
     public ConversationCreateResponseDTO creerConversation(String userEmail, String sessionToken) {
-        return creerConversationInternal(userEmail, sessionToken, null, false);
+        return creerConversationInternal(userEmail, sessionToken);
     }
 
     @Transactional
     public ConversationCreateResponseDTO creerConversation(String userEmail, HttpServletRequest request, HttpServletResponse response) {
         String sessionToken = extractSessionToken(request);
-        return creerConversationInternal(userEmail, sessionToken, response, request != null && request.isSecure());
+        return creerConversationInternal(userEmail, sessionToken);
     }
 
     private ConversationCreateResponseDTO creerConversationInternal(
             String userEmail,
-            String sessionToken,
-            HttpServletResponse response,
-            boolean isSecure
+            String sessionToken
     ) {
         UtilisateurEntity user = null;
         boolean isAuthentifie = (userEmail != null && !userEmail.trim().isEmpty() && !"anonymousUser".equals(userEmail));
@@ -214,23 +201,13 @@ public class IAService {
         String sessionTokenHash = null;
         LocalDateTime expiration = null;
         LocalDateTime now = nowDakar();
+        String issuedTokenForClient = null;
 
         if (user == null) {
             if (sessionToken == null || sessionToken.isBlank()) {
                 sessionToken = generateSecureToken();
             }
-
-            if (response != null) {
-                ResponseCookie cookie = ResponseCookie.from(IA_SESSION_COOKIE_NAME, sessionToken)
-                        .httpOnly(true)
-                        .secure(isSecure)
-                        .path("/api/v1/ia")
-                        .maxAge(Duration.ofDays(IA_SESSION_DURATION_DAYS))
-                        .sameSite("Lax")
-                        .build();
-                response.addHeader(HttpHeaders.SET_COOKIE, cookie.toString());
-            }
-
+            issuedTokenForClient = sessionToken;
             sessionTokenHash = hashToken(sessionToken);
             expiration = now.plusDays(IA_SESSION_DURATION_DAYS);
         }
@@ -246,6 +223,7 @@ public class IAService {
         return ConversationCreateResponseDTO.builder()
                 .conversationId(saved.getId())
                 .dateCreation(saved.getDateCreation() != null ? saved.getDateCreation() : conv.getDateCreation())
+                .sessionToken(issuedTokenForClient)
                 .build();
     }
 
@@ -290,8 +268,8 @@ public class IAService {
             if (request == null || request.getMessage() == null || request.getMessage().isBlank()) {
                 throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Le message ne peut pas être vide");
             }
-            if (request.getMessage().length() > 500) {
-                throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Le message ne doit pas dépasser 500 caractères");
+            if (request.getMessage().length() > MAX_USER_MESSAGE_LENGTH) {
+                throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Le message ne doit pas dépasser 1000 caractères");
             }
 
             long messageCount = messageIARepository.countByConversationId(conversationId);
@@ -302,7 +280,7 @@ public class IAService {
                 );
             }
 
-            List<MessageIAEntity> historique = messageIARepository.findByConversationIdOrderByDateEnvoiAsc(conversationId);
+            List<MessageIAEntity> historique = messageIARepository.findByConversationIdOrderByOrdreAscDateEnvoiAscIdAsc(conversationId);
             return extraireDerniersCriteresConnus(historique);
         });
 
@@ -311,7 +289,9 @@ public class IAService {
         // =========================================================================
         long tExtractStart = System.nanoTime();
         CriteresExtraitsDTO nouveauxCriteres = llmExtractionService.extractCriteria(request.getMessage(), criteresPrecedents);
-        CriteresExtraitsDTO criteresFinaux = fusionnerCriteres(criteresPrecedents, nouveauxCriteres);
+        CriteresExtraitsDTO criteresFinaux = "FAQ_VERIFICATION_JURIDIQUE".equals(nouveauxCriteres.getIntentionSpeciale())
+                ? preserveCriteriaForLegalFaq(criteresPrecedents, nouveauxCriteres)
+                : fusionnerCriteres(criteresPrecedents, nouveauxCriteres);
         long tempsExtractionMs = (System.nanoTime() - tExtractStart) / 1_000_000L;
 
         boolean horsSujet = Boolean.TRUE.equals(nouveauxCriteres.getHorsSujet());
@@ -336,12 +316,21 @@ public class IAService {
                 && (criteresFinaux.getProximites() == null || criteresFinaux.getProximites().isEmpty())
                 && !"LISTE_DISPONIBLE".equals(intentionSpeciale);
 
+        boolean demandeExploratoire = criteresFinaux.getType() == null
+                && criteresFinaux.getBudgetMax() == null
+                && criteresFinaux.getBudgetMin() == null
+                && !"LISTE_DISPONIBLE".equals(intentionSpeciale)
+                && !"EXPLICATION_RECOMMANDATION".equals(intentionSpeciale);
+
         // =========================================================================
         // ÉTAPE 3 : Recherche en lecture seule des annonces réelles et vérifiées
         // =========================================================================
         long tSearchStart = System.nanoTime();
         SearchExecutionResult searchResult;
-        if (horsSujet || "FAQ_DOCUMENTS".equals(intentionSpeciale) || (aucunCritere && !"EXPLICATION_RECOMMANDATION".equals(intentionSpeciale))) {
+        if (horsSujet
+                || "FAQ_DOCUMENTS".equals(intentionSpeciale)
+                || "FAQ_VERIFICATION_JURIDIQUE".equals(intentionSpeciale)
+                || ((aucunCritere || demandeExploratoire) && !"EXPLICATION_RECOMMANDATION".equals(intentionSpeciale))) {
             searchResult = new SearchExecutionResult(List.of(), Map.of(), null);
         } else if ("EXPLICATION_RECOMMANDATION".equals(intentionSpeciale)
                 && criteresPrecedents != null
@@ -373,23 +362,42 @@ public class IAService {
             texteReponse = criteresFinaux.getQuestionDeRelance() != null
                     ? criteresFinaux.getQuestionDeRelance()
                     : "Je suis Samba, l'assistant immobilier d'E-Courtier Sénégal. Je vous accompagne exclusivement dans la recherche de logements (chambres, studios, appartements, villas). Quel bien immobilier recherchez-vous ?";
+        } else if ("FAQ_VERIFICATION_JURIDIQUE".equals(intentionSpeciale)) {
+            if (!Boolean.TRUE.equals(nouveauxCriteres.getModeSecours()) && llmExtractionService.isExternalGeminiActive()) {
+                LlmExtractionService.GenerationOutcome genOutcome = llmExtractionService.generateConversationalResponseWithDiagnostic(
+                        request.getMessage(), criteresFinaux, List.of(), null);
+                if (genOutcome.responseText() != null && !genOutcome.responseText().isBlank()) {
+                    texteReponse = genOutcome.responseText();
+                } else {
+                    criteresFinaux.setModeSecours(true);
+                    criteresFinaux.setFournisseurIa("fallback-local");
+                    criteresFinaux.setMotifSecours(genOutcome.motifSecours());
+                    texteReponse = construireReponseTransparenceJuridique();
+                }
+            } else {
+                texteReponse = construireReponseTransparenceJuridique();
+            }
         } else if ("FAQ_DOCUMENTS".equals(intentionSpeciale)) {
             texteReponse = construireReponseFaqDocuments(criteresFinaux);
         } else if ("EXPLICATION_RECOMMANDATION".equals(intentionSpeciale)) {
             texteReponse = construireReponseExplicationRecommandation(annoncesSuggerees, explicationsAnnonces, criteresFinaux);
-        } else if (aucunCritere) {
-            texteReponse = construireReponseAssistant(criteresFinaux, annoncesSuggerees, explicationsAnnonces, diagnosticCriteresBloquants);
+        } else if (aucunCritere || demandeExploratoire) {
+            texteReponse = construireReponseAssistant(criteresFinaux, annoncesSuggerees, explicationsAnnonces, diagnosticCriteresBloquants, demandeExploratoire);
         } else if (Boolean.TRUE.equals(nouveauxCriteres.getModeSecours()) || !llmExtractionService.isExternalGeminiActive()) {
             criteresFinaux.setModeSecours(true);
             criteresFinaux.setFournisseurIa("fallback-local");
-            texteReponse = construireReponseAssistant(criteresFinaux, annoncesSuggerees, explicationsAnnonces, diagnosticCriteresBloquants);
+            if (criteresFinaux.getMotifSecours() == null || criteresFinaux.getMotifSecours().isBlank()) {
+                criteresFinaux.setMotifSecours(nouveauxCriteres.getMotifSecours() != null ? nouveauxCriteres.getMotifSecours() : "CLE_ABSENTE");
+            }
+            texteReponse = construireReponseAssistant(criteresFinaux, annoncesSuggerees, explicationsAnnonces, diagnosticCriteresBloquants, false);
         } else {
-            String llmResponse = llmExtractionService.generateConversationalResponse(
+            LlmExtractionService.GenerationOutcome genOutcome = llmExtractionService.generateConversationalResponseWithDiagnostic(
                     request.getMessage(),
                     criteresFinaux,
                     annoncesSuggerees,
                     criteresFinaux.getQuestionDeRelance()
             );
+            String llmResponse = genOutcome.responseText();
             if (llmResponse != null && !llmResponse.isBlank()) {
                 texteReponse = llmResponse;
                 if (annoncesSuggerees.isEmpty() && diagnosticCriteresBloquants != null && !texteReponse.contains(diagnosticCriteresBloquants)) {
@@ -398,14 +406,15 @@ public class IAService {
             } else {
                 criteresFinaux.setModeSecours(true);
                 criteresFinaux.setFournisseurIa("fallback-local");
-                texteReponse = construireReponseAssistant(criteresFinaux, annoncesSuggerees, explicationsAnnonces, diagnosticCriteresBloquants);
+                criteresFinaux.setMotifSecours(genOutcome.motifSecours());
+                texteReponse = construireReponseAssistant(criteresFinaux, annoncesSuggerees, explicationsAnnonces, diagnosticCriteresBloquants, false);
             }
         }
         final String texteReponseFinal = texteReponse;
         long tempsGenerationMs = (System.nanoTime() - tGenStart) / 1_000_000L;
 
         // =========================================================================
-        // ÉTAPE 5 : Transaction courte d'écriture pour persister l'échange
+        // ÉTAPE 5 : Transaction courte d'écriture pour persister l'échange (ordre déterministe)
         // =========================================================================
         long tPersistStart = System.nanoTime();
         String criteresJson = serializeCriteres(criteresFinaux);
@@ -415,14 +424,12 @@ public class IAService {
             ConversationIAEntity conversation = conversationIARepository.findById(conversationId)
                     .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Conversation IA introuvable"));
 
-            boolean isAuth = emailUtilisateur != null && !emailUtilisateur.trim().isEmpty() && !"anonymousUser".equals(emailUtilisateur);
-            if (conversation.getUtilisateur() == null && isAuth) {
-                utilisateurRepository.findByEmail(emailUtilisateur).ifPresent(conversation::setUtilisateur);
-            }
+            long nextOrdre = messageIARepository.findMaxOrdreByConversationId(conversationId) + 1L;
 
             MessageIAEntity userMessageEntity = MessageIAEntity.builder()
                     .conversation(conversation)
                     .role(RoleMessageIA.UTILISATEUR)
+                    .ordre(nextOrdre)
                     .contenu(request.getMessage().trim())
                     .dateEnvoi(now)
                     .build();
@@ -431,6 +438,7 @@ public class IAService {
             MessageIAEntity assistantMessageEntity = MessageIAEntity.builder()
                     .conversation(conversation)
                     .role(RoleMessageIA.ASSISTANT)
+                    .ordre(nextOrdre + 1L)
                     .contenu(texteReponseFinal)
                     .criteresExtraits(criteresJson)
                     .nombreAnnoncesSuggerees(annoncesSuggerees.size())
@@ -446,10 +454,11 @@ public class IAService {
         long tempsTotalMs = (System.nanoTime() - tTotalStart) / 1_000_000L;
         long tempsLlmMs = tempsExtractionMs + tempsGenerationMs;
 
-        log.info("IA_MESSAGE_PROCESSED convId={} provider={} fallback={} totalMs={} llmMs={} extractMs={} searchMs={} persistMs={} results={}",
+        log.info("IA_MESSAGE_PROCESSED convId={} provider={} fallback={} motif={} totalMs={} llmMs={} extractMs={} searchMs={} persistMs={} results={}",
                 conversationId,
                 criteresFinaux.getFournisseurIa(),
                 criteresFinaux.getModeSecours(),
+                criteresFinaux.getMotifSecours(),
                 tempsTotalMs,
                 tempsLlmMs,
                 tempsExtractionMs,
@@ -464,6 +473,13 @@ public class IAService {
                 .criteresExtraits(criteresFinaux)
                 .questionDeRelance(criteresFinaux.getQuestionDeRelance())
                 .dateEnvoi(savedAssistantMsg.getDateEnvoi())
+                .metriques(MessageIaResponseDTO.IaMetriquesDTO.builder()
+                        .extractMs(tempsExtractionMs)
+                        .searchMs(tempsRechercheMs)
+                        .generationMs(tempsGenerationMs)
+                        .llmMs(tempsLlmMs)
+                        .totalMs(tempsTotalMs)
+                        .build())
                 .build();
     }
 
@@ -488,7 +504,7 @@ public class IAService {
 
         verifierDroitsConversation(conversation, emailUtilisateur, rawSessionToken);
 
-        List<MessageIAEntity> messages = messageIARepository.findByConversationIdOrderByDateEnvoiAsc(conversationId);
+        List<MessageIAEntity> messages = messageIARepository.findByConversationIdOrderByOrdreAscDateEnvoiAscIdAsc(conversationId);
 
         List<MessageItemDTO> messageItems = messages.stream().map(m -> {
             CriteresExtraitsDTO criteres = null;
@@ -509,6 +525,7 @@ public class IAService {
             return MessageItemDTO.builder()
                     .id(m.getId())
                     .role(m.getRole())
+                    .ordre(m.getOrdre())
                     .contenu(m.getContenu())
                     .criteresExtraits(criteres)
                     .annoncesSuggeres(restoredAnnonces)
@@ -623,6 +640,46 @@ public class IAService {
         return null;
     }
 
+    private CriteresExtraitsDTO preserveCriteriaForLegalFaq(
+            CriteresExtraitsDTO precedents,
+            CriteresExtraitsDTO nouveaux
+    ) {
+        if (precedents == null) {
+            return nouveaux;
+        }
+        return CriteresExtraitsDTO.builder()
+                .type(precedents.getType())
+                .modeTransaction(precedents.getModeTransaction())
+                .ville(precedents.getVille())
+                .quartier(precedents.getQuartier())
+                .quartiers(precedents.getQuartiers())
+                .budgetMin(precedents.getBudgetMin())
+                .budgetMax(precedents.getBudgetMax())
+                .nombrePieces(precedents.getNombrePieces())
+                .nombreChambres(precedents.getNombreChambres())
+                .etage(precedents.getEtage())
+                .ascenseur(precedents.getAscenseur())
+                .meuble(precedents.getMeuble())
+                .animauxAcceptes(precedents.getAnimauxAcceptes())
+                .superficieMin(precedents.getSuperficieMin())
+                .superficieMax(precedents.getSuperficieMax())
+                .equipements(precedents.getEquipements())
+                .proximites(precedents.getProximites())
+                .preferencesSouples(precedents.getPreferencesSouples())
+                .attentesComplementaires(precedents.getAttentesComplementaires())
+                .precisionsAClarifier(precedents.getPrecisionsAClarifier())
+                .annoncesSuggereesIds(precedents.getAnnoncesSuggereesIds())
+                .explicationsAnnonces(precedents.getExplicationsAnnonces())
+                .confiance(nouveaux.getConfiance() != null ? nouveaux.getConfiance() : precedents.getConfiance())
+                .fournisseurIa(nouveaux.getFournisseurIa())
+                .modeSecours(nouveaux.getModeSecours())
+                .motifSecours(nouveaux.getMotifSecours())
+                .horsSujet(false)
+                .intentionSpeciale("FAQ_VERIFICATION_JURIDIQUE")
+                .questionDeRelance(null)
+                .build();
+    }
+
     private CriteresExtraitsDTO fusionnerCriteres(CriteresExtraitsDTO precedents, CriteresExtraitsDTO nouveaux) {
         if (precedents == null) {
             return nouveaux;
@@ -665,6 +722,28 @@ public class IAService {
             if (nouveaux.getProximites() != null) mergedProximites.addAll(nouveaux.getProximites());
         }
 
+        Boolean mergedMeuble = removals.contains("meuble")
+                ? null
+                : (nouveaux.getMeuble() != null ? nouveaux.getMeuble() : precedents.getMeuble());
+
+        List<String> mergedPreferencesSouples = mergeStringLists(
+                precedents.getPreferencesSouples(),
+                nouveaux.getPreferencesSouples()
+        );
+        if (mergedPreferencesSouples != null && (Boolean.FALSE.equals(mergedMeuble) || removals.contains("meuble"))) {
+            mergedPreferencesSouples = mergedPreferencesSouples.stream()
+                    .filter(p -> !normalizeText(p).contains("meubl"))
+                    .toList();
+            if (mergedPreferencesSouples.isEmpty()) {
+                mergedPreferencesSouples = null;
+            }
+        }
+
+        List<String> mergedAttentes = mergeStringLists(
+                precedents.getAttentesComplementaires(),
+                nouveaux.getAttentesComplementaires()
+        );
+
         CriteresExtraitsDTO merged = CriteresExtraitsDTO.builder()
                 .type(nouveaux.getType() != null ? nouveaux.getType() : precedents.getType())
                 .modeTransaction(nouveaux.getModeTransaction() != null ? nouveaux.getModeTransaction() : precedents.getModeTransaction())
@@ -677,23 +756,64 @@ public class IAService {
                 .nombreChambres(nouveaux.getNombreChambres() != null ? nouveaux.getNombreChambres() : precedents.getNombreChambres())
                 .etage(removals.contains("etage") ? null : (nouveaux.getEtage() != null ? nouveaux.getEtage() : precedents.getEtage()))
                 .ascenseur(nouveaux.getAscenseur() != null ? nouveaux.getAscenseur() : precedents.getAscenseur())
-                .meuble(removals.contains("meuble") ? null : (nouveaux.getMeuble() != null ? nouveaux.getMeuble() : precedents.getMeuble()))
+                .meuble(mergedMeuble)
                 .animauxAcceptes(nouveaux.getAnimauxAcceptes() != null ? nouveaux.getAnimauxAcceptes() : precedents.getAnimauxAcceptes())
                 .superficieMin(removals.contains("superficie") ? null : (nouveaux.getSuperficieMin() != null ? nouveaux.getSuperficieMin() : precedents.getSuperficieMin()))
                 .superficieMax(removals.contains("superficie") ? null : (nouveaux.getSuperficieMax() != null ? nouveaux.getSuperficieMax() : precedents.getSuperficieMax()))
                 .equipements(mergedEquipements)
                 .proximites(mergedProximites)
+                .preferencesSouples(mergedPreferencesSouples)
+                .attentesComplementaires(mergedAttentes)
                 .confiance(nouveaux.getConfiance() != null ? nouveaux.getConfiance() : precedents.getConfiance())
                 .fournisseurIa(nouveaux.getFournisseurIa())
                 .modeSecours(nouveaux.getModeSecours())
+                .motifSecours(nouveaux.getMotifSecours())
                 .horsSujet(nouveaux.getHorsSujet())
                 .intentionSpeciale(nouveaux.getIntentionSpeciale())
+                .demandeQuestionsComplementaires(nouveaux.getDemandeQuestionsComplementaires())
+                .besoinIndecis(nouveaux.getBesoinIndecis())
                 .build();
 
+        merged.setPrecisionsAClarifier(computeRemainingPrecisionsAClarifier(merged));
         String questionRelance = resoudreQuestionDeRelanceMultiTours(precedents, nouveaux, merged);
         merged.setQuestionDeRelance(questionRelance);
 
         return merged;
+    }
+
+    private List<String> mergeStringLists(List<String> first, List<String> second) {
+        if ((first == null || first.isEmpty()) && (second == null || second.isEmpty())) {
+            return null;
+        }
+        Set<String> set = new LinkedHashSet<>();
+        if (first != null) {
+            first.stream().filter(Objects::nonNull).map(String::trim).filter(s -> !s.isBlank()).forEach(set::add);
+        }
+        if (second != null) {
+            second.stream().filter(Objects::nonNull).map(String::trim).filter(s -> !s.isBlank()).forEach(set::add);
+        }
+        return set.isEmpty() ? null : new ArrayList<>(set);
+    }
+
+    private List<String> computeRemainingPrecisionsAClarifier(CriteresExtraitsDTO merged) {
+        List<String> missing = new ArrayList<>();
+        if (merged.getType() == null) {
+            missing.add("type de logement souhaité (chambre, studio, appartement, villa)");
+        }
+        if (merged.getBudgetMax() == null && merged.getBudgetMin() == null) {
+            missing.add("budget maximum en FCFA");
+        }
+        boolean hasLoc = merged.getVille() != null || merged.getQuartier() != null
+                || (merged.getQuartiers() != null && !merged.getQuartiers().isEmpty());
+        if (!hasLoc) {
+            missing.add("ville ou quartier souhaité");
+        }
+        if (merged.getAttentesComplementaires() != null
+                && merged.getAttentesComplementaires().stream().anyMatch(a -> normalizeText(a).contains("terrain"))
+                && merged.getSuperficieMin() == null) {
+            missing.add("superficie minimale souhaitée (en m²)");
+        }
+        return missing.isEmpty() ? null : missing;
     }
 
     private String resoudreQuestionDeRelanceMultiTours(
@@ -712,6 +832,11 @@ public class IAService {
             return null;
         }
 
+        if (Boolean.TRUE.equals(nouveaux.getBesoinIndecis())
+                && nouveaux.getQuestionDeRelance() != null && !nouveaux.getQuestionDeRelance().isBlank()) {
+            return nouveaux.getQuestionDeRelance();
+        }
+
         String prevQ = precedents != null ? precedents.getQuestionDeRelance() : null;
         if (prevQ != null && !prevQ.isBlank()) {
             String prevLower = prevQ.toLowerCase(Locale.ROOT);
@@ -725,15 +850,36 @@ public class IAService {
         boolean hasType = merged.getType() != null;
         boolean hasLocalisation = merged.getVille() != null || merged.getQuartier() != null
                 || (merged.getQuartiers() != null && !merged.getQuartiers().isEmpty());
+        boolean mentionsCalm = merged.getPreferencesSouples() != null
+                && merged.getPreferencesSouples().stream().anyMatch(p -> normalizeText(p).contains("calme"));
 
         if (!hasBudget && !hasType) {
-            return "Pour affiner ma recherche, quel est votre budget maximum (en FCFA) et quel type de bien (studio, appartement, villa, chambre) recherchez-vous ?";
+            return mentionsCalm
+                    ? "Pour orienter votre recherche dans un secteur calme, quel est votre budget maximum (en FCFA) et quel type de bien (studio, appartement, villa, chambre) recherchez-vous ?"
+                    : "Pour affiner ma recherche, quel est votre budget maximum (en FCFA) et quel type de bien (studio, appartement, villa, chambre) recherchez-vous ?";
         }
         if (!hasBudget) {
             return "Quel est votre budget maximum en FCFA pour ce bien ?";
         }
         if (!hasLocalisation && !hasType) {
             return "Dans quelle ville ou quel quartier recherchez-vous et quel type de logement souhaitez-vous ?";
+        }
+        if (!hasType) {
+            return "Quel type de bien (chambre, studio, appartement ou villa) recherchez-vous ?";
+        }
+        if (!hasLocalisation) {
+            return mentionsCalm
+                    ? "Dans quelle ville ou quel quartier calme (ex: Dakar, Mermoz, Almadies, Ziguinchor, Boucotte) souhaitez-vous habiter ?"
+                    : "Dans quelle ville ou quel quartier (ex: Dakar, Mermoz, Almadies, Ziguinchor, Boucotte) souhaitez-vous habiter ?";
+        }
+        if (merged.getAttentesComplementaires() != null
+                && merged.getAttentesComplementaires().stream().anyMatch(a -> normalizeText(a).contains("terrain"))
+                && merged.getSuperficieMin() == null) {
+            return "Quelle superficie minimale approximative (en m²) souhaitez-vous pour le terrain ou le logement ?";
+        }
+        if (Boolean.TRUE.equals(nouveaux.getDemandeQuestionsComplementaires())
+                && nouveaux.getQuestionDeRelance() != null && !nouveaux.getQuestionDeRelance().isBlank()) {
+            return nouveaux.getQuestionDeRelance();
         }
         return null;
     }
@@ -754,7 +900,11 @@ public class IAService {
     }
 
     private SearchExecutionResult rechercherEtClasserAnnoncesPertinentes(CriteresExtraitsDTO criteres) {
-        List<AnnonceEntity> poolVerifieDisponible = annonceRepository.findAll().stream()
+        List<AnnonceEntity> poolVerifieDisponible = annonceRepository
+                .findBySupprimeFalseAndStatutPublicationAndStatutVerification(
+                        StatutPublication.DISPONIBLE,
+                        StatutVerification.VERIFIEE
+                ).stream()
                 .filter(a -> !a.isSupprime())
                 .filter(a -> a.getStatutPublication() == StatutPublication.DISPONIBLE)
                 .filter(a -> a.getStatutVerification() == StatutVerification.VERIFIEE)
@@ -890,6 +1040,52 @@ public class IAService {
         if (a.getPhotos() != null && !a.getPhotos().isEmpty()) {
             score += 5;
         }
+        String haystack = normalizeText(
+                (a.getTitre() != null ? a.getTitre() : "")
+                        + " "
+                        + (a.getDescription() != null ? a.getDescription() : "")
+                        + " "
+                        + (a.getQuartier() != null ? a.getQuartier() : "")
+        );
+        if (c.getPreferencesSouples() != null) {
+            for (String pref : c.getPreferencesSouples()) {
+                String normPref = normalizeText(pref);
+                if (normPref.contains("meubl") && a.isMeuble()) {
+                    score += 15;
+                }
+                if (normPref.contains("calme") && (haystack.contains("calme")
+                        || haystack.contains("residentiel")
+                        || haystack.contains("paisible")
+                        || haystack.contains("tranquille")
+                        || haystack.contains("sacre-coeur")
+                        || haystack.contains("almadies")
+                        || haystack.contains("mermoz")
+                        || haystack.contains("fann"))) {
+                    score += 10;
+                }
+            }
+        }
+        if (c.getAttentesComplementaires() != null) {
+            for (String attente : c.getAttentesComplementaires()) {
+                String normAtt = normalizeText(attente);
+                if (normAtt.contains("cour") && haystack.contains("cour")) {
+                    score += 8;
+                }
+                if (normAtt.contains("jardin") && haystack.contains("jardin")) {
+                    score += 8;
+                }
+                if (normAtt.contains("cuisine") && haystack.contains("cuisine")) {
+                    score += 8;
+                }
+                if (normAtt.contains("terrain") && (haystack.contains("terrain") || (a.getSuperficie() != null && a.getSuperficie() >= 300))) {
+                    score += 8;
+                }
+                if ((normAtt.contains("balcon") || normAtt.contains("terrasse"))
+                        && (haystack.contains("balcon") || haystack.contains("terrasse"))) {
+                    score += 6;
+                }
+            }
+        }
         return score;
     }
 
@@ -903,9 +1099,9 @@ public class IAService {
         }
         if (a.getPrix() != null) {
             if (c != null && c.getBudgetMax() != null) {
-                points.add("prix de " + a.getPrix().toPlainString() + " FCFA respectant votre budget de " + c.getBudgetMax().toPlainString() + " FCFA");
+                points.add("prix de " + formatFcfa(a.getPrix()) + " respectant votre budget de " + formatFcfa(c.getBudgetMax()));
             } else {
-                points.add("prix de " + a.getPrix().toPlainString() + " FCFA");
+                points.add("prix de " + formatFcfa(a.getPrix()));
             }
         }
         if (a.getNombrePieces() != null) {
@@ -915,7 +1111,9 @@ public class IAService {
             points.add(a.getSuperficie().intValue() + " m²");
         }
         if (a.isMeuble()) {
-            points.add("meublé");
+            boolean softMeuble = c != null && c.getPreferencesSouples() != null
+                    && c.getPreferencesSouples().stream().anyMatch(p -> normalizeText(p).contains("meubl"));
+            points.add(softMeuble ? "meublé (selon votre préférence)" : "meublé");
         }
         return String.join(", ", points);
     }
@@ -942,9 +1140,9 @@ public class IAService {
                         .min(Comparator.comparing(AnnonceEntity::getPrix))
                         .orElse(null);
                 if (cheapest != null) {
-                    blocages.add("le budget maximum de " + c.getBudgetMax().toPlainString()
-                            + " FCFA est inférieur aux tarifs des biens vérifiés de ce secteur (à partir de "
-                            + cheapest.getPrix().toPlainString() + " FCFA pour \"" + cheapest.getTitre() + "\")");
+                    blocages.add("le budget maximum de " + formatFcfa(c.getBudgetMax())
+                            + " est inférieur aux tarifs des biens vérifiés de ce secteur (à partir de "
+                            + formatFcfa(cheapest.getPrix()) + " pour \"" + cheapest.getTitre() + "\")");
                 }
             }
         }
@@ -961,6 +1159,16 @@ public class IAService {
             return null;
         }
         return "Diagnostic : " + String.join(" ; ", blocages) + ".";
+    }
+
+    private String construireReponseTransparenceJuridique() {
+        return "La fiabilité des annonces sur E-Courtier Sénégal repose sur des contrôles concrets et transparents : "
+                + "1) Vérification administrative préalable : seules les annonces validées par l'administration avec le statut VERIFIEE et disponibles sont recommandées par l'assistant ; "
+                + "2) Contrôle de l'identité et des justificatifs : l'identité du bailleur ou mandataire et les pièces déposées sur la plateforme sont vérifiées avant publication ; "
+                + "3) Documents usuels pour louer au Sénégal : pièce d'identité valide (CNI CEDEAO ou passeport), justificatifs de revenus ou d'activité, contrat de bail écrit et quittance ou reçu de caution encadré ; "
+                + "4) Précautions indispensables avant tout paiement : effectuez toujours une visite physique du bien, demandez à voir les originaux (titre ou mandat) sur place, relisez attentivement le contrat et ne versez aucune somme hors parcours traçable et sans visite confirmée ; "
+                + "5) Traçabilité des échanges : vos messages, rendez-vous et transactions enregistrés sur la plateforme conservent un historique vérifiable ; "
+                + "6) Limites d'une plateforme numérique : E-Courtier sécurise le filtrage initial mais ne remplace ni l'inspection physique des lieux ni, pour un achat immobilier, l'intervention d'un notaire pour l'acte authentique et la vérification foncière.";
     }
 
     private String construireReponseFaqDocuments(CriteresExtraitsDTO criteres) {
@@ -1000,7 +1208,8 @@ public class IAService {
             CriteresExtraitsDTO criteres,
             List<AnnonceResponseDTO> annonces,
             Map<String, String> explications,
-            String diagnosticBlocage
+            String diagnosticBlocage,
+            boolean demandeExploratoire
     ) {
         StringBuilder sb = new StringBuilder();
 
@@ -1018,7 +1227,11 @@ public class IAService {
                 && criteres.getSuperficieMax() == null
                 && criteres.getEtage() == null
                 && criteres.getAscenseur() == null
-                && criteres.getAnimauxAcceptes() == null;
+                && criteres.getAnimauxAcceptes() == null
+                && (criteres.getEquipements() == null || criteres.getEquipements().isEmpty())
+                && (criteres.getProximites() == null || criteres.getProximites().isEmpty())
+                && (criteres.getPreferencesSouples() == null || criteres.getPreferencesSouples().isEmpty())
+                && (criteres.getAttentesComplementaires() == null || criteres.getAttentesComplementaires().isEmpty());
 
         if (aucunCritere && annonces.isEmpty()) {
             sb.append("Bonjour ! Je suis Samba, votre conseiller immobilier E-Courtier Sénégal. ");
@@ -1053,7 +1266,10 @@ public class IAService {
             details.add(criteres.getNombreChambres() + " chambre(s)");
         }
         if (criteres.getBudgetMax() != null) {
-            details.add("budget max : " + criteres.getBudgetMax().toPlainString() + " FCFA");
+            details.add("budget max : " + formatFcfa(criteres.getBudgetMax()));
+        }
+        if (criteres.getBudgetMin() != null) {
+            details.add("budget min : " + formatFcfa(criteres.getBudgetMin()));
         }
         if (criteres.getMeuble() != null) {
             details.add(criteres.getMeuble() ? "meublé" : "non meublé");
@@ -1070,6 +1286,22 @@ public class IAService {
         if (criteres.getAnimauxAcceptes() != null) {
             details.add(criteres.getAnimauxAcceptes() ? "animaux acceptés" : "sans animaux");
         }
+        if (criteres.getEquipements() != null && !criteres.getEquipements().isEmpty()) {
+            details.add("équipements : " + criteres.getEquipements().stream()
+                    .map(e -> e.name().toLowerCase(Locale.ROOT).replace('_', ' '))
+                    .collect(Collectors.joining(", ")));
+        }
+        if (criteres.getProximites() != null && !criteres.getProximites().isEmpty()) {
+            details.add("proximités : " + criteres.getProximites().stream()
+                    .map(p -> p.name().toLowerCase(Locale.ROOT).replace('_', ' '))
+                    .collect(Collectors.joining(", ")));
+        }
+        if (criteres.getAttentesComplementaires() != null && !criteres.getAttentesComplementaires().isEmpty()) {
+            details.add("attentes : " + String.join(", ", criteres.getAttentesComplementaires()));
+        }
+        if (criteres.getPreferencesSouples() != null && !criteres.getPreferencesSouples().isEmpty()) {
+            details.add("préférences : " + String.join(", ", criteres.getPreferencesSouples()));
+        }
 
         if (!details.isEmpty()) {
             sb.append(" (").append(String.join(", ", details)).append(")");
@@ -1077,14 +1309,22 @@ public class IAService {
         sb.append(". ");
 
         if (annonces.isEmpty()) {
-            sb.append("Malheureusement, aucune annonce vérifiée ne correspond exactement à ces critères pour le moment. ");
-            if (diagnosticBlocage != null && !diagnosticBlocage.isBlank()) {
-                sb.append(diagnosticBlocage).append(" ");
-            }
-            if (criteres.getQuestionDeRelance() != null) {
-                sb.append(criteres.getQuestionDeRelance());
+            if (demandeExploratoire) {
+                if (criteres.getQuestionDeRelance() != null) {
+                    sb.append(criteres.getQuestionDeRelance());
+                } else {
+                    sb.append("Pour lancer la recherche sur nos annonces vérifiées, précisez le type de bien et votre budget maximum en FCFA.");
+                }
             } else {
-                sb.append("Souhaitez-vous élargir votre budget ou explorer un quartier voisin ?");
+                sb.append("Malheureusement, aucune annonce vérifiée ne correspond exactement à ces critères pour le moment. ");
+                if (diagnosticBlocage != null && !diagnosticBlocage.isBlank()) {
+                    sb.append(diagnosticBlocage).append(" ");
+                }
+                if (criteres.getQuestionDeRelance() != null) {
+                    sb.append(criteres.getQuestionDeRelance());
+                } else {
+                    sb.append("Souhaitez-vous élargir votre budget ou explorer un quartier voisin ?");
+                }
             }
         } else {
             sb.append("Voici ").append(annonces.size()).append(" annonce(s) vérifiée(s) et disponible(s) classée(s) par pertinence : ");
@@ -1103,6 +1343,17 @@ public class IAService {
         }
 
         return sb.toString().trim();
+    }
+
+    private String formatFcfa(BigDecimal amount) {
+        if (amount == null) {
+            return "N/C";
+        }
+        DecimalFormatSymbols symbols = new DecimalFormatSymbols(Locale.ROOT);
+        symbols.setGroupingSeparator(' ');
+        DecimalFormat df = new DecimalFormat("#,##0", symbols);
+        df.setGroupingUsed(true);
+        return df.format(amount.longValue()) + " FCFA";
     }
 
     private String serializeCriteres(CriteresExtraitsDTO criteres) {

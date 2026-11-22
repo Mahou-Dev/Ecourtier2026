@@ -18,6 +18,7 @@ import java.util.UUID;
 public class MessageItemDTO {
     private UUID id;
     private RoleMessageIA role;
+    private Long ordre;
     private String contenu;
     private CriteresExtraitsDTO criteresExtraits;
     private List<AnnonceResponseDTO> annoncesSuggeres;

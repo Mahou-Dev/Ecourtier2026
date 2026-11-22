@@ -1,12 +1,37 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useLayoutEffect, useRef } from 'react';
 import { Sparkles, X, Send, Bot, User, ShieldCheck, CheckCircle2, AlertCircle, RotateCcw } from 'lucide-react';
 import { AnimatePresence, motion, useReducedMotion } from 'framer-motion';
 import { Button } from '../ui/Button';
 import { PropertyVisual } from '../property/PropertyVisual';
 import { apiFetch } from '../../services/api';
-import { AnnonceDTO, MessageIAResponseDTO, ConversationHistoryResponseDTO } from '../../types';
+import {
+  AnnonceDTO,
+  ConversationHistoryResponseDTO,
+  IaConversationCreatedDTO,
+  IaMessageReponseDTO,
+} from '../../types';
 import { useAuthStore } from '../../store/useAuthStore';
 import { Link, useLocation } from 'react-router-dom';
+import {
+  buildConversationHeaders,
+  clearStoredConversation,
+  isAnonymousUser,
+  loadStoredConversationId,
+  persistConversation,
+} from '../../services/iaSession';
+import {
+  IA_MESSAGE_MAX_LENGTH,
+  describeMotifSecours,
+  formatFcfa,
+  isAbandonedConversationStatus,
+  mapIaError,
+  orderHistoryMessages,
+} from './iaErrors';
+
+const INPUT_MAX_LENGTH = IA_MESSAGE_MAX_LENGTH;
+const INPUT_WARNING_THRESHOLD = Math.ceil(IA_MESSAGE_MAX_LENGTH * 0.9);
+// ~4 lignes (text-xs / leading-4 = 16px) + padding vertical (20px) + bordures (2px)
+const INPUT_MAX_HEIGHT_PX = 88;
 
 export interface ChatMessageItem {
   id: string;
@@ -17,8 +42,30 @@ export interface ChatMessageItem {
   suggestedProperties?: AnnonceDTO[];
   explicationsAnnonces?: Record<string, string>;
   modeSecours?: boolean;
+  motifSecours?: string;
   isError?: boolean;
+  /** Instrumentation (ANO-PROD-10) : performance.now() à l'envoi de la question. */
+  uiStartedAt?: number;
+  /** Temps total serveur (metriques.totalMs) et part réseau estimée (aller-retour - total serveur). */
+  serverTotalMs?: number;
+  networkMs?: number;
 }
+
+const logUiMetric = (details: Record<string, number | undefined>) => {
+  if (import.meta.env.DEV) {
+    console.debug('[ia-metrics]', details);
+  }
+};
+
+const nowMs = (): number => performance.now();
+
+/** Pose `data-ui-total-ms` dès que la bulle assistant est montée (commit React). */
+const measureUiTotal = (el: HTMLElement | null, msg: ChatMessageItem) => {
+  if (!el || msg.uiStartedAt === undefined || el.dataset.uiTotalMs !== undefined) return;
+  const uiTotalMs = Math.round(nowMs() - msg.uiStartedAt);
+  el.dataset.uiTotalMs = String(uiTotalMs);
+  logUiMetric({ uiTotalMs, serverTotalMs: msg.serverTotalMs, networkMs: msg.networkMs });
+};
 
 const formatTimeLabel = (dateInput?: string): string => {
   const d = dateInput ? new Date(dateInput) : new Date();
@@ -31,11 +78,6 @@ const createWelcomeMessage = (): ChatMessageItem => ({
   text: 'Na nga def ! Je suis Samba, votre assistant IA E-Courtier. Dites-moi quel logement vous cherchez (ville, budget, type, meublé)...',
   timestamp: formatTimeLabel(),
 });
-
-type LegacyMessageIADTO = MessageIAResponseDTO & {
-  reponse?: string;
-  criteresExtraits?: Record<string, unknown> & { questionDeRelance?: string };
-};
 
 export const AiAssistantWidget: React.FC = () => {
   const { utilisateur } = useAuthStore();
@@ -53,9 +95,12 @@ const AiAssistantWidgetInner: React.FC<{ currentUserId: string }> = ({ currentUs
   const [inputText, setInputText] = useState('');
   const [conversationId, setConversationId] = useState<string | null>(() => {
     if (typeof window === 'undefined') return null;
-    return localStorage.getItem(storageKey);
+    // Anonyme : sessionStorage (id + token) ; authentifié : localStorage par utilisateur, sans token.
+    return loadStoredConversationId(currentUserId);
   });
   const [isSending, setIsSending] = useState(false);
+  const [pasteOverflow, setPasteOverflow] = useState(false);
+  const inputRef = useRef<HTMLTextAreaElement | null>(null);
   const [messages, setMessages] = useState<ChatMessageItem[]>(() => [createWelcomeMessage()]);
 
   // R1: Compteur de génération et contrôleur d'envoi pour bloquer les courses asynchrones
@@ -78,7 +123,7 @@ const AiAssistantWidgetInner: React.FC<{ currentUserId: string }> = ({ currentUs
     const currentGen = ++genCounter.current;
     const abortController = new AbortController();
 
-    const savedConvId = typeof window !== 'undefined' ? localStorage.getItem(storageKey) : null;
+    const savedConvId = typeof window !== 'undefined' ? loadStoredConversationId(currentUserId) : null;
     if (!savedConvId) {
       return () => {
         genCounter.current++;
@@ -86,8 +131,9 @@ const AiAssistantWidgetInner: React.FC<{ currentUserId: string }> = ({ currentUs
       };
     }
 
-    apiFetch<ConversationHistoryResponseDTO>(`/api/v1/ia/conversations/${savedConvId}`, {
+    apiFetch<ConversationHistoryResponseDTO>(`/api/v1/ia/conversations/${encodeURIComponent(savedConvId)}`, {
       signal: abortController.signal,
+      headers: buildConversationHeaders(currentUserId, savedConvId),
     })
       .then((history) => {
         if (!isSessionStillValid(currentGen, currentUserId, abortController.signal)) {
@@ -95,28 +141,32 @@ const AiAssistantWidgetInner: React.FC<{ currentUserId: string }> = ({ currentUs
         }
 
         if (history && history.messages && history.messages.length > 0) {
-          const restored: ChatMessageItem[] = history.messages.map((m, idx) => ({
-            id: m.id || `msg-restored-${idx}`,
-            sender: m.role === 'UTILISATEUR' || m.role === 'USER' ? 'user' : 'ai',
-            text: m.contenu,
-            timestamp: formatTimeLabel(m.dateEnvoi),
-            questionDeRelance:
-              m.questionDeRelance ??
-              (typeof m.criteresExtraits?.questionDeRelance === 'string'
-                ? m.criteresExtraits.questionDeRelance
-                : undefined),
-            suggestedProperties:
-              m.annoncesSuggeres && m.annoncesSuggeres.length > 0
-                ? m.annoncesSuggeres
-                : undefined,
-            explicationsAnnonces:
-              m.criteresExtraits?.explicationsAnnonces &&
-              typeof m.criteresExtraits.explicationsAnnonces === 'object'
-                ? (m.criteresExtraits.explicationsAnnonces as Record<string, string>)
-                : undefined,
-            modeSecours:
-              m.role !== 'UTILISATEUR' && m.role !== 'USER' && m.criteresExtraits?.modeSecours === true,
-          }));
+          // Ordre serveur conservé (tri par `ordre` si présent) : jamais de re-tri par date.
+          const restored: ChatMessageItem[] = orderHistoryMessages(history.messages).map((m, idx) => {
+            const isAssistant = m.role !== 'UTILISATEUR' && m.role !== 'USER';
+            return {
+              id: m.id || `msg-restored-${idx}`,
+              sender: isAssistant ? 'ai' : 'user',
+              text: m.contenu,
+              timestamp: formatTimeLabel(m.dateEnvoi),
+              questionDeRelance:
+                m.questionDeRelance ??
+                (typeof m.criteresExtraits?.questionDeRelance === 'string'
+                  ? m.criteresExtraits.questionDeRelance
+                  : undefined),
+              suggestedProperties:
+                m.annoncesSuggeres && m.annoncesSuggeres.length > 0 ? m.annoncesSuggeres : undefined,
+              explicationsAnnonces:
+                m.criteresExtraits?.explicationsAnnonces && typeof m.criteresExtraits.explicationsAnnonces === 'object'
+                  ? m.criteresExtraits.explicationsAnnonces
+                  : undefined,
+              modeSecours: isAssistant && m.criteresExtraits?.modeSecours === true,
+              motifSecours:
+                isAssistant && m.criteresExtraits?.modeSecours === true && typeof m.criteresExtraits.motifSecours === 'string'
+                  ? m.criteresExtraits.motifSecours
+                  : undefined,
+            };
+          });
           setMessages(restored);
         }
       })
@@ -128,11 +178,26 @@ const AiAssistantWidgetInner: React.FC<{ currentUserId: string }> = ({ currentUs
           return;
         }
 
-        if (typeof window !== 'undefined') {
-          localStorage.removeItem(storageKey);
+        const status = (err as { status?: number } | null)?.status;
+        if (isAbandonedConversationStatus(status)) {
+          // Conversation abandonnée (preuve invalide / introuvable) : purge id + token, repart à neuf.
+          clearStoredConversation(currentUserId, savedConvId);
+          setConversationId(null);
+          setMessages([createWelcomeMessage()]);
+          return;
         }
-        setConversationId(null);
-        setMessages([createWelcomeMessage()]);
+
+        // Erreur transitoire (réseau, 5xx, 429) : on conserve la conversation, on prévient l'utilisateur.
+        setMessages([
+          createWelcomeMessage(),
+          {
+            id: 'msg-restore-error',
+            sender: 'ai',
+            text: "Impossible de recharger l'historique de votre conversation pour le moment. Vous pouvez continuer à écrire.",
+            timestamp: formatTimeLabel(),
+            isError: true,
+          },
+        ]);
       });
 
     return () => {
@@ -148,10 +213,10 @@ const AiAssistantWidgetInner: React.FC<{ currentUserId: string }> = ({ currentUs
     sendAbortControllerRef.current?.abort();
     sendAbortControllerRef.current = null;
     setIsSending(false);
-    if (typeof window !== 'undefined') {
-      localStorage.removeItem(storageKey);
-    }
+    // Purge l'id stocké ET le token de l'ancienne conversation.
+    clearStoredConversation(currentUserId, conversationId);
     setConversationId(null);
+    setPasteOverflow(false);
     setMessages([createWelcomeMessage()]);
   };
 
@@ -166,17 +231,24 @@ const AiAssistantWidgetInner: React.FC<{ currentUserId: string }> = ({ currentUs
     return `${prefix}-${msgSeqRef.current}`;
   };
 
-  const addAssistantMessage = (msg: LegacyMessageIADTO) => {
+  const addAssistantMessage = (
+    msg: IaMessageReponseDTO,
+    timing: { uiStartedAt: number; roundTripMs: number }
+  ) => {
     const relance =
       msg.questionDeRelance ??
       (typeof msg.criteresExtraits?.questionDeRelance === 'string'
         ? msg.criteresExtraits.questionDeRelance
         : undefined);
     const explications =
-      msg.criteresExtraits?.explicationsAnnonces &&
-      typeof msg.criteresExtraits.explicationsAnnonces === 'object'
-        ? (msg.criteresExtraits.explicationsAnnonces as Record<string, string>)
+      msg.criteresExtraits?.explicationsAnnonces && typeof msg.criteresExtraits.explicationsAnnonces === 'object'
+        ? msg.criteresExtraits.explicationsAnnonces
         : undefined;
+    const serverTotalMs =
+      typeof msg.metriques?.totalMs === 'number' && Number.isFinite(msg.metriques.totalMs)
+        ? msg.metriques.totalMs
+        : undefined;
+    const modeSecours = msg.criteresExtraits?.modeSecours === true;
     const aiMsg: ChatMessageItem = {
       id: msg.id || nextSequenceId('ai'),
       sender: 'ai',
@@ -185,15 +257,26 @@ const AiAssistantWidgetInner: React.FC<{ currentUserId: string }> = ({ currentUs
       questionDeRelance: relance,
       suggestedProperties: msg.annoncesSuggeres && msg.annoncesSuggeres.length > 0 ? msg.annoncesSuggeres : undefined,
       explicationsAnnonces: explications,
-      modeSecours: msg.criteresExtraits?.modeSecours === true,
+      modeSecours,
+      motifSecours:
+        modeSecours && typeof msg.criteresExtraits?.motifSecours === 'string'
+          ? msg.criteresExtraits.motifSecours
+          : undefined,
+      uiStartedAt: timing.uiStartedAt,
+      serverTotalMs,
+      networkMs:
+        serverTotalMs !== undefined ? Math.max(0, Math.round(timing.roundTripMs - serverTotalMs)) : undefined,
     };
     setMessages((prev) => [...prev, aiMsg]);
   };
 
   const handleSendMessage = async (textToSend?: string) => {
-    const query = textToSend || inputText;
-    if (!query.trim() || isSending) return;
+    // Le message est transmis tel que saisi (seul le trim de bord est appliqué).
+    const query = (textToSend ?? inputText).trim();
+    if (!query || isSending) return;
+    if (query.length > INPUT_MAX_LENGTH) return;
 
+    const uiStartedAt = nowMs();
     const sendGen = generationRef.current;
     const sendController = new AbortController();
     sendAbortControllerRef.current = sendController;
@@ -206,15 +289,19 @@ const AiAssistantWidgetInner: React.FC<{ currentUserId: string }> = ({ currentUs
     };
 
     setMessages((prev) => [...prev, userMsg]);
-    if (!textToSend) setInputText('');
+    if (textToSend === undefined) {
+      setInputText('');
+      setPasteOverflow(false);
+    }
     setIsSending(true);
 
-    try {
-      let currentConvId = conversationId;
+    let currentConvId = conversationId;
+    let conversationScoped = Boolean(currentConvId);
 
+    try {
       // 1. Create conversation on first user message if not already created
       if (!currentConvId) {
-        const newConv = await apiFetch<{ conversationId: string; dateCreation: string }>('/api/v1/ia/conversations', {
+        const newConv = await apiFetch<IaConversationCreatedDTO>('/api/v1/ia/conversations', {
           method: 'POST',
           signal: sendController.signal,
         });
@@ -224,24 +311,32 @@ const AiAssistantWidgetInner: React.FC<{ currentUserId: string }> = ({ currentUs
         }
 
         currentConvId = newConv.conversationId;
+        conversationScoped = true;
         setConversationId(currentConvId);
-        if (typeof window !== 'undefined') {
-          localStorage.setItem(storageKey, currentConvId);
-        }
+        // Anonyme : id + sessionToken (sessionStorage). Authentifié : id seul (localStorage), token ignoré.
+        persistConversation(currentUserId, currentConvId, isAnonymousUser(currentUserId) ? newConv.sessionToken : null);
       }
 
-      // 2. Send message to conversation
-      const assistantMsg = await apiFetch<LegacyMessageIADTO>(`/api/v1/ia/conversations/${currentConvId}/messages`, {
-        method: 'POST',
-        body: JSON.stringify({ message: query }),
-        signal: sendController.signal,
-      });
+      // 2. Send message to conversation (header X-IA-Session-Token pour une conversation anonyme)
+      const postStartedAt = nowMs();
+      const assistantMsg = await apiFetch<IaMessageReponseDTO>(
+        `/api/v1/ia/conversations/${encodeURIComponent(currentConvId)}/messages`,
+        {
+          method: 'POST',
+          body: JSON.stringify({ message: query }),
+          signal: sendController.signal,
+          headers: buildConversationHeaders(currentUserId, currentConvId),
+        }
+      );
 
       if (!isSessionStillValid(sendGen, currentUserId, sendController.signal)) {
         return;
       }
 
-      addAssistantMessage(assistantMsg);
+      addAssistantMessage(assistantMsg, {
+        uiStartedAt,
+        roundTripMs: nowMs() - postStartedAt,
+      });
     } catch (err: unknown) {
       if (
         !isSessionStillValid(sendGen, currentUserId, sendController.signal) ||
@@ -250,23 +345,18 @@ const AiAssistantWidgetInner: React.FC<{ currentUserId: string }> = ({ currentUs
         return;
       }
 
-      const status = (err as { status?: number } | null)?.status;
-      const apiMsg = err instanceof Error && err.message ? err.message : '';
-      let displayText =
-        "Désolé, l'assistant IA est actuellement indisponible ou rencontre un problème réseau. Vous pouvez utiliser la recherche classique.";
-      if (status === 429) {
-        displayText =
-          apiMsg ||
-          'Limite de requêtes IA atteinte. Veuillez patienter quelques instants avant de renvoyer un message.';
-      } else if (status === 400) {
-        displayText =
-          apiMsg || 'Message invalide (maximum 500 caractères autorisés).';
+      const info = mapIaError(err, { conversationScoped });
+      if (info.resetConversation) {
+        // 403/404 sur la conversation : abandon propre (id + token purgés), nouvelle conversation au prochain envoi.
+        clearStoredConversation(currentUserId, currentConvId);
+        setConversationId(null);
+        if (textToSend === undefined) setInputText(query);
       }
 
       const errorMsg: ChatMessageItem = {
         id: nextSequenceId('err'),
         sender: 'ai',
-        text: displayText,
+        text: info.message,
         timestamp: formatTimeLabel(),
         isError: true,
       };
@@ -280,6 +370,46 @@ const AiAssistantWidgetInner: React.FC<{ currentUserId: string }> = ({ currentUs
       }
     }
   };
+
+  // Auto-hauteur du champ de saisie (limitée à ~4 lignes)
+  useLayoutEffect(() => {
+    const el = inputRef.current;
+    if (!el) return;
+    el.style.height = 'auto';
+    el.style.height = `${Math.min(el.scrollHeight, INPUT_MAX_HEIGHT_PX)}px`;
+  }, [inputText, isOpen]);
+
+  const handleInputChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
+    const value = e.target.value;
+    if (value.length > INPUT_MAX_LENGTH) {
+      // Dépassement (collage, autofill…) : coupé à la limite ET signalé explicitement.
+      setInputText(value.slice(0, INPUT_MAX_LENGTH));
+      setPasteOverflow(true);
+      return;
+    }
+    setInputText(value);
+    if (value.length < INPUT_MAX_LENGTH) setPasteOverflow(false);
+  };
+
+  const handleInputPaste = (e: React.ClipboardEvent<HTMLTextAreaElement>) => {
+    const pasted = e.clipboardData.getData('text');
+    const target = e.currentTarget;
+    const replaced = Math.max(0, target.selectionEnd - target.selectionStart);
+    if (inputText.length - replaced + pasted.length > INPUT_MAX_LENGTH) {
+      setPasteOverflow(true);
+    }
+  };
+
+  const handleInputKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    if (e.key === 'Enter' && !e.shiftKey && !e.nativeEvent.isComposing) {
+      e.preventDefault();
+      void handleSendMessage();
+    }
+  };
+
+  const charCount = inputText.length;
+  const isAtLimit = charCount >= INPUT_MAX_LENGTH;
+  const isNearLimit = charCount >= INPUT_WARNING_THRESHOLD;
 
   return (
     <div
@@ -394,7 +524,14 @@ const AiAssistantWidgetInner: React.FC<{ currentUserId: string }> = ({ currentUs
                   
                   <div className="space-y-2 max-w-[82%]">
                     <div
-                      className={`p-3.5 rounded-2xl text-xs leading-relaxed ${
+                      ref={(el) => {
+                        if (msg.sender === 'ai' && !msg.isError && msg.id !== 'msg-welcome') {
+                          measureUiTotal(el, msg);
+                        }
+                      }}
+                      data-network-ms={msg.networkMs}
+                      data-total-ms={msg.serverTotalMs}
+                      className={`p-3.5 rounded-2xl text-xs leading-relaxed break-words ${
                         msg.sender === 'user'
                           ? 'bg-terracotta-500 text-white rounded-br-none shadow-terracotta-glow'
                           : msg.isError
@@ -402,7 +539,7 @@ const AiAssistantWidgetInner: React.FC<{ currentUserId: string }> = ({ currentUs
                           : 'bg-white text-charcoal-800 rounded-bl-none border border-argile-200 shadow-warm-card'
                       }`}
                     >
-                      <p>{msg.text}</p>
+                      <p className="whitespace-pre-wrap">{msg.text}</p>
                       {msg.questionDeRelance && (
                         <p className="mt-2 pt-2 border-t border-argile-200 font-semibold text-terracotta-600">
                           ❓ {msg.questionDeRelance}
@@ -411,6 +548,8 @@ const AiAssistantWidgetInner: React.FC<{ currentUserId: string }> = ({ currentUs
                       {msg.sender === 'ai' && !msg.isError && msg.modeSecours && (
                         <span
                           data-testid="ia-fallback-badge"
+                          title={describeMotifSecours(msg.motifSecours)}
+                          aria-label={describeMotifSecours(msg.motifSecours)}
                           className="inline-flex items-center gap-1 mt-1.5 px-2 py-0.5 rounded-full text-[10px] font-medium bg-argile-100 text-charcoal-600 border border-argile-200"
                         >
                           Mode secours local
@@ -448,7 +587,7 @@ const AiAssistantWidgetInner: React.FC<{ currentUserId: string }> = ({ currentUs
                                     {prop.titre}
                                   </h4>
                                   <p className="text-[11px] font-extrabold text-terracotta-600">
-                                    {prop.prix.toLocaleString('fr-FR')} FCFA {prop.modeTransaction === 'LOCATION' ? '/ mois' : ''}
+                                    {formatFcfa(prop.prix)} {prop.modeTransaction === 'LOCATION' ? '/ mois' : ''}
                                   </p>
                                   <div className="flex items-center gap-1 text-[10px] text-sahel-800 font-semibold mt-0.5">
                                     <CheckCircle2 className="w-3 h-3 text-sahel-600" />
@@ -523,22 +662,50 @@ const AiAssistantWidgetInner: React.FC<{ currentUserId: string }> = ({ currentUs
             <form
               onSubmit={(e) => {
                 e.preventDefault();
-                handleSendMessage();
+                void handleSendMessage();
               }}
-              className="p-3 bg-white border-t border-argile-200 flex items-center gap-2"
+              className="p-3 bg-white border-t border-argile-200 flex flex-col gap-1.5"
             >
-              <input
-                type="text"
-                maxLength={500}
-                placeholder="Posez votre question en français wolofisé..."
-                value={inputText}
-                onChange={(e) => setInputText(e.target.value)}
-                disabled={isSending}
-                className="flex-1 px-3.5 py-2.5 bg-sand-100 text-xs text-charcoal-900 rounded-xl border border-argile-300 focus:outline-none focus:ring-2 focus:ring-terracotta-500/30 disabled:opacity-50"
-              />
-              <Button type="submit" variant="primary" size="sm" disabled={isSending} className="rounded-xl px-3 py-2.5">
-                <Send className="w-4 h-4" />
-              </Button>
+              <div className="flex items-end gap-2">
+                <textarea
+                  ref={inputRef}
+                  data-testid="ia-input"
+                  rows={1}
+                  maxLength={INPUT_MAX_LENGTH}
+                  placeholder="Posez votre question en français wolofisé..."
+                  aria-label="Message pour l'assistant IA"
+                  value={inputText}
+                  onChange={handleInputChange}
+                  onPaste={handleInputPaste}
+                  onKeyDown={handleInputKeyDown}
+                  disabled={isSending}
+                  className="flex-1 min-w-0 resize-none overflow-y-auto px-3.5 py-2 bg-sand-100 text-xs leading-4 text-charcoal-900 rounded-xl border border-argile-300 focus:outline-none focus:ring-2 focus:ring-terracotta-500/30 disabled:opacity-50"
+                />
+                <Button type="submit" variant="primary" size="sm" disabled={isSending} className="rounded-xl px-3 py-2.5 shrink-0">
+                  <Send className="w-4 h-4" />
+                </Button>
+              </div>
+              <div className="flex items-center justify-between gap-2 text-[10px] min-h-[14px]">
+                <div aria-live="polite" className="min-w-0 truncate">
+                  {(isAtLimit || pasteOverflow) ? (
+                    <span data-testid="ia-char-limit-message" className="font-semibold text-red-600">
+                      Limite de {INPUT_MAX_LENGTH} caractères atteinte
+                    </span>
+                  ) : isNearLimit ? (
+                    <span className="font-medium text-ocher-700">
+                      Vous approchez de la limite de {INPUT_MAX_LENGTH} caractères
+                    </span>
+                  ) : null}
+                </div>
+                <span
+                  data-testid="ia-char-counter"
+                  className={`shrink-0 font-mono ${
+                    isAtLimit ? 'text-red-600 font-bold' : isNearLimit ? 'text-ocher-700 font-semibold' : 'text-charcoal-500'
+                  }`}
+                >
+                  {charCount}/{INPUT_MAX_LENGTH}
+                </span>
+              </div>
             </form>
 
           </motion.div>

@@ -92,7 +92,7 @@ class Postgres16Phase3IntegrationTest {
     private BailPdfRecoveryScheduler bailPdfRecoveryScheduler;
 
     @Test
-    @DisplayName("1. Flyway V1 à V20 appliquées sans erreur sur PostgreSQL 16 + validation Hibernate + index partiels")
+    @DisplayName("1. Flyway V1 à V21 appliquées sans erreur sur PostgreSQL 16 + validation Hibernate + index partiels")
     void testFlywayV1ToV20AndSchemaIntegrityOnPostgres16() {
         String pgVersion = jdbcTemplate.queryForObject("SHOW server_version", String.class);
         assertNotNull(pgVersion);
@@ -101,12 +101,17 @@ class Postgres16Phase3IntegrationTest {
         Integer appliedMigrations = jdbcTemplate.queryForObject(
                 "SELECT COUNT(*) FROM flyway_schema_history WHERE success = true", Integer.class);
         assertNotNull(appliedMigrations);
-        assertTrue(appliedMigrations >= 20, "Toutes les migrations V1..V20 doivent être appliquées avec succès");
+        assertTrue(appliedMigrations >= 21, "Toutes les migrations V1..V21 doivent être appliquées avec succès");
 
         String v20Script = jdbcTemplate.queryForObject(
                 "SELECT script FROM flyway_schema_history WHERE version = '20' AND success = true",
                 String.class);
         assertEquals("V20__phase3_security_pdf_and_scheduler_locks.sql", v20Script);
+
+        String v21Script = jdbcTemplate.queryForObject(
+                "SELECT script FROM flyway_schema_history WHERE version = '21' AND success = true",
+                String.class);
+        assertEquals("V21__add_message_sequence_order_to_messages_ia.sql", v21Script);
 
         // Vérifier la présence des index partiels PostgreSQL (V14/V19) et de la contrainte CHECK V20
         List<String> indexNames = jdbcTemplate.queryForList(

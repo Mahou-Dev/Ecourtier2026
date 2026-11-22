@@ -4,6 +4,7 @@ import { UtilisateurDTO, AuthResponseDTO } from '../types';
 import { queryClient } from '../lib/queryClient';
 
 import { resolveApiBaseUrl } from '../lib/env';
+import { purgeAnonymousIaSession } from '../services/iaSession';
 
 interface AuthState {
   utilisateur: UtilisateurDTO | null;
@@ -22,6 +23,8 @@ const clearClientSessionData = (preserveUserId?: string) => {
       });
     });
   }
+  // Ne jamais réutiliser l'id/token d'une conversation IA anonyme d'une session précédente.
+  purgeAnonymousIaSession();
   try {
     queryClient.clear();
     if (typeof window !== 'undefined' && window.localStorage) {
@@ -45,6 +48,7 @@ export const useAuthStore = create<AuthState>()(
       refreshToken: null,
       setAuth: (data) => {
         const currentUserId = get().utilisateur?.id;
+        purgeAnonymousIaSession();
         if (currentUserId && currentUserId !== data.utilisateur.id) {
           clearClientSessionData(data.utilisateur.id);
         }

@@ -56,14 +56,35 @@ public class CriteresExtraitsDTO {
     private Map<String, String> explicationsAnnonces;
 
     /**
-     * Fournisseur IA ayant produit l'extraction / réponse (gemini, groq, openai, claude, fallback-local).
+     * Fournisseur IA ayant produit l'extraction / réponse (gemini ou fallback-local).
      */
     private String fournisseurIa;
 
     /**
-     * Indique si le mode de secours déterministe local a été utilisé suite à l'indisponibilité des fournisseurs LLM.
+     * Indique si le mode de secours déterministe local a été utilisé suite à l'indisponibilité de Gemini.
      */
     private Boolean modeSecours;
+
+    /**
+     * Code technique non sensible justifiant le passage en mode secours local
+     * (CLE_ABSENTE, IA_DESACTIVEE, TIMEOUT, QUOTA, ERREUR_HTTP, REPONSE_INVALIDE, FOURNISSEUR_NON_AUTORISE).
+     */
+    private String motifSecours;
+
+    /**
+     * Préférences qualitatives ou souples non éliminatoires (ex: "quartier calme", "logement meublé de préférence").
+     */
+    private List<String> preferencesSouples;
+
+    /**
+     * Attentes complémentaires exprimées (ex: "cour", "cuisine", "grand terrain").
+     */
+    private List<String> attentesComplementaires;
+
+    /**
+     * Points restant à préciser par l'utilisateur avant ou pendant la recherche (ex: "budget maximum en FCFA").
+     */
+    private List<String> precisionsAClarifier;
 
     /**
      * Champs transitoires utilisés lors de la fusion multi-tours (non persistés comme critères de filtre).
@@ -76,4 +97,10 @@ public class CriteresExtraitsDTO {
 
     @JsonIgnore
     private String intentionSpeciale;
+
+    @JsonIgnore
+    private Boolean demandeQuestionsComplementaires;
+
+    @JsonIgnore
+    private Boolean besoinIndecis;
 }

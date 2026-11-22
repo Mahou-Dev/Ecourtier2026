@@ -1,6 +1,7 @@
 import { useAuthStore } from '../store/useAuthStore';
 import { HealthCheckResponse, TransactionResponseDTO } from '../types';
 import { resolveApiBaseUrl } from '../lib/env';
+import { IA_SESSION_HEADER } from './iaSession';
 import fallbackDefaultVisual from '../assets/home/property-fallbacks/default/default-01.webp';
 
 export const API_BASE_URL = resolveApiBaseUrl();
@@ -66,6 +67,14 @@ export async function refreshSessionToken(): Promise<string> {
   }
 }
 
+const isIaEndpoint = (endpoint: string): boolean => endpoint.includes('/api/v1/ia/');
+
+const withStatus = (error: unknown, status: number): Error & { status?: number } => {
+  const err = (error instanceof Error ? error : new Error(String(error))) as Error & { status?: number };
+  if (err.status === undefined) err.status = status;
+  return err;
+};
+
 export async function apiFetch<T>(
   endpoint: string,
   options: RequestInit = {},
@@ -104,7 +113,13 @@ export async function apiFetch<T>(
     } catch {
       /* Réponse JSON d'erreur 403 absente ou invalide */
     }
-    if (errorMessage.toLowerCase().includes('désactivé')) {
+    // Un 403 sur une conversation IA anonyme (preuve X-IA-Session-Token invalide/expirée) ne doit JAMAIS
+    // déconnecter : on ne déconnecte que si un utilisateur est réellement authentifié et que la requête
+    // ne porte pas la preuve de session IA anonyme.
+    const isIaConversationRequest = Object.keys(headers).some(
+      (h) => h.toLowerCase() === IA_SESSION_HEADER.toLowerCase()
+    );
+    if (accessToken && !isIaConversationRequest && errorMessage.toLowerCase().includes('désactivé')) {
       logout();
     }
     const err = new Error(errorMessage) as Error & { status?: number };
@@ -121,11 +136,19 @@ export async function apiFetch<T>(
     !endpoint.includes('/auth/deconnexion')
   ) {
     if (!refreshToken) {
-      logout();
-      throw new Error('Session expirée');
+      // Visiteur anonyme sur un endpoint IA : rien à déconnecter (et ne pas purger la session IA anonyme).
+      if (!isIaEndpoint(endpoint)) {
+        logout();
+      }
+      throw withStatus(new Error('Session expirée'), 401);
     }
 
-    const newToken = await refreshSessionToken();
+    let newToken: string;
+    try {
+      newToken = await refreshSessionToken();
+    } catch (refreshError) {
+      throw withStatus(refreshError, 401);
+    }
 
     // Replay original request ONCE with new access token
     return apiFetch<T>(

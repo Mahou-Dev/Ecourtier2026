@@ -2219,7 +2219,7 @@
       "post" : {
         "tags" : [ "Assistant IA Chatbot" ],
         "summary" : "Démarrer une nouvelle conversation avec l'assistant IA",
-        "description" : "Accessible en mode anonyme ou authentifié avec contrôle de quota.",
+        "description" : "Accessible en mode authentifié ou anonyme. En mode anonyme cross-origin, retourne un jeton unique sessionToken à renvoyer dans l'en-tête X-IA-Session-Token (aucun cookie requis).",
         "operationId" : "demarrerConversation",
         "responses" : {
           "201" : {
@@ -2254,10 +2254,17 @@
     "/api/v1/ia/conversations/{id}/messages" : {
       "post" : {
         "tags" : [ "Assistant IA Chatbot" ],
-        "summary" : "Envoyer un message à l'assistant IA",
-        "description" : "Analyse le besoin en langage naturel, extrait les critères et retourne une shortlist d'annonces réelles en < 3s.",
+        "summary" : "Envoyer un message à l'assistant IA (max 1000 caractères)",
+        "description" : "Analyse le besoin en langage naturel, extrait les critères, retourne des annonces vérifiées et disponibles ainsi que les métriques de latence. Requiert l'en-tête X-IA-Session-Token pour les conversations anonymes.",
         "operationId" : "envoyerMessage",
         "parameters" : [ {
+          "name" : "X-IA-Session-Token",
+          "in" : "header",
+          "description" : "Jeton de possession anonyme délivré à la création de la conversation",
+          "schema" : {
+            "type" : "string"
+          }
+        }, {
           "name" : "id",
           "in" : "path",
           "required" : true,
@@ -2303,22 +2310,7 @@
             }
           },
           "400" : {
-            "description" : "Message vide ou invalide",
-            "content" : {
-              "*/*" : {
-                "schema" : {
-                  "$ref" : "#/components/schemas/MessageIaResponseDTO"
-                }
-              },
-              "application/json" : {
-                "schema" : {
-                  "$ref" : "#/components/schemas/ApiErrorResponse"
-                }
-              }
-            }
-          },
-          "403" : {
-            "description" : "Accès refusé à la conversation d'un autre utilisateur",
+            "description" : "Message vide, invalide ou supérieur à 1000 caractères",
             "content" : {
               "*/*" : {
                 "schema" : {
@@ -2334,6 +2326,21 @@
           },
           "404" : {
             "description" : "Conversation IA introuvable",
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/MessageIaResponseDTO"
+                }
+              },
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            }
+          },
+          "403" : {
+            "description" : "Accès refusé à la conversation ou jeton de session invalide",
             "content" : {
               "*/*" : {
                 "schema" : {
@@ -4776,9 +4783,16 @@
       "get" : {
         "tags" : [ "Assistant IA Chatbot" ],
         "summary" : "Obtenir l'historique complet d'une conversation IA",
-        "description" : "Retourne la liste chronologique des messages et des critères extraits.",
+        "description" : "Retourne la liste chronologique déterministe (ordre croissant) des messages et des critères extraits. Requiert l'en-tête X-IA-Session-Token pour les conversations anonymes.",
         "operationId" : "obtenirHistorique",
         "parameters" : [ {
+          "name" : "X-IA-Session-Token",
+          "in" : "header",
+          "description" : "Jeton de possession anonyme délivré à la création de la conversation",
+          "schema" : {
+            "type" : "string"
+          }
+        }, {
           "name" : "id",
           "in" : "path",
           "required" : true,
@@ -4790,21 +4804,6 @@
         "responses" : {
           "429" : {
             "description" : "Quota de requêtes IA dépassé",
-            "content" : {
-              "*/*" : {
-                "schema" : {
-                  "$ref" : "#/components/schemas/ConversationHistoryResponseDTO"
-                }
-              },
-              "application/json" : {
-                "schema" : {
-                  "$ref" : "#/components/schemas/ApiErrorResponse"
-                }
-              }
-            }
-          },
-          "403" : {
-            "description" : "Accès refusé à la conversation d'un autre utilisateur",
             "content" : {
               "*/*" : {
                 "schema" : {
@@ -4830,6 +4829,21 @@
           },
           "404" : {
             "description" : "Conversation IA introuvable",
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ConversationHistoryResponseDTO"
+                }
+              },
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            }
+          },
+          "403" : {
+            "description" : "Accès refusé à la conversation ou jeton de session invalide",
             "content" : {
               "*/*" : {
                 "schema" : {
@@ -6436,6 +6450,9 @@
           "dateCreation" : {
             "type" : "string",
             "format" : "date-time"
+          },
+          "sessionToken" : {
+            "type" : "string"
           }
         }
       },
@@ -6444,7 +6461,7 @@
         "type" : "object",
         "properties" : {
           "message" : {
-            "maxLength" : 500,
+            "maxLength" : 1000,
             "minLength" : 0,
             "type" : "string"
           }
@@ -6470,6 +6487,12 @@
           "quartier" : {
             "type" : "string"
           },
+          "quartiers" : {
+            "type" : "array",
+            "items" : {
+              "type" : "string"
+            }
+          },
           "ville" : {
             "type" : "string"
           },
@@ -6477,9 +6500,16 @@
             "type" : "integer",
             "format" : "int32"
           },
+          "nombreChambres" : {
+            "type" : "integer",
+            "format" : "int32"
+          },
           "etage" : {
             "type" : "integer",
             "format" : "int32"
+          },
+          "ascenseur" : {
+            "type" : "boolean"
           },
           "meuble" : {
             "type" : "boolean"
@@ -6491,12 +6521,97 @@
             "type" : "number",
             "format" : "double"
           },
+          "superficieMax" : {
+            "type" : "number",
+            "format" : "double"
+          },
+          "equipements" : {
+            "uniqueItems" : true,
+            "type" : "array",
+            "items" : {
+              "type" : "string",
+              "enum" : [ "WIFI", "PARKING", "CLIMATISATION", "PISCINE", "GARDIEN", "GROUPE_ELECTROGENE", "RESERVE_EAU" ]
+            }
+          },
+          "proximites" : {
+            "uniqueItems" : true,
+            "type" : "array",
+            "items" : {
+              "type" : "string",
+              "enum" : [ "ECOLE", "MARCHE", "HOPITAL", "TRANSPORT", "PLAGE", "COMMERCE", "UNIVERSITE" ]
+            }
+          },
           "confiance" : {
             "type" : "number",
             "format" : "double"
           },
           "questionDeRelance" : {
             "type" : "string"
+          },
+          "annoncesSuggereesIds" : {
+            "type" : "array",
+            "items" : {
+              "type" : "string",
+              "format" : "uuid"
+            }
+          },
+          "explicationsAnnonces" : {
+            "type" : "object",
+            "additionalProperties" : {
+              "type" : "string"
+            }
+          },
+          "fournisseurIa" : {
+            "type" : "string"
+          },
+          "modeSecours" : {
+            "type" : "boolean"
+          },
+          "motifSecours" : {
+            "type" : "string"
+          },
+          "preferencesSouples" : {
+            "type" : "array",
+            "items" : {
+              "type" : "string"
+            }
+          },
+          "attentesComplementaires" : {
+            "type" : "array",
+            "items" : {
+              "type" : "string"
+            }
+          },
+          "precisionsAClarifier" : {
+            "type" : "array",
+            "items" : {
+              "type" : "string"
+            }
+          }
+        }
+      },
+      "IaMetriquesDTO" : {
+        "type" : "object",
+        "properties" : {
+          "extractMs" : {
+            "type" : "integer",
+            "format" : "int64"
+          },
+          "searchMs" : {
+            "type" : "integer",
+            "format" : "int64"
+          },
+          "generationMs" : {
+            "type" : "integer",
+            "format" : "int64"
+          },
+          "llmMs" : {
+            "type" : "integer",
+            "format" : "int64"
+          },
+          "totalMs" : {
+            "type" : "integer",
+            "format" : "int64"
           }
         }
       },
@@ -6525,6 +6640,9 @@
           "dateEnvoi" : {
             "type" : "string",
             "format" : "date-time"
+          },
+          "metriques" : {
+            "$ref" : "#/components/schemas/IaMetriquesDTO"
           }
         }
       },
@@ -7130,11 +7248,24 @@
             "type" : "string",
             "enum" : [ "UTILISATEUR", "ASSISTANT" ]
           },
+          "ordre" : {
+            "type" : "integer",
+            "format" : "int64"
+          },
           "contenu" : {
             "type" : "string"
           },
           "criteresExtraits" : {
             "$ref" : "#/components/schemas/CriteresExtraitsDTO"
+          },
+          "annoncesSuggeres" : {
+            "type" : "array",
+            "items" : {
+              "$ref" : "#/components/schemas/AnnonceResponseDTO"
+            }
+          },
+          "questionDeRelance" : {
+            "type" : "string"
           },
           "dateEnvoi" : {
             "type" : "string",

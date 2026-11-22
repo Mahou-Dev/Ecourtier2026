@@ -7,6 +7,9 @@ import com.ecourtier.domain.ia.dto.MessageUserRequestDTO;
 import com.ecourtier.domain.ia.service.IAService;
 import com.ecourtier.domain.ia.service.IaRateLimiterService;
 import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.Parameter;
+import io.swagger.v3.oas.annotations.enums.ParameterIn;
+import io.swagger.v3.oas.annotations.media.Schema;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.security.SecurityRequirements;
@@ -38,7 +41,10 @@ public class IAController {
 
     @PostMapping
     @SecurityRequirements
-    @Operation(summary = "Démarrer une nouvelle conversation avec l'assistant IA", description = "Accessible en mode anonyme ou authentifié avec contrôle de quota.")
+    @Operation(
+            summary = "Démarrer une nouvelle conversation avec l'assistant IA",
+            description = "Accessible en mode authentifié ou anonyme. En mode anonyme cross-origin, retourne un jeton unique sessionToken à renvoyer dans l'en-tête X-IA-Session-Token (aucun cookie requis)."
+    )
     @ApiResponses({
             @ApiResponse(responseCode = "201", description = "Conversation IA initialisée"),
             @ApiResponse(responseCode = "429", description = "Quota de requêtes IA dépassé")
@@ -56,11 +62,23 @@ public class IAController {
 
     @PostMapping("/{id}/messages")
     @SecurityRequirements
-    @Operation(summary = "Envoyer un message à l'assistant IA", description = "Analyse le besoin en langage naturel, extrait les critères et retourne une shortlist d'annonces réelles en < 3s.")
+    @Operation(
+            summary = "Envoyer un message à l'assistant IA (max 1000 caractères)",
+            description = "Analyse le besoin en langage naturel, extrait les critères, retourne des annonces vérifiées et disponibles ainsi que les métriques de latence. Requiert l'en-tête X-IA-Session-Token pour les conversations anonymes.",
+            parameters = {
+                    @Parameter(
+                            name = IAService.IA_SESSION_HEADER_NAME,
+                            in = ParameterIn.HEADER,
+                            required = false,
+                            description = "Jeton de possession anonyme délivré à la création de la conversation",
+                            schema = @Schema(type = "string")
+                    )
+            }
+    )
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "Réponse de l'assistant IA et shortlist d'annonces"),
-            @ApiResponse(responseCode = "400", description = "Message vide ou invalide"),
-            @ApiResponse(responseCode = "403", description = "Accès refusé à la conversation d'un autre utilisateur"),
+            @ApiResponse(responseCode = "400", description = "Message vide, invalide ou supérieur à 1000 caractères"),
+            @ApiResponse(responseCode = "403", description = "Accès refusé à la conversation ou jeton de session invalide"),
             @ApiResponse(responseCode = "404", description = "Conversation IA introuvable"),
             @ApiResponse(responseCode = "429", description = "Quota de requêtes IA dépassé")
     })
@@ -78,10 +96,22 @@ public class IAController {
 
     @GetMapping("/{id}")
     @SecurityRequirements
-    @Operation(summary = "Obtenir l'historique complet d'une conversation IA", description = "Retourne la liste chronologique des messages et des critères extraits.")
+    @Operation(
+            summary = "Obtenir l'historique complet d'une conversation IA",
+            description = "Retourne la liste chronologique déterministe (ordre croissant) des messages et des critères extraits. Requiert l'en-tête X-IA-Session-Token pour les conversations anonymes.",
+            parameters = {
+                    @Parameter(
+                            name = IAService.IA_SESSION_HEADER_NAME,
+                            in = ParameterIn.HEADER,
+                            required = false,
+                            description = "Jeton de possession anonyme délivré à la création de la conversation",
+                            schema = @Schema(type = "string")
+                    )
+            }
+    )
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "Historique complet de la conversation IA"),
-            @ApiResponse(responseCode = "403", description = "Accès refusé à la conversation d'un autre utilisateur"),
+            @ApiResponse(responseCode = "403", description = "Accès refusé à la conversation ou jeton de session invalide"),
             @ApiResponse(responseCode = "404", description = "Conversation IA introuvable"),
             @ApiResponse(responseCode = "429", description = "Quota de requêtes IA dépassé")
     })

@@ -181,7 +181,7 @@ test.describe('PHASE CHATBOT-GROQ-5 — ANO-RES-02 : Validation E2E Widget Chatb
     await expect(page.locator('h3:has-text("Samba — IA Immobilier")')).toBeVisible();
 
     // 6. Envoi d'un message nominal
-    const input = page.locator('input[placeholder*="français wolofisé"]');
+    const input = page.locator('[data-testid="ia-input"]');
     await input.fill('Bonjour Samba, je cherche un logement');
     await page.locator('button[type="submit"]:has(svg.lucide-send)').click();
 
@@ -196,7 +196,7 @@ test.describe('PHASE CHATBOT-GROQ-5 — ANO-RES-02 : Validation E2E Widget Chatb
 
     // Vérification du message d'erreur dégradé sans crash UI
     await expect(
-      page.locator('text=Désolé, l\'assistant IA est actuellement indisponible ou rencontre un problème réseau')
+      page.locator('text=L\'assistant IA est momentanément indisponible')
     ).toBeVisible({ timeout: 5000 });
 
     // Le champ de saisie reste accessible et réutilisable
@@ -260,7 +260,7 @@ test.describe('PHASE CHATBOT-GROQ-5 — ANO-RES-02 : Validation E2E Widget Chatb
     await page.locator('button:has-text("Assistant IA E-Courtier")').click();
 
     // Saisie de la requête de recherche de chambre
-    const input = page.locator('input[placeholder*="français wolofisé"]');
+    const input = page.locator('[data-testid="ia-input"]');
     await input.fill('Je cherche une chambre meublée à Ziguinchor pour 50 000 FCFA max');
     await page.locator('button[type="submit"]:has(svg.lucide-send)').click();
 
@@ -332,9 +332,10 @@ test.describe('PHASE CHATBOT-GROQ-5 — ANO-RES-02 : Validation E2E Widget Chatb
       });
     });
 
-    // 1. Pré-positionner le conversationId dans le localStorage (simulateur F5)
+    // 1. Pré-positionner le conversationId + sessionToken anonyme dans sessionStorage (simulateur F5)
     await page.addInitScript((convId) => {
-      localStorage.setItem('ecourtier_ia_conversation_anon', convId);
+      sessionStorage.setItem('ecourtier_ia_conversation_anon', convId);
+      sessionStorage.setItem(`ecourtier_ia_session_token_${convId}`, 'e2e-session-token-c');
     }, PERSISTED_CONV_ID);
 
     await page.goto('/');
@@ -362,8 +363,8 @@ test.describe('PHASE CHATBOT-GROQ-5 — ANO-RES-02 : Validation E2E Widget Chatb
     await expect(page.locator('text=Parfait, quel est votre budget mensuel ?')).toBeVisible();
     await expect(page.locator('a[href="/annonce/ann-studio-ouakam-3003"]')).toBeVisible();
 
-    // Vérifier la valeur persistée dans le localStorage
-    const savedId = await page.evaluate(() => localStorage.getItem('ecourtier_ia_conversation_anon'));
+    // Vérifier la valeur persistée dans sessionStorage (et absente du localStorage)
+    const savedId = await page.evaluate(() => sessionStorage.getItem('ecourtier_ia_conversation_anon'));
     expect(savedId).toBe(PERSISTED_CONV_ID);
   });
 
@@ -471,9 +472,10 @@ test.describe('PHASE CHATBOT-GROQ-5 — ANO-RES-02 : Validation E2E Widget Chatb
       });
     });
 
-    // Simuler un utilisateur B dont le localStorage contient frauduleusement la conversation de A
+    // Simuler un utilisateur B dont sessionStorage contient frauduleusement la conversation de A
     await page.addInitScript((convId) => {
-      localStorage.setItem('ecourtier_ia_conversation_anon', convId);
+      sessionStorage.setItem('ecourtier_ia_conversation_anon', convId);
+      sessionStorage.setItem(`ecourtier_ia_session_token_${convId}`, 'invalid-token');
     }, FORBIDDEN_CONV_ID);
 
     await page.goto('/');
@@ -488,9 +490,13 @@ test.describe('PHASE CHATBOT-GROQ-5 — ANO-RES-02 : Validation E2E Widget Chatb
     // Vérifier que le widget s'est réinitialisé avec le message de bienvenue sans fuite de messages
     await expect(page.locator('text=Na nga def ! Je suis Samba')).toBeVisible();
 
-    // Vérifier que l'identifiant interdit a été immédiatement purgé du localStorage
-    const savedAfter403 = await page.evaluate(() => localStorage.getItem('ecourtier_ia_conversation_anon'));
-    expect(savedAfter403).toBeNull();
+    // Vérifier que l'identifiant et le token interdits ont été immédiatement purgés
+    const savedAfter403 = await page.evaluate((convId) => ({
+      anonId: sessionStorage.getItem('ecourtier_ia_conversation_anon'),
+      token: sessionStorage.getItem(`ecourtier_ia_session_token_${convId}`),
+    }), FORBIDDEN_CONV_ID);
+    expect(savedAfter403.anonId).toBeNull();
+    expect(savedAfter403.token).toBeNull();
 
     // Vérifier que le bouton de réinitialisation manuelle fonctionne également
     const resetBtn = page.locator('button[aria-label="Nouvelle conversation"]');
@@ -534,7 +540,7 @@ test.describe('PHASE CHATBOT-GROQ-5 — ANO-RES-02 : Validation E2E Widget Chatb
       await expect(headerTitle).toBeVisible();
 
       // Vérifier que le panneau de chat et le champ de saisie tiennent entièrement dans le viewport
-      const panelBox = await page.locator('form:has(input[placeholder*="français wolofisé"])').boundingBox();
+      const panelBox = await page.locator('form:has([data-testid="ia-input"])').boundingBox();
       expect(panelBox).not.toBeNull();
       expect(panelBox!.x).toBeGreaterThanOrEqual(0);
       expect(panelBox!.x + panelBox!.width).toBeLessThanOrEqual(vp.width + 1);
@@ -588,7 +594,7 @@ test.describe('PHASE CHATBOT-GROQ-5 — ANO-RES-02 : Validation E2E Widget Chatb
     await page.goto('/');
     await page.locator('button:has-text("Assistant IA E-Courtier")').click();
 
-    const input = page.locator('input[placeholder*="français wolofisé"]');
+    const input = page.locator('[data-testid="ia-input"]');
     await input.fill('Studio à louer à Dakar');
     await page.locator('button[type="submit"]:has(svg.lucide-send)').click();
 

@@ -159,11 +159,57 @@ export interface MessageIAResponseDTO {
   dateEnvoi: string;
 }
 
+export type IaFournisseur = 'gemini' | 'fallback-local';
+
+export interface IaCriteresExtraits {
+  fournisseurIa?: IaFournisseur | string;
+  modeSecours?: boolean;
+  /** CLE_ABSENTE, IA_DESACTIVEE, TIMEOUT, QUOTA, ERREUR_HTTP, REPONSE_INVALIDE, FOURNISSEUR_NON_AUTORISE… */
+  motifSecours?: string | null;
+  /** Préférences souples : jamais présentées comme des obligations. */
+  preferencesSouples?: string[];
+  attentesComplementaires?: string[];
+  precisionsAClarifier?: string[];
+  questionDeRelance?: string;
+  explicationsAnnonces?: Record<string, string>;
+  [key: string]: unknown;
+}
+
+export interface IaMetriquesDTO {
+  extractMs?: number;
+  searchMs?: number;
+  generationMs?: number;
+  llmMs?: number;
+  totalMs?: number;
+}
+
+/** Réponse de POST /api/v1/ia/conversations. `sessionToken` : uniquement pour une conversation anonyme. */
+export interface IaConversationCreatedDTO {
+  conversationId: string;
+  dateCreation: string;
+  sessionToken?: string;
+}
+
+/** Réponse de POST /api/v1/ia/conversations/{id}/messages. */
+export interface IaMessageReponseDTO {
+  id?: string;
+  reponse?: string;
+  /** Ancien contrat (conservé pour compatibilité). */
+  contenu?: string;
+  annoncesSuggeres?: AnnonceDTO[];
+  criteresExtraits?: IaCriteresExtraits;
+  questionDeRelance?: string;
+  dateEnvoi?: string;
+  metriques?: IaMetriquesDTO;
+}
+
 export interface MessageHistoryItemDTO {
   id: string;
   role: 'UTILISATEUR' | 'ASSISTANT' | 'USER';
+  /** Ordre serveur déterministe (croissant) : ne jamais re-trier par date côté client. */
+  ordre?: number;
   contenu: string;
-  criteresExtraits?: Record<string, unknown>;
+  criteresExtraits?: IaCriteresExtraits;
   annoncesSuggeres?: AnnonceDTO[];
   questionDeRelance?: string;
   dateEnvoi: string;

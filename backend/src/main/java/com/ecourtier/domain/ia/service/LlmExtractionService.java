@@ -110,19 +110,28 @@ public class LlmExtractionService {
         return extractCriteria(userMessage, null);
     }
 
+    public record GenerationOutcome(String responseText, String motifSecours) {}
+
     public CriteresExtraitsDTO extractCriteria(String userMessage, CriteresExtraitsDTO previousContext) {
-        // 1. Validation de sécurité immédiate (longueur <= 500 + filtre Prompt Injection) avant tout appel réseau
+        // 1. Validation de sécurité immédiate (longueur <= 1000 + filtre Prompt Injection) avant tout appel réseau
         ruleBasedExtractor.validateAndSanitize(userMessage);
 
         // 2. Analyse déterministe de référence (pour détecter hors-sujet, intentions spéciales et compléments NLU)
         CriteresExtraitsDTO deterministic = ruleBasedExtractor.extractCriteria(userMessage);
-        if (Boolean.TRUE.equals(deterministic.getHorsSujet())) {
+        if (Boolean.TRUE.equals(deterministic.getHorsSujet())
+                || "FAQ_VERIFICATION_JURIDIQUE".equals(deterministic.getIntentionSpeciale())) {
+            if (isExternalGeminiActive() && "FAQ_VERIFICATION_JURIDIQUE".equals(deterministic.getIntentionSpeciale())) {
+                // Intention juridique détectée localement pour garantir le routage, mais Gemini reste éligible pour la rédaction
+                deterministic.setModeSecours(false);
+                deterministic.setFournisseurIa(PROVIDER_GEMINI);
+                deterministic.setMotifSecours(null);
+            }
             return deterministic;
         }
 
         // 3. Politique RENDER-GEMINI-01 : Gemini est le SEUL fournisseur LLM externe autorisé (zéro appel Groq/OpenAI/Claude)
         if (!iaEnabled) {
-            return buildLocalFallback(deterministic);
+            return buildLocalFallback(deterministic, "IA_DESACTIVEE");
         }
 
         String requestedProvider = getActivePrimaryProviderName();
@@ -131,7 +140,7 @@ public class LlmExtractionService {
                 log.warn("Fournisseur IA '{}' ignoré (RENDER-GEMINI-01 : seul Google Gemini est autorisé). Bascule directe sur le moteur local déterministe.",
                         requestedProvider);
             }
-            return buildLocalFallback(deterministic);
+            return buildLocalFallback(deterministic, "FOURNISSEUR_NON_AUTORISE");
         }
 
         if (geminiLLMProvider != null && geminiLLMProvider.isConfigured()) {
@@ -144,11 +153,15 @@ public class LlmExtractionService {
                     CriteresExtraitsDTO enriched = enrichLlmResultWithDeterministicRules(llmResult, deterministic);
                     enriched.setFournisseurIa(PROVIDER_GEMINI);
                     enriched.setModeSecours(false);
+                    enriched.setMotifSecours(null);
                     return enriched;
                 }
+                return buildLocalFallback(deterministic, "REPONSE_INVALIDE");
             } catch (Exception e) {
-                log.warn("Échec extraction Gemini ({}) -> bascule directe sur le moteur local déterministe",
-                        e.getClass().getSimpleName());
+                String motif = classifyFallbackReason(e);
+                log.warn("Échec extraction Gemini (motif={}, exception={}) -> bascule directe sur le moteur local déterministe",
+                        motif, e.getClass().getSimpleName());
+                return buildLocalFallback(deterministic, motif);
             }
         }
 
@@ -158,15 +171,18 @@ public class LlmExtractionService {
                 CriteresExtraitsDTO legacyResult = attemptLegacyDirectExtractionWithSingleRetry(userMessage);
                 legacyResult.setFournisseurIa(PROVIDER_GEMINI);
                 legacyResult.setModeSecours(false);
+                legacyResult.setMotifSecours(null);
                 return enrichLlmResultWithDeterministicRules(legacyResult, deterministic);
             } catch (Exception e) {
-                log.warn("Échec définitif de l'appel Gemini direct ({}). Bascule sur le moteur local déterministe.",
-                        e.getClass().getSimpleName());
+                String motif = classifyFallbackReason(e);
+                log.warn("Échec définitif de l'appel Gemini direct (motif={}, exception={}). Bascule sur le moteur local déterministe.",
+                        motif, e.getClass().getSimpleName());
+                return buildLocalFallback(deterministic, motif);
             }
         }
 
-        // 5. Fallback déterministe local final (unique solution de secours)
-        return buildLocalFallback(deterministic);
+        // 5. Fallback déterministe local final (clé absente)
+        return buildLocalFallback(deterministic, "CLE_ABSENTE");
     }
 
     /**
@@ -179,11 +195,23 @@ public class LlmExtractionService {
             List<AnnonceResponseDTO> annoncesTrouvees,
             String questionDeRelance
     ) {
-        if (!iaEnabled || !PROVIDER_GEMINI.equals(getActivePrimaryProviderName())) {
-            return null;
+        return generateConversationalResponseWithDiagnostic(userMessage, criteres, annoncesTrouvees, questionDeRelance).responseText();
+    }
+
+    public GenerationOutcome generateConversationalResponseWithDiagnostic(
+            String userMessage,
+            CriteresExtraitsDTO criteres,
+            List<AnnonceResponseDTO> annoncesTrouvees,
+            String questionDeRelance
+    ) {
+        if (!iaEnabled) {
+            return new GenerationOutcome(null, "IA_DESACTIVEE");
+        }
+        if (!PROVIDER_GEMINI.equals(getActivePrimaryProviderName())) {
+            return new GenerationOutcome(null, "FOURNISSEUR_NON_AUTORISE");
         }
         if (geminiLLMProvider == null || !geminiLLMProvider.isConfigured()) {
-            return null;
+            return new GenerationOutcome(null, "CLE_ABSENTE");
         }
         try {
             String response = geminiLLMProvider.generateConversationalResponse(
@@ -193,13 +221,38 @@ public class LlmExtractionService {
                     questionDeRelance
             );
             if (response != null && !response.isBlank()) {
-                return response;
+                return new GenerationOutcome(response, null);
             }
+            return new GenerationOutcome(null, "REPONSE_INVALIDE");
         } catch (Exception e) {
-            log.warn("Échec génération conversationnelle Gemini ({}) -> bascule sur le générateur local déterministe",
-                    e.getClass().getSimpleName());
+            String motif = classifyFallbackReason(e);
+            log.warn("Échec génération conversationnelle Gemini (motif={}, exception={}) -> bascule sur le générateur local déterministe",
+                    motif, e.getClass().getSimpleName());
+            return new GenerationOutcome(null, motif);
         }
-        return null;
+    }
+
+    public String classifyFallbackReason(Throwable throwable) {
+        Throwable cursor = throwable;
+        while (cursor != null) {
+            if (cursor instanceof org.springframework.web.client.HttpStatusCodeException httpEx) {
+                return httpEx.getStatusCode().value() == 429 ? "QUOTA" : "ERREUR_HTTP";
+            }
+            if (cursor instanceof org.springframework.web.client.ResourceAccessException
+                    || cursor instanceof java.net.SocketTimeoutException) {
+                return "TIMEOUT";
+            }
+            if (cursor instanceof IllegalStateException ise && ise.getMessage() != null
+                    && (ise.getMessage().contains("Quota Gemini") || ise.getMessage().contains("429"))) {
+                return "QUOTA";
+            }
+            if (cursor instanceof com.fasterxml.jackson.core.JsonProcessingException
+                    || cursor instanceof IllegalArgumentException) {
+                return "REPONSE_INVALIDE";
+            }
+            cursor = cursor.getCause();
+        }
+        return "ERREUR_HTTP";
     }
 
     public boolean isExternalGeminiActive() {
@@ -221,9 +274,10 @@ public class LlmExtractionService {
         return PROVIDER_LOCAL;
     }
 
-    private CriteresExtraitsDTO buildLocalFallback(CriteresExtraitsDTO deterministic) {
+    private CriteresExtraitsDTO buildLocalFallback(CriteresExtraitsDTO deterministic, String motifSecours) {
         deterministic.setFournisseurIa("fallback-local");
         deterministic.setModeSecours(true);
+        deterministic.setMotifSecours(motifSecours);
         return deterministic;
     }
 
@@ -235,8 +289,20 @@ public class LlmExtractionService {
         if (det.getCriteresASupprimer() != null && !det.getCriteresASupprimer().isEmpty()) {
             llm.setCriteresASupprimer(det.getCriteresASupprimer());
         }
-        if (det.getIntentionSpeciale() != null) {
+        if (llm.getIntentionSpeciale() == null && det.getIntentionSpeciale() != null) {
             llm.setIntentionSpeciale(det.getIntentionSpeciale());
+        }
+        if (det.getDemandeQuestionsComplementaires() != null) {
+            llm.setDemandeQuestionsComplementaires(det.getDemandeQuestionsComplementaires());
+        }
+        if (det.getBesoinIndecis() != null) {
+            llm.setBesoinIndecis(det.getBesoinIndecis());
+        }
+        if (llm.getType() == null && det.getType() != null) {
+            llm.setType(det.getType());
+        }
+        if (llm.getModeTransaction() == null && det.getModeTransaction() != null) {
+            llm.setModeTransaction(det.getModeTransaction());
         }
         if (llm.getBudgetMax() == null && det.getBudgetMax() != null) {
             llm.setBudgetMax(det.getBudgetMax());
@@ -277,7 +343,23 @@ public class LlmExtractionService {
         if ((llm.getProximites() == null || llm.getProximites().isEmpty()) && det.getProximites() != null && !det.getProximites().isEmpty()) {
             llm.setProximites(det.getProximites());
         }
+        llm.setPreferencesSouples(mergeStringLists(llm.getPreferencesSouples(), det.getPreferencesSouples()));
+        llm.setAttentesComplementaires(mergeStringLists(llm.getAttentesComplementaires(), det.getAttentesComplementaires()));
+        llm.setPrecisionsAClarifier(mergeStringLists(llm.getPrecisionsAClarifier(), det.getPrecisionsAClarifier()));
+        if (llm.getQuestionDeRelance() == null && det.getQuestionDeRelance() != null) {
+            llm.setQuestionDeRelance(det.getQuestionDeRelance());
+        }
         return llm;
+    }
+
+    private List<String> mergeStringLists(List<String> primary, List<String> fallback) {
+        if ((primary == null || primary.isEmpty()) && (fallback == null || fallback.isEmpty())) {
+            return null;
+        }
+        java.util.LinkedHashSet<String> merged = new java.util.LinkedHashSet<>();
+        if (primary != null) merged.addAll(primary);
+        if (fallback != null) merged.addAll(fallback);
+        return new java.util.ArrayList<>(merged);
     }
 
     private CriteresExtraitsDTO attemptLegacyDirectExtractionWithSingleRetry(String userMessage) throws Exception {

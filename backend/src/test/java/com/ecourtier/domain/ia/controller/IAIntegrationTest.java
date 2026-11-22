@@ -116,9 +116,13 @@ class IAIntegrationTest {
                 .andReturn();
 
         String convResponseStr = convResult.getResponse().getContentAsString();
-        String conversationId = objectMapper.readTree(convResponseStr).get("conversationId").asText();
-        jakarta.servlet.http.Cookie sessionCookie = convResult.getResponse().getCookie("ecourtier_ia_session");
-        org.junit.jupiter.api.Assertions.assertNotNull(sessionCookie, "Le cookie de session IA anonyme doit être émis");
+        com.fasterxml.jackson.databind.JsonNode convJson = objectMapper.readTree(convResponseStr);
+        String conversationId = convJson.get("conversationId").asText();
+        String sessionToken = convJson.get("sessionToken").asText();
+        org.junit.jupiter.api.Assertions.assertNotNull(sessionToken, "Le jeton sessionToken anonyme doit être émis");
+        org.junit.jupiter.api.Assertions.assertFalse(sessionToken.isBlank());
+        org.junit.jupiter.api.Assertions.assertNull(convResult.getResponse().getCookie("ecourtier_ia_session"),
+                "Aucun cookie cross-origin ne doit être émis");
 
         // 2. Envoie message
         long startTime = System.currentTimeMillis();
@@ -128,7 +132,7 @@ class IAIntegrationTest {
                 .build();
 
         mockMvc.perform(post("/api/v1/ia/conversations/" + conversationId + "/messages")
-                        .cookie(sessionCookie)
+                        .header(com.ecourtier.domain.ia.service.IAService.IA_SESSION_HEADER_NAME, sessionToken)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(messageDto)))
                 .andExpect(status().isOk())
@@ -137,33 +141,46 @@ class IAIntegrationTest {
                 .andExpect(jsonPath("$.criteresExtraits.nombrePieces", is(3)))
                 .andExpect(jsonPath("$.criteresExtraits.budgetMax", is(150000)))
                 .andExpect(jsonPath("$.criteresExtraits.meuble", is(true)))
-                .andExpect(jsonPath("$.annoncesSuggeres", notNullValue()));
+                .andExpect(jsonPath("$.annoncesSuggeres", notNullValue()))
+                .andExpect(jsonPath("$.metriques.totalMs", notNullValue()));
 
         long duration = System.currentTimeMillis() - startTime;
         org.junit.jupiter.api.Assertions.assertTrue(duration < 5000, "Le temps de réponse doit être raisonnable pour l'appel d'intégration (obtenu: " + duration + "ms)");
 
         // 3. Obtenir historique
         mockMvc.perform(get("/api/v1/ia/conversations/" + conversationId)
-                        .cookie(sessionCookie))
+                        .header(com.ecourtier.domain.ia.service.IAService.IA_SESSION_HEADER_NAME, sessionToken))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.conversationId", is(conversationId)))
-                .andExpect(jsonPath("$.messages", hasSize(greaterThanOrEqualTo(2))));
+                .andExpect(jsonPath("$.messages", hasSize(greaterThanOrEqualTo(2))))
+                .andExpect(jsonPath("$.messages[0].role", is("UTILISATEUR")))
+                .andExpect(jsonPath("$.messages[1].role", is("ASSISTANT")));
     }
 
     @Test
-    @DisplayName("Message trop long (> 500 chars) rejeté avec HTTP 400")
+    @DisplayName("Message = 1000 chars accepté (200 OK) et message > 1000 chars rejeté avec HTTP 400")
     void testMessageTropLongRejete() throws Exception {
         MvcResult convResult = mockMvc.perform(post("/api/v1/ia/conversations"))
                 .andExpect(status().isCreated())
                 .andReturn();
 
-        String conversationId = objectMapper.readTree(convResult.getResponse().getContentAsString()).get("conversationId").asText();
+        com.fasterxml.jackson.databind.JsonNode convJson = objectMapper.readTree(convResult.getResponse().getContentAsString());
+        String conversationId = convJson.get("conversationId").asText();
+        String sessionToken = convJson.get("sessionToken").asText();
+
+        String okMsg = "Studio à Dakar " + "x".repeat(1000 - "Studio à Dakar ".length());
+        mockMvc.perform(post("/api/v1/ia/conversations/" + conversationId + "/messages")
+                        .header(com.ecourtier.domain.ia.service.IAService.IA_SESSION_HEADER_NAME, sessionToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(MessageUserRequestDTO.builder().message(okMsg).build())))
+                .andExpect(status().isOk());
 
         MessageUserRequestDTO messageDto = MessageUserRequestDTO.builder()
-                .message("x".repeat(501))
+                .message("x".repeat(1001))
                 .build();
 
         mockMvc.perform(post("/api/v1/ia/conversations/" + conversationId + "/messages")
+                        .header(com.ecourtier.domain.ia.service.IAService.IA_SESSION_HEADER_NAME, sessionToken)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(messageDto)))
                 .andExpect(status().isBadRequest());

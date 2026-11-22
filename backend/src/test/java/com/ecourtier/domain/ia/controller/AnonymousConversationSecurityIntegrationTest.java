@@ -11,7 +11,6 @@ import com.ecourtier.domain.utilisateur.entity.UtilisateurEntity;
 import com.ecourtier.domain.utilisateur.repository.UtilisateurRepository;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import jakarta.servlet.http.Cookie;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -22,6 +21,7 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.http.MediaType;
 import org.springframework.security.test.context.support.WithMockUser;
 import org.springframework.test.context.ActiveProfiles;
+import org.springframework.test.context.TestPropertySource;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
 import org.springframework.transaction.annotation.Transactional;
@@ -31,13 +31,16 @@ import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.options;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 @SpringBootTest
 @AutoConfigureMockMvc
 @ActiveProfiles("test")
+@TestPropertySource(properties = "ecourtier.cors.allowed-origins=https://ecourtier-frontend.onrender.com,http://localhost:3000")
 @Transactional
 class AnonymousConversationSecurityIntegrationTest {
 
@@ -98,53 +101,67 @@ class AnonymousConversationSecurityIntegrationTest {
     }
 
     @Test
-    @DisplayName("1. Création d'une conversation anonyme : délivrance du cookie HttpOnly de possession et hash en base")
+    @DisplayName("1. Création d'une conversation anonyme : jeton X-IA-Session-Token émis en JSON et hash SHA-256 persisté sans cookie")
     void test01_CreationConversationAnonyme_DelivrePreuvePossession() throws Exception {
         MvcResult result = mockMvc.perform(post("/api/v1/ia/conversations"))
                 .andExpect(status().isCreated())
                 .andExpect(jsonPath("$.conversationId").exists())
+                .andExpect(jsonPath("$.sessionToken").exists())
                 .andReturn();
 
-        // 1. Vérifier la présence du cookie HttpOnly
-        Cookie sessionCookie = result.getResponse().getCookie(IAService.IA_SESSION_COOKIE_NAME);
-        assertNotNull(sessionCookie, "Le cookie 'ecourtier_ia_session' doit être émis");
-        assertTrue(sessionCookie.isHttpOnly(), "Le cookie de session IA doit obligatoirement être HttpOnly");
-        assertEquals("/api/v1/ia", sessionCookie.getPath(), "Le chemin du cookie doit être restreint à /api/v1/ia");
-        assertNotNull(sessionCookie.getValue(), "La valeur du jeton de session ne doit pas être vide");
-        assertFalse(sessionCookie.getValue().isBlank());
+        assertNull(result.getResponse().getCookie("ecourtier_ia_session"),
+                "Aucun cookie cross-origin ne doit être émis pour l'assistant IA");
 
-        // 2. Vérifier l'entité en base
         JsonNode jsonNode = objectMapper.readTree(result.getResponse().getContentAsString());
         UUID convId = UUID.fromString(jsonNode.get("conversationId").asText());
+        String rawToken = jsonNode.get("sessionToken").asText();
+        assertNotNull(rawToken);
+        assertFalse(rawToken.isBlank());
 
         ConversationIAEntity conv = conversationIARepository.findById(convId).orElseThrow();
         assertNull(conv.getUtilisateur(), "L'utilisateur doit être null pour une conversation anonyme");
         assertNotNull(conv.getSessionTokenHash(), "Le hash du jeton doit être enregistré en base");
-        assertEquals(IAService.hashToken(sessionCookie.getValue()), conv.getSessionTokenHash(), "Le hash en base doit correspondre au SHA-256 du jeton du cookie");
+        assertEquals(IAService.hashToken(rawToken), conv.getSessionTokenHash(),
+                "Le hash en base doit correspondre au SHA-256 du jeton");
         assertNotNull(conv.getSessionExpiration(), "Une date d'expiration doit être définie");
         assertTrue(conv.getSessionExpiration().isAfter(LocalDateTime.now()), "L'expiration doit être dans le futur");
     }
 
     @Test
-    @DisplayName("2. Lecture de l'historique d'une conversation anonyme avec cookie de session valide : autorisée (200 OK)")
-    void test02_LectureAvecPreuveValide_Autorisee() throws Exception {
-        // Création
+    @DisplayName("2. Parcours anonyme complet (création -> 2 messages -> rechargement GET après F5 -> nouvelle conversation) : 200 OK")
+    void test02_ParcoursAnonymeComplet_Autorise() throws Exception {
         MvcResult createResult = mockMvc.perform(post("/api/v1/ia/conversations"))
                 .andExpect(status().isCreated())
                 .andReturn();
 
-        Cookie cookie = createResult.getResponse().getCookie(IAService.IA_SESSION_COOKIE_NAME);
-        UUID convId = UUID.fromString(objectMapper.readTree(createResult.getResponse().getContentAsString()).get("conversationId").asText());
+        JsonNode created = objectMapper.readTree(createResult.getResponse().getContentAsString());
+        UUID convId = UUID.fromString(created.get("conversationId").asText());
+        String token = created.get("sessionToken").asText();
 
-        // Lecture avec preuve
-        mockMvc.perform(get("/api/v1/ia/conversations/" + convId)
-                        .cookie(cookie))
+        mockMvc.perform(post("/api/v1/ia/conversations/" + convId + "/messages")
+                        .header(IAService.IA_SESSION_HEADER_NAME, token)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(new MessageUserRequestDTO("Je cherche une chambre à Dakar"))))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.conversationId").value(convId.toString()));
+                .andExpect(jsonPath("$.reponse").exists());
+
+        mockMvc.perform(post("/api/v1/ia/conversations/" + convId + "/messages")
+                        .header(IAService.IA_SESSION_HEADER_NAME, token)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(new MessageUserRequestDTO("Budget max 90 000 FCFA"))))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.reponse").exists());
+
+        // Simulation rechargement F5
+        mockMvc.perform(get("/api/v1/ia/conversations/" + convId)
+                        .header(IAService.IA_SESSION_HEADER_NAME, token))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.conversationId").value(convId.toString()))
+                .andExpect(jsonPath("$.messages.length()").value(4));
     }
 
     @Test
-    @DisplayName("3. Lecture de l'historique sans preuve de possession : refusée (403 Forbidden)")
+    @DisplayName("3. Lecture de l'historique sans en-tête X-IA-Session-Token : refusée (403 Forbidden)")
     void test03_LectureSansPreuve_Refusee() throws Exception {
         MvcResult createResult = mockMvc.perform(post("/api/v1/ia/conversations"))
                 .andExpect(status().isCreated())
@@ -152,7 +169,6 @@ class AnonymousConversationSecurityIntegrationTest {
 
         UUID convId = UUID.fromString(objectMapper.readTree(createResult.getResponse().getContentAsString()).get("conversationId").asText());
 
-        // Requête sans cookie ni header
         mockMvc.perform(get("/api/v1/ia/conversations/" + convId))
                 .andExpect(status().isForbidden());
     }
@@ -166,10 +182,8 @@ class AnonymousConversationSecurityIntegrationTest {
 
         UUID convId = UUID.fromString(objectMapper.readTree(createResult.getResponse().getContentAsString()).get("conversationId").asText());
 
-        Cookie wrongCookie = new Cookie(IAService.IA_SESSION_COOKIE_NAME, "jeton_frauduleux_inexistant_1234567890abcdef");
-
         mockMvc.perform(get("/api/v1/ia/conversations/" + convId)
-                        .cookie(wrongCookie))
+                        .header(IAService.IA_SESSION_HEADER_NAME, "jeton_frauduleux_inexistant_1234567890abcdef"))
                 .andExpect(status().isForbidden());
     }
 
@@ -189,17 +203,18 @@ class AnonymousConversationSecurityIntegrationTest {
     }
 
     @Test
-    @DisplayName("6. Ajout d'un message avec preuve de possession valide : autorisé (200 OK)")
+    @DisplayName("6. Ajout d'un message avec preuve X-IA-Session-Token valide : autorisé (200 OK)")
     void test06_AjoutMessageAvecPreuveValide_Autorise() throws Exception {
         MvcResult createResult = mockMvc.perform(post("/api/v1/ia/conversations"))
                 .andExpect(status().isCreated())
                 .andReturn();
 
-        Cookie cookie = createResult.getResponse().getCookie(IAService.IA_SESSION_COOKIE_NAME);
-        UUID convId = UUID.fromString(objectMapper.readTree(createResult.getResponse().getContentAsString()).get("conversationId").asText());
+        JsonNode created = objectMapper.readTree(createResult.getResponse().getContentAsString());
+        UUID convId = UUID.fromString(created.get("conversationId").asText());
+        String token = created.get("sessionToken").asText();
 
         mockMvc.perform(post("/api/v1/ia/conversations/" + convId + "/messages")
-                        .cookie(cookie)
+                        .header(IAService.IA_SESSION_HEADER_NAME, token)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(new MessageUserRequestDTO("Je cherche une chambre à Dakar"))))
                 .andExpect(status().isOk())
@@ -209,46 +224,49 @@ class AnonymousConversationSecurityIntegrationTest {
     @Test
     @DisplayName("7. UUID seul insuffisant : deux sessions anonymes distinctes ne peuvent pas accéder aux conversations de l'autre")
     void test07_UuidSeulInsuffisant_IsolationSessionsAnonymes() throws Exception {
-        // Session 1
-        MvcResult res1 = mockMvc.perform(post("/api/v1/ia/conversations"))
-                .andExpect(status().isCreated())
-                .andReturn();
-        Cookie cookie1 = res1.getResponse().getCookie(IAService.IA_SESSION_COOKIE_NAME);
-        UUID convId1 = UUID.fromString(objectMapper.readTree(res1.getResponse().getContentAsString()).get("conversationId").asText());
+        MvcResult res1 = mockMvc.perform(post("/api/v1/ia/conversations")).andExpect(status().isCreated()).andReturn();
+        JsonNode json1 = objectMapper.readTree(res1.getResponse().getContentAsString());
+        UUID convId1 = UUID.fromString(json1.get("conversationId").asText());
+        String token1 = json1.get("sessionToken").asText();
 
-        // Session 2
-        MvcResult res2 = mockMvc.perform(post("/api/v1/ia/conversations"))
-                .andExpect(status().isCreated())
-                .andReturn();
-        Cookie cookie2 = res2.getResponse().getCookie(IAService.IA_SESSION_COOKIE_NAME);
-        UUID convId2 = UUID.fromString(objectMapper.readTree(res2.getResponse().getContentAsString()).get("conversationId").asText());
+        MvcResult res2 = mockMvc.perform(post("/api/v1/ia/conversations")).andExpect(status().isCreated()).andReturn();
+        JsonNode json2 = objectMapper.readTree(res2.getResponse().getContentAsString());
+        UUID convId2 = UUID.fromString(json2.get("conversationId").asText());
+        String token2 = json2.get("sessionToken").asText();
 
-        // Session 2 tente d'accéder à la conversation 1 avec le cookie de session 2 -> 403
         mockMvc.perform(get("/api/v1/ia/conversations/" + convId1)
-                        .cookie(cookie2))
+                        .header(IAService.IA_SESSION_HEADER_NAME, token2))
                 .andExpect(status().isForbidden());
 
-        // Session 1 tente d'accéder à la conversation 2 avec le cookie de session 1 -> 403
+        mockMvc.perform(post("/api/v1/ia/conversations/" + convId1 + "/messages")
+                        .header(IAService.IA_SESSION_HEADER_NAME, token2)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(new MessageUserRequestDTO("Intrus"))))
+                .andExpect(status().isForbidden());
+
         mockMvc.perform(get("/api/v1/ia/conversations/" + convId2)
-                        .cookie(cookie1))
+                        .header(IAService.IA_SESSION_HEADER_NAME, token1))
                 .andExpect(status().isForbidden());
 
-        // Chaque session accède normalement à sa propre conversation
-        mockMvc.perform(get("/api/v1/ia/conversations/" + convId1).cookie(cookie1)).andExpect(status().isOk());
-        mockMvc.perform(get("/api/v1/ia/conversations/" + convId2).cookie(cookie2)).andExpect(status().isOk());
+        mockMvc.perform(get("/api/v1/ia/conversations/" + convId1)
+                        .header(IAService.IA_SESSION_HEADER_NAME, token1))
+                .andExpect(status().isOk());
+        mockMvc.perform(get("/api/v1/ia/conversations/" + convId2)
+                        .header(IAService.IA_SESSION_HEADER_NAME, token2))
+                .andExpect(status().isOk());
     }
 
     @Test
-    @DisplayName("8. Conversation authentifiée : seul son propriétaire peut y accéder")
+    @DisplayName("8. Conversation authentifiée : seul son propriétaire peut y accéder et aucun sessionToken anonyme n'est émis")
     @WithMockUser(username = "mamadou.diallo@test.sn", roles = {"LOCATAIRE"})
     void test08_ConversationAuthentifiee_ProprietaireAutorise() throws Exception {
         MvcResult createResult = mockMvc.perform(post("/api/v1/ia/conversations"))
                 .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.sessionToken").doesNotExist())
                 .andReturn();
 
         UUID convId = UUID.fromString(objectMapper.readTree(createResult.getResponse().getContentAsString()).get("conversationId").asText());
 
-        // Mamadou accède à sa propre conversation
         mockMvc.perform(get("/api/v1/ia/conversations/" + convId))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.conversationId").value(convId.toString()));
@@ -258,17 +276,14 @@ class AnonymousConversationSecurityIntegrationTest {
     @DisplayName("9. Utilisateur B tentant d'accéder à la conversation authentifiée de A : refusé (403 Forbidden)")
     @WithMockUser(username = "fatou.sow@test.sn", roles = {"LOCATAIRE"})
     void test09_UtilisateurBTentantAccesConversationA_Refuse() throws Exception {
-        // Conversation créée pour Mamadou
         ConversationIAEntity convA = conversationIARepository.save(ConversationIAEntity.builder()
                 .utilisateur(utilisateurA)
                 .dateCreation(LocalDateTime.now())
                 .build());
 
-        // Fatou tente de lire la conversation de Mamadou
         mockMvc.perform(get("/api/v1/ia/conversations/" + convA.getId()))
                 .andExpect(status().isForbidden());
 
-        // Fatou tente d'envoyer un message sur la conversation de Mamadou
         mockMvc.perform(post("/api/v1/ia/conversations/" + convA.getId() + "/messages")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(new MessageUserRequestDTO("Tentative pirate"))))
@@ -283,14 +298,11 @@ class AnonymousConversationSecurityIntegrationTest {
                 .dateCreation(LocalDateTime.now())
                 .build());
 
-        // Anonyme sans cookie
         mockMvc.perform(get("/api/v1/ia/conversations/" + convA.getId()))
                 .andExpect(status().isForbidden());
 
-        // Anonyme avec un cookie de session anonyme valide
-        Cookie cookieAnon = new Cookie(IAService.IA_SESSION_COOKIE_NAME, "random_session_anon_token_12345");
         mockMvc.perform(get("/api/v1/ia/conversations/" + convA.getId())
-                        .cookie(cookieAnon))
+                        .header(IAService.IA_SESSION_HEADER_NAME, "random_session_anon_token_12345"))
                 .andExpect(status().isForbidden());
     }
 
@@ -300,83 +312,80 @@ class AnonymousConversationSecurityIntegrationTest {
         String token = IAService.generateSecureToken();
         String hash = IAService.hashToken(token);
 
-        // Conversation anonyme expirée depuis 1 heure
         ConversationIAEntity convExpiree = conversationIARepository.save(ConversationIAEntity.builder()
                 .sessionTokenHash(hash)
                 .sessionExpiration(LocalDateTime.now().minusHours(1))
                 .dateCreation(LocalDateTime.now().minusDays(8))
                 .build());
 
-        Cookie cookie = new Cookie(IAService.IA_SESSION_COOKIE_NAME, token);
-
         mockMvc.perform(get("/api/v1/ia/conversations/" + convExpiree.getId())
-                        .cookie(cookie))
+                        .header(IAService.IA_SESSION_HEADER_NAME, token))
                 .andExpect(status().isForbidden());
     }
 
     @Test
-    @DisplayName("12. Aucune fuite du secret ou du hash dans les réponses API ou corps JSON")
-    void test12_AucuneFuiteDuSecretDansReponsesApi() throws Exception {
+    @DisplayName("12. Aucune fuite du secret ou du hash dans l'historique GET ou l'envoi de message POST")
+    void test12_AucuneFuiteDuSecretDansHistoriqueOuMessages() throws Exception {
         MvcResult createResult = mockMvc.perform(post("/api/v1/ia/conversations"))
                 .andExpect(status().isCreated())
                 .andReturn();
 
-        String rawToken = createResult.getResponse().getCookie(IAService.IA_SESSION_COOKIE_NAME).getValue();
-        String jsonCreate = createResult.getResponse().getContentAsString();
+        JsonNode created = objectMapper.readTree(createResult.getResponse().getContentAsString());
+        String rawToken = created.get("sessionToken").asText();
+        UUID convId = UUID.fromString(created.get("conversationId").asText());
 
-        // Le token brut ne doit jamais figurer dans le body JSON
-        assertFalse(jsonCreate.contains(rawToken), "Le jeton secret brut ne doit jamais être présent dans le corps de réponse");
-        assertFalse(jsonCreate.contains("sessionToken"), "Aucun champ de jeton ne doit fuiter");
-        assertFalse(jsonCreate.contains("sessionTokenHash"), "Le hash ne doit pas figurer dans le body");
-
-        UUID convId = UUID.fromString(objectMapper.readTree(jsonCreate).get("conversationId").asText());
-
-        // Vérifier l'historique
-        MvcResult histResult = mockMvc.perform(get("/api/v1/ia/conversations/" + convId)
-                        .cookie(createResult.getResponse().getCookie(IAService.IA_SESSION_COOKIE_NAME)))
+        MvcResult msgResult = mockMvc.perform(post("/api/v1/ia/conversations/" + convId + "/messages")
+                        .header(IAService.IA_SESSION_HEADER_NAME, rawToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(new MessageUserRequestDTO("Studio à Dakar"))))
                 .andExpect(status().isOk())
                 .andReturn();
+        String jsonMsg = msgResult.getResponse().getContentAsString();
+        assertFalse(jsonMsg.contains(rawToken));
+        assertFalse(jsonMsg.contains("sessionToken"));
+        assertFalse(jsonMsg.contains("sessionTokenHash"));
 
+        MvcResult histResult = mockMvc.perform(get("/api/v1/ia/conversations/" + convId)
+                        .header(IAService.IA_SESSION_HEADER_NAME, rawToken))
+                .andExpect(status().isOk())
+                .andReturn();
         String jsonHist = histResult.getResponse().getContentAsString();
-        assertFalse(jsonHist.contains(rawToken), "L'historique ne doit pas contenir le jeton secret");
-        assertFalse(jsonHist.contains("sessionTokenHash"), "L'historique ne doit pas exposer le hash");
+        assertFalse(jsonHist.contains(rawToken));
+        assertFalse(jsonHist.contains("sessionToken"));
+        assertFalse(jsonHist.contains("sessionTokenHash"));
     }
 
     @Test
     @DisplayName("13. Anciennes conversations anonymes sans preuve de possession : accès refusé par défaut (403 Forbidden)")
     void test13_AnciennesConversationsAnonymesSansPreuve_Refusees() throws Exception {
-        // Conversation héritée sans hash ni date d'expiration
         ConversationIAEntity convAncienne = conversationIARepository.save(ConversationIAEntity.builder()
                 .sessionTokenHash(null)
                 .sessionExpiration(null)
                 .dateCreation(LocalDateTime.now().minusDays(30))
                 .build());
 
-        // Tout accès est refusé pour empêcher l'exploitation des données antérieures non sécurisées
         mockMvc.perform(get("/api/v1/ia/conversations/" + convAncienne.getId()))
                 .andExpect(status().isForbidden());
 
-        Cookie anyCookie = new Cookie(IAService.IA_SESSION_COOKIE_NAME, "any_token");
         mockMvc.perform(get("/api/v1/ia/conversations/" + convAncienne.getId())
-                        .cookie(anyCookie))
+                        .header(IAService.IA_SESSION_HEADER_NAME, "any_token"))
                 .andExpect(status().isForbidden());
     }
 
     @Test
-    @DisplayName("14. Support alternatif de l'en-tête X-IA-Session-Token pour les clients programmatiques")
-    void test14_SupportHeaderAlternatif_Autorise() throws Exception {
-        String token = IAService.generateSecureToken();
-        String hash = IAService.hashToken(token);
-
-        ConversationIAEntity conv = conversationIARepository.save(ConversationIAEntity.builder()
-                .sessionTokenHash(hash)
-                .sessionExpiration(LocalDateTime.now().plusDays(7))
-                .dateCreation(LocalDateTime.now())
-                .build());
-
-        mockMvc.perform(get("/api/v1/ia/conversations/" + conv.getId())
-                        .header(IAService.IA_SESSION_HEADER_NAME, token))
+    @DisplayName("14. Requête CORS preflight OPTIONS cross-origin autorisant explicitement X-IA-Session-Token")
+    void test14_CorsPreflightAutoriseHeaderSessionIa() throws Exception {
+        MvcResult preflight = mockMvc.perform(options("/api/v1/ia/conversations")
+                        .header("Origin", "https://ecourtier-frontend.onrender.com")
+                        .header("Access-Control-Request-Method", "POST")
+                        .header("Access-Control-Request-Headers", "Content-Type, X-IA-Session-Token"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.conversationId").value(conv.getId().toString()));
+                .andExpect(header().string("Access-Control-Allow-Origin", "https://ecourtier-frontend.onrender.com"))
+                .andExpect(header().exists("Access-Control-Allow-Headers"))
+                .andReturn();
+        String allowHeaders = preflight.getResponse().getHeader("Access-Control-Allow-Headers");
+        assertNotNull(allowHeaders);
+        assertTrue(allowHeaders.toLowerCase().contains("x-ia-session-token"),
+                "CORS doit autoriser X-IA-Session-Token (reçu: " + allowHeaders + ")");
     }
 }

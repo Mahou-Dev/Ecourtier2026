@@ -34,6 +34,12 @@ public interface AnnonceRepository extends JpaRepository<AnnonceEntity, UUID>, J
     @EntityGraph(attributePaths = {"utilisateur"})
     Page<AnnonceEntity> findByStatutVerificationAndSupprimeFalse(StatutVerification statutVerification, Pageable pageable);
 
+    @EntityGraph(attributePaths = {"utilisateur"})
+    java.util.List<AnnonceEntity> findBySupprimeFalseAndStatutPublicationAndStatutVerification(
+            com.ecourtier.domain.annonce.entity.StatutPublication statutPublication,
+            StatutVerification statutVerification
+    );
+
     @Query("SELECT DISTINCT a.quartier FROM AnnonceEntity a WHERE a.supprime = false AND a.statutPublication = com.ecourtier.domain.annonce.entity.StatutPublication.DISPONIBLE AND a.quartier IS NOT NULL AND TRIM(a.quartier) != '' ORDER BY a.quartier ASC")
     java.util.List<String> findDistinctQuartiers();
 }
