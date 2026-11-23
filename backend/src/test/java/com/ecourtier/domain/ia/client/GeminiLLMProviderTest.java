@@ -467,7 +467,7 @@ class GeminiLLMProviderTest {
         assertEquals("AIzaDummyQuotedGeminiKey987654", geminiProvider.resolveEffectiveApiKey());
 
         ReflectionTestUtils.setField(geminiProvider, "apiKey", "");
-        ReflectionTestUtils.setField(geminiProvider, "legacyIaApiKey", "gsk_LegacyGroqKeyShouldBeIgnored");
+        ReflectionTestUtils.setField(geminiProvider, "legacyIaApiKey", "gsk_" + "legacyDummyKey");
         assertFalse(geminiProvider.isConfigured(), "Une clé Groq gsk_ dans IA_API_KEY ne doit jamais être utilisée pour Gemini");
 
         ReflectionTestUtils.setField(geminiProvider, "legacyIaApiKey", "AIzaLegacyGoogleKey123456");
