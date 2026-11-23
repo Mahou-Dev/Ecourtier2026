@@ -6,7 +6,7 @@
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.7-blue.svg)](https://www.typescriptlang.org/)
 [![Vite](https://img.shields.io/badge/Vite-6.2-purple.svg)](https://vitejs.dev/)
 [![PostgreSQL](https://img.shields.io/badge/PostgreSQL-16.15-blue.svg)](https://www.postgresql.org/)
-[![Flyway](https://img.shields.io/badge/Flyway-V1..V20-red.svg)](https://flywaydb.org/)
+[![Flyway](https://img.shields.io/badge/Flyway-V1..V21-red.svg)](https://flywaydb.org/)
 [![JaCoCo](https://img.shields.io/badge/JaCoCo%20Line%20Coverage-86.85%25-brightgreen.svg)](backend/pom.xml)
 [![Playwright](https://img.shields.io/badge/Playwright%20E2E-10%2F10%20Pass-green.svg)](frontend/playwright.config.ts)
 [![CI/CD](https://img.shields.io/badge/GitHub%20Actions-CI%2FCD%20Ready-brightgreen.svg)](.github/workflows/ci.yml)
@@ -55,14 +55,14 @@ graph TD
     Nginx -->|Fichiers Statiques| SPA[Client SPA React 19 / TypeScript / Vite 6]
     Nginx -->|Reverse-Proxy /api/v1| Spring[Backend Spring Boot 3.4.3 / Java 21 LTS]
     Nginx -->|Reverse-Proxy /ws-ecourtier| WSServer[Serveur STOMP WebSocket]
-    Spring -->|JDBC HikariPool :5432| Postgres[(Base PostgreSQL 16.15 / Flyway V1..V20)]
+    Spring -->|JDBC HikariPool :5432| Postgres[(Base PostgreSQL 16.15 / Flyway V1..V21)]
     Spring -->|Stockage Sécurisé Non-Root| FS[/app/uploads : Photos, Titres & Baux PDF/]
-    Spring -->|Requêtes sortantes HTTPS| Groq[API Cloud Groq : Llama-3.3-70b-versatile]
+    Spring -->|Requêtes sortantes HTTPS| Gemini[API Google Gemini : gemini-flash-lite-latest]
 ```
 
-- **Backend** : Java 21 LTS, Spring Boot 3.4.3, Spring Security 6 (Filtre JWT sans état + vérification de `token_version`), Spring Data JPA, Hibernate 6, OpenPDF 2.0.2, Flyway 10, Bucket4j Bounded Rate Limiting.
+- **Backend** : Java 21 LTS, Spring Boot 3.4.3, Spring Security 6 (Filtre JWT sans état + vérification de `token_version` + preuve anonyme `X-IA-Session-Token`), Spring Data JPA, Hibernate 6, OpenPDF 2.0.2, Flyway 10, Bucket4j Bounded Rate Limiting.
 - **Frontend** : React 19.0.0, TypeScript 5.7, Vite 6.2, Tailwind CSS 3.4, TanStack React Query v5, Zustand, Lucide React, Leaflet 1.9, vite-plugin-pwa (Workbox).
-- **Base de Données** : PostgreSQL 16.15 avec 20 migrations Flyway séquentielles, contraintes d'intégrité, index partiels (`uq_transactions_annonce_active`) et table de verrous multi-instances (`scheduler_locks`).
+- **Base de Données** : PostgreSQL 16.15 avec 21 migrations Flyway séquentielles, contraintes d'intégrité, index partiels (`uq_transactions_annonce_active`) et table de verrous multi-instances (`scheduler_locks`).
 - **Conteneurisation** : Docker multi-stage durci (utilisateurs non-root : UID 101 pour Nginx, UID 1000 pour Spring Boot).
 
 ---
@@ -90,9 +90,9 @@ L'ensemble des modèles UML est disponible dans le répertoire [`ECOURTIER_UML_D
 Le dépôt intègre deux pipelines automatisés GitHub Actions :
 
 1. **Intégration Continue (CI)** — [`.github/workflows/ci.yml`](.github/workflows/ci.yml) :
-   - **Étape 1 : Précontrôles & Sécurité** : Vérification d'arborescence, unicité stricte des préfixes Flyway V1 à V20, scan anti-fuite de secrets (`git ls-files`).
-   - **Étape 2 : Backend Java 21** : Compilation Maven, 395 tests unitaires et d'intégration, vérification bloquante JaCoCo (seuil minimum 60% de lignes couvertes).
-   - **Étape 3 : Base de données PostgreSQL 16 réelle** : Exécution Testcontainers sur schéma vierge des 20 migrations Flyway, vérification des index partiels et des verrous de concurrence.
+   - **Étape 1 : Précontrôles & Sécurité** : Vérification d'arborescence, unicité stricte des préfixes Flyway V1 à V21, scan anti-fuite de secrets (`git ls-files`).
+   - **Étape 2 : Backend Java 21** : Compilation Maven, tests unitaires et d'intégration, vérification bloquante JaCoCo (seuil minimum 60% de lignes couvertes).
+   - **Étape 3 : Base de données PostgreSQL 16 réelle** : Exécution Testcontainers sur schéma vierge des 21 migrations Flyway, vérification des index partiels et des verrous de concurrence.
    - **Étape 4 : Frontend Node 20 & Qualité** : Linter ESLint strict (`--max-warnings 0`), typage TypeScript (`tsc --noEmit`), build Vite PWA (61 ressources pré-cachées).
    - **Étape 5 : Tests de Bout en Bout Playwright** : Démarrage conjoint du backend réel (port 18080) et du preview Vite (port 4173), exécution des 10 scénarios E2E.
    - **Étape 6 : Validation des Conteneurs Docker** : Validation syntaxique Docker Compose (`dev` et `prod`), construction des images de production.
@@ -178,7 +178,7 @@ mvn -f backend/pom.xml test jacoco:check
 ```bash
 mvn -f backend/pom.xml test -Decourtier.test.pg16=true -Dapi.version=1.44 -Dtest=FlywayFreshMigrationIntegrationTest,Postgres16Phase3IntegrationTest
 ```
-- **Validation :** 20 migrations Flyway appliquées avec succès sur moteur PostgreSQL 16.15 officiel.
+- **Validation :** 21 migrations Flyway appliquées avec succès sur moteur PostgreSQL 16 officiel.
 
 ### 8.3 Contrôles Frontend (Lint & Types)
 

@@ -272,7 +272,9 @@ test.describe('Chatbot Groq R1 — Courses asynchrones & isolation frontend (moc
 
     await page.getByRole('button', { name: /Assistant IA E-Courtier/i }).click();
     await expect(page.getByText('Donnée authentifiée à ne pas fuiter')).not.toBeVisible();
-    const anonKey = await page.evaluate(() => localStorage.getItem('ecourtier_ia_conversation_anon'));
+    const anonKey = await page.evaluate(() =>
+      sessionStorage.getItem('ecourtier_ia_conversation_anon') ?? localStorage.getItem('ecourtier_ia_conversation_anon')
+    );
     expect(anonKey).toBeNull();
   });
 

@@ -31,8 +31,23 @@ import java.util.regex.Pattern;
 @Slf4j
 public class RuleBasedCriteriaExtractor {
 
-    private static final int MAX_MESSAGE_LENGTH = 500;
+    private static final int MAX_MESSAGE_LENGTH = 1000;
     private static final int REGEX_FLAGS = Pattern.CASE_INSENSITIVE | Pattern.UNICODE_CASE | Pattern.DOTALL;
+
+    private static final Pattern SOFT_MEUBLE_PATTERN = Pattern.compile(
+            "(?:(?:je\\s+)?prefererais|prefere|si\\s+possible|de\\s+preference|idealement|eventuellement|ce\\s+serait\\s+(?:bien|un\\s+plus)|serait\\s+un\\s+plus).{0,40}\\bmeubles?\\b|\\bmeubles?\\b\\s*(?:de\\s+preference|si\\s+possible|serait\\s+un\\s+plus)",
+            Pattern.CASE_INSENSITIVE
+    );
+
+    private static final Pattern LEGAL_TRANSPARENCY_PATTERN = Pattern.compile(
+            "(?:titres?\\s+fonciers?|titre\\s+de\\s+propriete|acte\\s+notarie|\\bnotaire\\b|authenticite|honnete(?:te)?|\\barnaques?\\b|escroquerie|fraude|faux\\s+(?:courtiers?|documents?|titres?|proprietaires?)|badge\\s+verifie.*(?:sur|juridique|garant|signifi)|(?:garanti|certifi|sur(?:e|s)?).{0,40}(?:annonces?|proprietaire|bailleur|titre|document|authentique|juridique)|(?:annonces?|proprietaires?|bailleurs?).{0,30}(?:fiables?|authentiques?|verifies?)|comment\\s+(?:verifiez|protegez|fonctionne\\s+la\\s+verification)|verification\\s+des\\s+(?:annonces?|proprietaires?|bailleurs?|baux|bail)|(?:payer|verser|regler).{0,25}avant\\s+(?:de\\s+)?(?:voir|visiter|les\\s+documents)|avant\\s+de\\s+signer\\s+(?:un|le)?\\s*bail)",
+            Pattern.CASE_INSENSITIVE
+    );
+
+    private static final Pattern TYPE_MENTION_PATTERN = Pattern.compile(
+            "\\b(studios?|villas?|maisons?|duplex|appartements?|appart|[ft][2-6]|chambres?)\\b",
+            Pattern.CASE_INSENSITIVE | Pattern.UNICODE_CASE
+    );
 
     private static final List<Pattern> PROMPT_INJECTION_PATTERNS = List.of(
             Pattern.compile("(ignore|oublie|disregard|forget|bypass|contourne|override)\\s+.*?(instruction|consigne|règle|regle|rule|previous|précédent|precedent|system|système|systeme|prompt)", REGEX_FLAGS),
@@ -165,7 +180,7 @@ public class RuleBasedCriteriaExtractor {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Le message ne peut pas être vide");
         }
         if (rawMessage.length() > MAX_MESSAGE_LENGTH) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Le message dépasse la limite de 500 caractères");
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Le message dépasse la limite de 1000 caractères");
         }
         String sanitized = rawMessage.trim();
         for (Pattern pattern : PROMPT_INJECTION_PATTERNS) {
@@ -194,10 +209,31 @@ public class RuleBasedCriteriaExtractor {
             return builder.build();
         }
 
-        // 0b. Détection des intentions conversationnelles spéciales (explication, FAQ documents, liste disponible)
+        // 0b. Détection des intentions conversationnelles spéciales (explication, FAQ documents, transparence juridique, liste)
         String specialIntent = detectSpecialIntent(lower, normalized);
         if (specialIntent != null) {
             builder.intentionSpeciale(specialIntent);
+            if ("FAQ_VERIFICATION_JURIDIQUE".equals(specialIntent)) {
+                builder.fournisseurIa("fallback-local");
+                builder.modeSecours(true);
+                builder.confiance(0.9);
+                return builder.build();
+            }
+        }
+
+        boolean needClarificationSignal = normalized.contains("je ne sais pas")
+                || normalized.contains("pas encore exactement")
+                || normalized.contains("j'hesite")
+                || normalized.contains("besoin d'aide");
+        if (needClarificationSignal) {
+            builder.besoinIndecis(true);
+        }
+        if (normalized.contains("poser les questions")
+                || normalized.contains("questions necessaires")
+                || normalized.contains("informations te manquent")
+                || normalized.contains("informations manquantes")
+                || normalized.contains("questions complementaires")) {
+            builder.demandeQuestionsComplementaires(true);
         }
 
         // 0c. Détection des demandes de retrait d'un critère en multi-tours (ex: "sans critère de quartier")
@@ -250,8 +286,9 @@ public class RuleBasedCriteriaExtractor {
         builder.nombrePieces(nombrePieces);
         builder.nombreChambres(nombreChambres);
 
-        // 6. Meublé
-        Boolean meuble = removals.contains("meuble") ? null : extractMeuble(lower);
+        // 6. Meublé (critère obligatoire vs préférence souple)
+        boolean meubleSouple = !removals.contains("meuble") && isSoftMeublePreference(normalized);
+        Boolean meuble = removals.contains("meuble") || meubleSouple ? null : extractMeuble(lower);
         builder.meuble(meuble);
 
         // 7. Superficie minimale et maximale (m²)
@@ -270,7 +307,7 @@ public class RuleBasedCriteriaExtractor {
         Boolean animauxAcceptes = extractAnimauxAcceptes(lower);
         builder.animauxAcceptes(animauxAcceptes);
 
-        // 10. Équipements & Proximités
+        // 10. Équipements, Proximités & Préférences souples / Attentes complémentaires
         Set<Equipement> equipements = extractEquipements(lower, normalized);
         if (!equipements.isEmpty()) {
             builder.equipements(equipements);
@@ -280,6 +317,22 @@ public class RuleBasedCriteriaExtractor {
             builder.proximites(proximites);
         }
 
+        List<String> preferencesSouples = extractPreferencesSouples(lower, normalized, meubleSouple, budgetMin, budgetMax, superficieMin, superficieMax);
+        if (!preferencesSouples.isEmpty()) {
+            builder.preferencesSouples(preferencesSouples);
+        }
+        List<String> attentesComplementaires = extractAttentesComplementaires(lower, normalized);
+        if (!attentesComplementaires.isEmpty()) {
+            builder.attentesComplementaires(attentesComplementaires);
+        }
+        List<String> precisionsAClarifier = buildPrecisionsAClarifier(
+                lower, normalized, type, modeTransaction, ville, quartier, quartiers, budgetMin, budgetMax,
+                nombrePieces, nombreChambres, superficieMin, superficieMax, expectationsNeedSurface(normalized, superficieMin)
+        );
+        if (!precisionsAClarifier.isEmpty()) {
+            builder.precisionsAClarifier(precisionsAClarifier);
+        }
+
         // 11. Confiance et Question de relance
         int matchedCount = 0;
         if (type != null) matchedCount++;
@@ -287,11 +340,12 @@ public class RuleBasedCriteriaExtractor {
         if (quartier != null || ville != null) matchedCount++;
         if (budgetMax != null || budgetMin != null) matchedCount++;
         if (nombrePieces != null || nombreChambres != null) matchedCount++;
-        if (meuble != null) matchedCount++;
+        if (meuble != null || meubleSouple) matchedCount++;
         if (superficieMin != null || superficieMax != null) matchedCount++;
         if (etage != null || ascenseur != null) matchedCount++;
         if (animauxAcceptes != null) matchedCount++;
         if (!equipements.isEmpty() || !proximites.isEmpty()) matchedCount++;
+        if (!attentesComplementaires.isEmpty() || !preferencesSouples.isEmpty()) matchedCount++;
 
         double confiance = Math.min(1.0, 0.35 + (matchedCount * 0.15));
         builder.confiance(confiance);
@@ -300,13 +354,12 @@ public class RuleBasedCriteriaExtractor {
         if (nonResidentielDetecte) {
             questionDeRelance = "E-Courtier propose exclusivement des logements d'habitation (chambres, studios, appartements, villas). Quel type de logement résidentiel recherchez-vous ?";
         } else if (specialIntent == null && removals.isEmpty()) {
-            if (budgetMax == null && budgetMin == null && type == null) {
-                questionDeRelance = "Pour affiner ma recherche, quel est votre budget maximum (en FCFA) et quel type de bien (studio, appartement, villa, chambre) recherchez-vous ?";
-            } else if (budgetMax == null && budgetMin == null) {
-                questionDeRelance = "Quel est votre budget maximum en FCFA pour ce bien ?";
-            } else if (quartier == null && ville == null) {
-                questionDeRelance = "Dans quelle ville ou quel quartier (ex: Dakar, Mermoz, Almadies, Ziguinchor, Boucotte) souhaitez-vous habiter ?";
-            }
+            questionDeRelance = buildSmartClarificationQuestion(
+                    type, modeTransaction, ville, quartier, quartiers, budgetMin, budgetMax,
+                    nombrePieces, nombreChambres, superficieMin, needClarificationSignal,
+                    normalized.contains("informations te manquent") || normalized.contains("questions necessaires"),
+                    preferencesSouples, expectationsNeedSurface(normalized, superficieMin)
+            );
         }
         builder.questionDeRelance(questionDeRelance);
         builder.fournisseurIa("fallback-local");
@@ -321,6 +374,14 @@ public class RuleBasedCriteriaExtractor {
     }
 
     private String detectSpecialIntent(String lower, String normalized) {
+        boolean isActivePropertySearch = normalized.matches(".*\\b(cherche|recherch|trouver|louer|acheter)\\b.*\\b(appartement|villa|maison|studio|chambre|logement)\\b.*")
+                && !normalized.contains("comment")
+                && !normalized.contains("arnaque")
+                && !normalized.contains("payer avant")
+                && !normalized.contains("verifier");
+        if (!isActivePropertySearch && LEGAL_TRANSPARENCY_PATTERN.matcher(normalized).find()) {
+            return "FAQ_VERIFICATION_JURIDIQUE";
+        }
         if (normalized.contains("pourquoi me proposes")
                 || normalized.contains("pourquoi cette annonce")
                 || normalized.contains("pourquoi ces annonces")
@@ -377,31 +438,115 @@ public class RuleBasedCriteriaExtractor {
     }
 
     private TypeBien extractTypeBien(String lower) {
-        if (lower.contains("studio")) {
+        String normalized = normalizeAccents(lower);
+        Matcher m = TYPE_MENTION_PATTERN.matcher(normalized);
+        record TypeCandidate(TypeBien type, int start, int end, boolean rejected) {}
+        List<TypeCandidate> candidates = new ArrayList<>();
+
+        while (m.find()) {
+            String token = m.group(1).toLowerCase(Locale.ROOT);
+            int start = m.start();
+            int end = m.end();
+            TypeBien mapped = mapTokenToTypeBien(token, normalized, start, end);
+            if (mapped == null) {
+                continue;
+            }
+            boolean rejected = isTypeMentionNegatedOrSource(normalized, start, end);
+            candidates.add(new TypeCandidate(mapped, start, end, rejected));
+        }
+
+        // Deuxième passe : détecter "je préfère X à Y" (ex: "je préfère un appartement à une villa")
+        // où Y est immédiatement précédé de "a <art> " alors qu'un candidat positif X précède dans la même phrase.
+        List<TypeCandidate> refined = new ArrayList<>(candidates.size());
+        for (int i = 0; i < candidates.size(); i++) {
+            TypeCandidate c = candidates.get(i);
+            boolean rejected = c.rejected();
+            if (!rejected && i > 0) {
+                String betweenPrevAndCurr = normalized.substring(candidates.get(i - 1).end(), c.start()).trim();
+                String clauseBeforePrev = normalized.substring(Math.max(0, candidates.get(i - 1).start() - 35), candidates.get(i - 1).start());
+                if ((clauseBeforePrev.contains("prefere") || clauseBeforePrev.contains("prefererais"))
+                        && !candidates.get(i - 1).rejected()
+                        && betweenPrevAndCurr.matches("^a\\s+(?:un|une|le|la|l'|du|de\\s+la|des)?$")) {
+                    rejected = true;
+                }
+            }
+            refined.add(new TypeCandidate(c.type(), c.start(), c.end(), rejected));
+        }
+
+        List<TypeCandidate> accepted = refined.stream().filter(c -> !c.rejected()).toList();
+        if (accepted.isEmpty()) {
+            return null;
+        }
+        boolean hasRejection = refined.stream().anyMatch(TypeCandidate::rejected);
+        return hasRejection ? accepted.get(accepted.size() - 1).type() : accepted.get(0).type();
+    }
+
+    private TypeBien mapTokenToTypeBien(String token, String normalized, int start, int end) {
+        if (token.startsWith("studio")) {
             return TypeBien.STUDIO;
         }
-        if (lower.contains("villa") || lower.contains("maison") || lower.contains("duplex")) {
+        if (token.startsWith("villa") || token.startsWith("maison") || "duplex".equals(token)) {
             return TypeBien.VILLA;
         }
-        if (lower.contains("appartement") || lower.contains("appart")
-                || lower.matches(".*\\bf[2-6]\\b.*")
-                || lower.matches(".*\\bt[2-6]\\b.*")) {
+        if (token.startsWith("appart") || token.matches("[ft][2-6]")) {
             return TypeBien.APPARTEMENT;
         }
-        if (lower.matches(".*\\bchambre\\b.*") && !lower.matches(".*\\b(\\d+|deux|trois|quatre|cinq|six)\\s+chambres\\b.*")) {
+        if (token.startsWith("chambre")) {
+            String lookback = normalized.substring(Math.max(0, start - 28), start);
+            String lookahead = normalized.substring(end, Math.min(normalized.length(), end + 18)).trim();
+            boolean precededByMultiCount = lookback.matches(".*\\b(?:\\d+|deux|trois|quatre|cinq|six|plusieurs)\\s+$")
+                    || token.equals("chambres");
+            boolean singleQualifier = lookahead.startsWith("seule") || lookahead.startsWith("etudiant") || lookahead.startsWith("d'etudiant");
+            if (precededByMultiCount && !singleQualifier) {
+                return null;
+            }
             return TypeBien.CHAMBRE;
         }
         return null;
     }
 
+    private boolean isTypeMentionNegatedOrSource(String normalized, int start, int end) {
+        String lookback = normalized.substring(Math.max(0, start - 45), start).trim();
+        String lookahead = normalized.substring(end, Math.min(normalized.length(), end + 28)).trim();
+
+        // Marques d'exclusion directe ou comparative avant le mot
+        if (lookback.matches(".*\\b(?:plutot\\s+qu['e](?:\\s*d['e])?|au\\s+lieu\\s+d['e]|a\\s+la\\s+place\\s+d['e]|au\\s+detriment\\s+d['e]|et\\s+non|non\\s+pas|pas(?:\\s+d[eu]?)?|plus\\s+d[eu]?|sans|evite[rz]?|exclu(?:s|re)?)\\s*(?:un|une|le|la|l'|du|de|des)?$")
+                || lookback.matches(".*\\bnon\\s+(?:un|une|le|la|l'|du|de)?$")
+                || lookback.endsWith("plutot qu'")
+                || lookback.endsWith("plutot que")
+                || lookback.endsWith("au lieu d'")
+                || lookback.endsWith("a la place d'")) {
+            return true;
+        }
+        // "remplace le studio par une villa" / "changer la maison en studio"
+        return lookback.matches(".*\\b(?:remplace[rz]?|change[rz]?|quitte[rz]?|laisse[rz]?)\\s*(?:le|la|l'|un|une|mon|ma)?$")
+                && lookahead.matches("^(?:par|en|pour)\\b.*");
+    }
+
     private ModeTransaction extractModeTransaction(String lower) {
-        if (lower.contains("acheter") || lower.contains("achat") || lower.contains("vente") || lower.contains("vendre") || lower.contains("acquérir")) {
-            return ModeTransaction.VENTE;
+        String normalized = normalizeAccents(lower);
+        Pattern txPattern = Pattern.compile("\\b(acheter|achat|vente|vendre|acquerir|louer|location|loyer|mensuel|bail)\\b");
+        Matcher m = txPattern.matcher(normalized);
+        ModeTransaction accepted = null;
+        while (m.find()) {
+            String tok = m.group(1);
+            String lookback = normalized.substring(Math.max(0, m.start() - 30), m.start()).trim();
+            if (lookback.matches(".*\\b(?:au\\s+lieu\\s+de?|plutot\\s+que(?:\\s+de)?|et\\s+non|non\\s+pas|pas(?:\\s+de)?)$")
+                    || lookback.endsWith("au lieu d'")
+                    || lookback.endsWith("plutot qu'")
+                    || lookback.endsWith("plutot que")) {
+                continue;
+            }
+            ModeTransaction candidate = (tok.startsWith("achet") || tok.startsWith("vent") || tok.startsWith("vend") || tok.startsWith("acquer"))
+                    ? ModeTransaction.VENTE
+                    : ModeTransaction.LOCATION;
+            if (accepted == null) {
+                accepted = candidate;
+            } else if (accepted != candidate && !lookback.isEmpty()) {
+                accepted = candidate;
+            }
         }
-        if (lower.contains("louer") || lower.contains("location") || lower.contains("loyer") || lower.contains("mensuel") || lower.contains("bail")) {
-            return ModeTransaction.LOCATION;
-        }
-        return null;
+        return accepted;
     }
 
     private List<String> extractQuartiers(String lower, String normalized) {
@@ -742,12 +887,187 @@ public class RuleBasedCriteriaExtractor {
         return null;
     }
 
+    private boolean isSoftMeublePreference(String normalized) {
+        if (normalized == null) {
+            return false;
+        }
+        String norm = normalizeAccents(normalized.toLowerCase(Locale.ROOT));
+        if (norm.contains("non meuble") || norm.contains("non-meuble")) {
+            return false;
+        }
+        return SOFT_MEUBLE_PATTERN.matcher(norm).find();
+    }
+
     private Boolean extractMeuble(String lower) {
         if (lower.contains("non meublé") || lower.contains("non-meublé") || lower.contains("non meuble") || lower.contains("vide")) {
             return Boolean.FALSE;
         }
-        if (lower.contains("meublé") || lower.contains("meuble") || lower.contains("équipé") || lower.contains("equipe")) {
+        if (lower.contains("meublé") || lower.contains("meuble")) {
             return Boolean.TRUE;
+        }
+        if ((lower.contains("équipé") || lower.contains("equipe"))
+                && !lower.matches(".*\\bcuisine\\s+[ée]quip[ée]e?\\b.*")) {
+            return Boolean.TRUE;
+        }
+        return null;
+    }
+
+    private List<String> extractPreferencesSouples(
+            String lower,
+            String normalized,
+            boolean meubleSouple,
+            BigDecimal budgetMin,
+            BigDecimal budgetMax,
+            Double superficieMin,
+            Double superficieMax
+    ) {
+        List<String> prefs = new ArrayList<>();
+        if (meubleSouple) {
+            prefs.add("logement meublé de préférence");
+        }
+        if (normalized.matches(".*\\b(?:quartier|secteur|zone|environnement|endroit)?\\s*calme\\b.*")) {
+            prefs.add("quartier calme");
+        }
+        if (budgetMin == null && budgetMax == null
+                && normalized.matches(".*\\b(?:pas\\s+trop\\s+cher|abordable|petit\\s+budget|loyer\\s+modere)\\b.*")) {
+            prefs.add("budget modéré / abordable");
+        }
+        if (superficieMin == null && superficieMax == null
+                && normalized.matches(".*\\b(?:assez\\s+grand|spacieux|spacieuse|grand\\s+logement)\\b.*")) {
+            prefs.add("espace assez grand / spacieux");
+        }
+        if (normalized.matches(".*\\bcour\\b.*") && normalized.contains("serait un plus")) {
+            prefs.add("cour (serait un plus)");
+        }
+        return prefs;
+    }
+
+    private List<String> extractAttentesComplementaires(String lower, String normalized) {
+        List<String> extras = new ArrayList<>();
+        if (normalized.matches(".*\\bcour\\b.*")) {
+            extras.add("cour");
+        }
+        if (normalized.matches(".*\\bcuisine\\s+equipee?\\b.*")) {
+            extras.add("cuisine équipée");
+        } else if (normalized.matches(".*\\bcuisine\\b.*")) {
+            extras.add("cuisine");
+        }
+        if (normalized.matches(".*\\b(?:grand\\s+terrain|terrain\\s+(?:suffisamment\\s+)?grand|grand\\s+espace)\\b.*")) {
+            extras.add("grand terrain");
+        }
+        if (normalized.matches(".*\\b(?:balcon|terrasse)\\b.*")) {
+            extras.add(normalized.contains("terrasse") ? "terrasse" : "balcon");
+        }
+        if (normalized.matches(".*\\bjardin\\b.*")) {
+            extras.add("jardin");
+        }
+        if (normalized.matches(".*\\broute\\s+principale\\b.*")) {
+            extras.add("accès facile route principale");
+        }
+        return extras;
+    }
+
+    private boolean expectationsNeedSurface(String normalized, Double superficieMin) {
+        return superficieMin == null && normalized.matches(".*\\b(?:terrain\\s+(?:suffisamment\\s+)?grand|grand\\s+terrain|assez\\s+grand)\\b.*");
+    }
+
+    private List<String> buildPrecisionsAClarifier(
+            String lower,
+            String normalized,
+            TypeBien type,
+            ModeTransaction modeTransaction,
+            String ville,
+            String quartier,
+            List<String> quartiers,
+            BigDecimal budgetMin,
+            BigDecimal budgetMax,
+            Integer nombrePieces,
+            Integer nombreChambres,
+            Double superficieMin,
+            Double superficieMax,
+            boolean needSurfacePrecision
+    ) {
+        List<String> missing = new ArrayList<>();
+        if (modeTransaction == null) {
+            missing.add("location ou achat");
+        }
+        if (type == null) {
+            missing.add("type de logement (chambre, studio, appartement ou villa)");
+        }
+        if (budgetMax == null && budgetMin == null) {
+            missing.add("budget maximum en FCFA");
+        }
+        boolean hasLoc = ville != null || quartier != null || (quartiers != null && !quartiers.isEmpty());
+        if (!hasLoc) {
+            missing.add("ville ou quartier souhaité");
+        }
+        if (needSurfacePrecision) {
+            missing.add("superficie minimale souhaitée (en m²)");
+        }
+        if (nombrePieces == null && nombreChambres == null && type != TypeBien.STUDIO && type != TypeBien.CHAMBRE) {
+            missing.add("nombre de chambres souhaité");
+        }
+        return missing;
+    }
+
+    private String buildSmartClarificationQuestion(
+            TypeBien type,
+            ModeTransaction modeTransaction,
+            String ville,
+            String quartier,
+            List<String> quartiers,
+            BigDecimal budgetMin,
+            BigDecimal budgetMax,
+            Integer nombrePieces,
+            Integer nombreChambres,
+            Double superficieMin,
+            boolean needClarificationSignal,
+            boolean askedForMissingQuestions,
+            List<String> preferencesSouples,
+            boolean needSurfacePrecision
+    ) {
+        boolean hasBudget = budgetMax != null || budgetMin != null;
+        boolean hasType = type != null;
+        boolean hasLoc = ville != null || quartier != null || (quartiers != null && !quartiers.isEmpty());
+        boolean hasSize = nombrePieces != null || nombreChambres != null;
+        boolean mentionsCalm = preferencesSouples != null && preferencesSouples.contains("quartier calme");
+
+        if (!hasBudget && !hasType) {
+            if (!hasLoc) {
+                return mentionsCalm
+                        ? "Pour orienter votre recherche dans un secteur calme, quel est votre budget maximum (en FCFA), quel type de bien (studio, appartement, villa, chambre) et quelle ville ou quartier souhaitez-vous ?"
+                        : "Pour affiner ma recherche, quel est votre budget maximum (en FCFA) et quel type de bien (studio, appartement, villa, chambre) recherchez-vous ?";
+            }
+            return "Pour affiner ma recherche, quel est votre budget maximum (en FCFA) et quel type de bien (studio, appartement, villa, chambre) recherchez-vous ?";
+        }
+        if (!hasBudget) {
+            if (!hasSize) {
+                return "Quel est votre budget maximum en FCFA pour ce bien, et combien de chambres souhaitez-vous ?";
+            }
+            return "Quel est votre budget maximum en FCFA pour ce bien ?";
+        }
+        if (!hasType) {
+            return "Quel type de bien (chambre, studio, appartement ou villa) recherchez-vous ?";
+        }
+        if (!hasLoc) {
+            return mentionsCalm
+                    ? "Dans quelle ville ou quel quartier calme (ex: Dakar, Mermoz, Ziguinchor, Boucotte) souhaitez-vous habiter ?"
+                    : "Dans quelle ville ou quel quartier (ex: Dakar, Mermoz, Almadies, Ziguinchor, Boucotte) souhaitez-vous habiter ?";
+        }
+        if (needSurfacePrecision) {
+            return "Quelle superficie minimale approximative (en m²) souhaitez-vous pour le terrain ou le logement ?";
+        }
+        if (needClarificationSignal && !hasSize) {
+            return "Souhaitez-vous préciser le nombre de chambres ou un quartier en particulier ?";
+        }
+        if (askedForMissingQuestions) {
+            List<String> complementaryMissing = new ArrayList<>();
+            if (!hasSize) complementaryMissing.add("nombre de chambres");
+            if (superficieMin == null) complementaryMissing.add("surface minimale");
+            complementaryMissing.add("étage ou présence d'ascenseur souhaité");
+            complementaryMissing.add("date d'emménagement souhaitée");
+            return "Vos critères principaux sont bien clairs ; souhaitez-vous préciser un détail complémentaire comme "
+                    + String.join(" ou ", complementaryMissing.subList(0, Math.min(2, complementaryMissing.size()))) + " ?";
         }
         return null;
     }

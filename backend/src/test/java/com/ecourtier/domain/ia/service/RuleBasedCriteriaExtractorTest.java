@@ -61,9 +61,14 @@ class RuleBasedCriteriaExtractorTest {
     }
 
     @Test
-    @DisplayName("Message dépassant 500 caractères rejeté avec HTTP 400")
+    @DisplayName("Message de 1000 caractères accepté et message dépassant 1000 caractères rejeté avec HTTP 400")
     void testMessageTropLongRejete() {
-        String longMessage = "a".repeat(501);
+        String okMessage = "Studio à Dakar " + "a".repeat(1000 - "Studio à Dakar ".length());
+        assertEquals(1000, okMessage.length());
+        CriteresExtraitsDTO ok = extractor.extractCriteria(okMessage);
+        assertNotNull(ok);
+
+        String longMessage = "a".repeat(1001);
         assertThrows(ResponseStatusException.class, () -> extractor.extractCriteria(longMessage));
     }
 

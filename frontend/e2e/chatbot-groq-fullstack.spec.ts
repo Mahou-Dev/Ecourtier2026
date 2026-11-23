@@ -141,7 +141,7 @@ test.describe('Chatbot Groq — Validation Full-Stack Réelle (Frontend + Spring
     await page1.goto(`${BASE_URL}/recherche`, { waitUntil: 'domcontentloaded' });
     await page1.getByRole('button', { name: /Assistant IA E-Courtier/i }).click();
 
-    const input1 = page1.locator('input[placeholder*="français wolofisé"]');
+    const input1 = page1.locator('[data-testid="ia-input"]');
     await input1.fill('Je cherche une chambre meublée à Ziguinchor budget 80000 FCFA');
     const msgResPromise1 = page1.waitForResponse(
       (res) => res.url().includes('/api/v1/ia/conversations/') && res.url().endsWith('/messages') && res.request().method() === 'POST'
@@ -153,34 +153,41 @@ test.describe('Chatbot Groq — Validation Full-Stack Réelle (Frontend + Spring
     // Réponse réelle du backend + annonce réelle PostgreSQL
     await expect(page1.getByText('Chambre meublée Néma Ziguinchor').last()).toBeVisible({ timeout: 15_000 });
 
-    const convId = await page1.evaluate(() => localStorage.getItem('ecourtier_ia_conversation_anon'));
+    const { convId, sessionToken } = await page1.evaluate(() => {
+      const id = sessionStorage.getItem('ecourtier_ia_conversation_anon');
+      return {
+        convId: id,
+        sessionToken: id ? sessionStorage.getItem(`ecourtier_ia_session_token_${id}`) : null,
+      };
+    });
     expect(convId).toBeTruthy();
+    expect(sessionToken).toBeTruthy();
 
-    // Vérifier le cookie HttpOnly ecourtier_ia_session et son absence du localStorage
+    // Vérifier qu'aucun cookie cross-origin et aucune fuite dans localStorage n'existent
     const cookies = await context1.cookies(`${BASE_URL}/api/v1/ia`);
     const iaCookie = cookies.find((c) => c.name === 'ecourtier_ia_session');
-    expect(iaCookie).toBeDefined();
-    expect(iaCookie?.httpOnly).toBe(true);
+    expect(iaCookie).toBeUndefined();
 
-    const hasCookieTokenInStorage = await page1.evaluate(() =>
-      Object.keys(localStorage).some((k) => k.includes('ecourtier_ia_session'))
+    const hasTokenInLocalStorage = await page1.evaluate(() =>
+      Object.keys(localStorage).some((k) => k.includes('ecourtier_ia_session') || k.includes('ecourtier_ia_conversation_anon'))
     );
-    expect(hasCookieTokenInStorage).toBe(false);
+    expect(hasTokenInLocalStorage).toBe(false);
 
-    // Scénario A: F5 restauration autorisée grâce au cookie HttpOnly
+    // Scénario A: F5 restauration autorisée grâce au header X-IA-Session-Token stocké en sessionStorage
     await page1.reload({ waitUntil: 'domcontentloaded' });
     await page1.getByRole('button', { name: /Assistant IA E-Courtier/i }).click();
     await expect(page1.getByText('Je cherche une chambre meublée à Ziguinchor budget 80000 FCFA')).toBeVisible();
 
-    // Scénario B: Un autre navigateur sans le cookie HttpOnly reçoit 403 Forbidden
+    // Scénario B: Un autre navigateur sans le jeton X-IA-Session-Token reçoit 403 Forbidden
     const context2 = await browser.newContext();
     const apiForbiddenRes = await context2.request.get(`${BASE_URL}/api/v1/ia/conversations/${convId}`);
     expect(apiForbiddenRes.status()).toBe(403);
 
-    // Même si l'UUID est injecté dans le localStorage d'un autre navigateur, le widget purge et n'affiche rien
+    // Même si l'UUID est injecté dans le sessionStorage d'un autre navigateur sans jeton valide, le widget purge et n'affiche rien
     const page2 = await context2.newPage();
     await page2.addInitScript((id) => {
-      localStorage.setItem('ecourtier_ia_conversation_anon', id);
+      sessionStorage.setItem('ecourtier_ia_conversation_anon', id);
+      sessionStorage.setItem(`ecourtier_ia_session_token_${id}`, 'fake-token');
     }, convId!);
 
     const getStatusPromise = page2.waitForResponse((res) =>
@@ -194,11 +201,13 @@ test.describe('Chatbot Groq — Validation Full-Stack Réelle (Frontend + Spring
     await expect(page2.getByText('Na nga def ! Je suis Samba')).toBeVisible();
     await expect(page2.getByText('Je cherche une chambre meublée à Ziguinchor budget 80000 FCFA')).not.toBeVisible();
 
-    const purgedAnonId = await page2.evaluate(() => localStorage.getItem('ecourtier_ia_conversation_anon'));
+    const purgedAnonId = await page2.evaluate(() => sessionStorage.getItem('ecourtier_ia_conversation_anon'));
     expect(purgedAnonId).toBeNull();
 
-    // Le contexte 1 légitime peut toujours lire sa conversation
-    const legitRes = await context1.request.get(`${BASE_URL}/api/v1/ia/conversations/${convId}`);
+    // Le contexte 1 légitime peut toujours lire sa conversation avec X-IA-Session-Token
+    const legitRes = await context1.request.get(`${BASE_URL}/api/v1/ia/conversations/${convId}`, {
+      headers: { 'X-IA-Session-Token': sessionToken! },
+    });
     expect(legitRes.status()).toBe(200);
 
     await context1.close();
@@ -217,7 +226,7 @@ test.describe('Chatbot Groq — Validation Full-Stack Réelle (Frontend + Spring
     await expect(pageA).toHaveURL(/\/recherche/);
 
     await pageA.getByRole('button', { name: /Assistant IA E-Courtier/i }).click();
-    await pageA.locator('input[placeholder*="français wolofisé"]').fill('Message privé réel de Alpha');
+    await pageA.locator('[data-testid="ia-input"]').fill('Message privé réel de Alpha');
     await pageA.locator('button[type="submit"]:has(svg.lucide-send)').click();
     await expect(pageA.getByText('Message privé réel de Alpha')).toBeVisible({ timeout: 15_000 });
 
@@ -270,7 +279,7 @@ test.describe('Chatbot Groq — Validation Full-Stack Réelle (Frontend + Spring
     await expect(page).toHaveURL(/\/recherche/);
 
     await page.getByRole('button', { name: /Assistant IA E-Courtier/i }).click();
-    await page.locator('input[placeholder*="français wolofisé"]').fill('Message sensible A pour test course fullstack');
+    await page.locator('[data-testid="ia-input"]').fill('Message sensible A pour test course fullstack');
     const msgResPromiseD = page.waitForResponse(
       (res) => res.url().includes('/api/v1/ia/conversations/') && res.url().endsWith('/messages') && res.request().method() === 'POST'
     );
@@ -325,7 +334,7 @@ test.describe('Chatbot Groq — Validation Full-Stack Réelle (Frontend + Spring
     await expect(page).toHaveURL(/\/recherche/);
 
     await page.getByRole('button', { name: /Assistant IA E-Courtier/i }).click();
-    const input = page.locator('input[placeholder*="français wolofisé"]');
+    const input = page.locator('[data-testid="ia-input"]');
     await input.fill('Bonjour Samba, je cherche une chambre à Ziguinchor');
     const msgResPromiseF = page.waitForResponse(
       (res) => res.url().includes('/api/v1/ia/conversations/') && res.url().endsWith('/messages') && res.request().method() === 'POST'

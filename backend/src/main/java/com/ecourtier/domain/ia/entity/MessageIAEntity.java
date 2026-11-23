@@ -11,6 +11,7 @@ import jakarta.persistence.Id;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Table;
+import jakarta.persistence.UniqueConstraint;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Getter;
@@ -22,7 +23,13 @@ import java.time.ZoneId;
 import java.util.UUID;
 
 @Entity
-@Table(name = "messages_ia")
+@Table(
+        name = "messages_ia",
+        uniqueConstraints = @UniqueConstraint(
+                name = "uq_messages_ia_conversation_ordre",
+                columnNames = {"conversation_id", "ordre"}
+        )
+)
 @Getter
 @Setter
 @NoArgsConstructor
@@ -54,10 +61,17 @@ public class MessageIAEntity {
     @Column(name = "date_envoi", nullable = false, updatable = false)
     private LocalDateTime dateEnvoi;
 
+    @Column(name = "ordre", nullable = false)
+    @Builder.Default
+    private Long ordre = 0L;
+
     @jakarta.persistence.PrePersist
     protected void onCreate() {
         if (dateEnvoi == null) {
             dateEnvoi = LocalDateTime.now(ZoneId.of("Africa/Dakar"));
+        }
+        if (ordre == null) {
+            ordre = 0L;
         }
     }
 }

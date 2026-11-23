@@ -59,7 +59,7 @@ public class ConversationIAEntity {
     }
 
     @OneToMany(mappedBy = "conversation", cascade = CascadeType.ALL, orphanRemoval = true)
-    @OrderBy("dateEnvoi ASC")
+    @OrderBy("ordre ASC, dateEnvoi ASC, id ASC")
     @Builder.Default
     private List<MessageIAEntity> messages = new ArrayList<>();
 }
