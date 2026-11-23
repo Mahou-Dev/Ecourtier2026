@@ -154,12 +154,23 @@ public class RuleBasedCriteriaExtractor {
         // Ziguinchor & régions
         QUARTIERS_CONNUS.put("nema", "Nema");
         QUARTIERS_CONNUS.put("boucotte", "Boucotte");
+        QUARTIERS_CONNUS.put("kenia", "Kenia");
+        QUARTIERS_CONNUS.put("boutoute", "Boutoute");
+        QUARTIERS_CONNUS.put("kandialang", "Kandialang");
+        QUARTIERS_CONNUS.put("kansahoudy", "Kansahoudy");
+        QUARTIERS_CONNUS.put("peyrissac", "Peyrissac");
         QUARTIERS_CONNUS.put("diabir", "Diabir");
         QUARTIERS_CONNUS.put("santhiaba", "Santhiaba");
         QUARTIERS_CONNUS.put("escale", "Escale");
         QUARTIERS_CONNUS.put("kande", "Kandé");
         QUARTIERS_CONNUS.put("tilene", "Tilène");
         QUARTIERS_CONNUS.put("lyndiane", "Lyndiane");
+        QUARTIERS_CONNUS.put("grand dakar", "Grand Dakar");
+        QUARTIERS_CONNUS.put("castors", "Castors");
+        QUARTIERS_CONNUS.put("keur massar", "Keur Massar");
+        QUARTIERS_CONNUS.put("mbao", "Mbao");
+        QUARTIERS_CONNUS.put("diamniadio", "Diamniadio");
+        QUARTIERS_CONNUS.put("grand mbour", "Grand Mbour");
         QUARTIERS_CONNUS.put("saly", "Saly");
         QUARTIERS_CONNUS.put("somone", "Somone");
         QUARTIERS_CONNUS.put("ngaparou", "Ngaparou");
@@ -325,12 +336,14 @@ public class RuleBasedCriteriaExtractor {
         if (!attentesComplementaires.isEmpty()) {
             builder.attentesComplementaires(attentesComplementaires);
         }
-        List<String> precisionsAClarifier = buildPrecisionsAClarifier(
-                lower, normalized, type, modeTransaction, ville, quartier, quartiers, budgetMin, budgetMax,
-                nombrePieces, nombreChambres, superficieMin, superficieMax, expectationsNeedSurface(normalized, superficieMin)
-        );
-        if (!precisionsAClarifier.isEmpty()) {
-            builder.precisionsAClarifier(precisionsAClarifier);
+        if (specialIntent == null || "LISTE_DISPONIBLE".equals(specialIntent)) {
+            List<String> precisionsAClarifier = buildPrecisionsAClarifier(
+                    lower, normalized, type, modeTransaction, ville, quartier, quartiers, budgetMin, budgetMax,
+                    nombrePieces, nombreChambres, superficieMin, superficieMax, expectationsNeedSurface(normalized, superficieMin)
+            );
+            if (!precisionsAClarifier.isEmpty()) {
+                builder.precisionsAClarifier(precisionsAClarifier);
+            }
         }
 
         // 11. Confiance et Question de relance
@@ -393,9 +406,20 @@ public class RuleBasedCriteriaExtractor {
                 && (normalized.contains("document") || normalized.contains("papier") || normalized.contains("justificatif") || normalized.contains("dossier de location"))) {
             return "FAQ_DOCUMENTS";
         }
-        if ((normalized.contains("montre") || normalized.contains("voir") || normalized.contains("affiche") || normalized.contains("quelles sont"))
+        if ((normalized.contains("montre") || normalized.contains("voir") || normalized.contains("affiche") || normalized.contains("quelles sont") || normalized.contains("quels sont"))
                 && (normalized.contains("biens disponibles") || normalized.contains("annonces disponibles") || normalized.contains("logements disponibles"))) {
             return "LISTE_DISPONIBLE";
+        }
+        if (normalized.matches(".*\\b(?:quels?|quelles?|qu'avez[-\\s]vous|avez[-\\s]vous|as[-\\s]tu|proposez[-\\s]vous|liste\\s+des)\\b.*\\b(?:biens?|logements?|annonces?|offres?|studios?|appartements?|villas?|chambres?)\\b.*")
+                && !normalized.matches(".*\\b(?:je\\s+cherche|je\\s+veux|trouve[-\\s]moi)\\b.*")) {
+            return "LISTE_DISPONIBLE";
+        }
+        boolean hasSearchToken = normalized.matches(".*\\b(studios?|villas?|maisons?|duplex|appartements?|appart|chambres?|logements?|louer|acheter|achat|vente|budget|fcfa)\\b.*");
+        if (!hasSearchToken && normalized.matches("^(?:bonjour|bonsoir|salut|salam(?:\\s+aleykoum)?|coucou|hello|hi|na\\s+nga\\s+def)[\\s!?.]*$")) {
+            return "QUESTION_GENERALE";
+        }
+        if (normalized.matches(".*\\b(?:comment\\s+(?:fonctionne|marche)|c'est\\s+quoi\\s+e-courtier|montant.*caution|combien\\s+de\\s+mois.*caution|caution\\s+au\\s+senegal|visiter\\s+un\\s+bien|frais\\s+d'agence|quel\\s+quartier\\s+(?:conseill|recommand))\\b.*")) {
+            return "QUESTION_GENERALE";
         }
         return null;
     }

@@ -290,13 +290,20 @@ public class IAService {
         // =========================================================================
         long tExtractStart = System.nanoTime();
         CriteresExtraitsDTO nouveauxCriteres = llmExtractionService.extractCriteria(request.getMessage(), criteresPrecedents);
-        CriteresExtraitsDTO criteresFinaux = "FAQ_VERIFICATION_JURIDIQUE".equals(nouveauxCriteres.getIntentionSpeciale())
-                ? preserveCriteriaForLegalFaq(criteresPrecedents, nouveauxCriteres)
+        String intentionSpeciale = nouveauxCriteres.getIntentionSpeciale();
+        boolean isSpecialPreservedQuestion = "FAQ_VERIFICATION_JURIDIQUE".equals(intentionSpeciale)
+                || "FAQ_DOCUMENTS".equals(intentionSpeciale)
+                || "QUESTION_GENERALE".equals(intentionSpeciale);
+        CriteresExtraitsDTO criteresFinaux = isSpecialPreservedQuestion
+                ? preserveCriteriaForSpecialQuestion(criteresPrecedents, nouveauxCriteres, intentionSpeciale)
                 : fusionnerCriteres(criteresPrecedents, nouveauxCriteres);
         long tempsExtractionMs = (System.nanoTime() - tExtractStart) / 1_000_000L;
 
         boolean horsSujet = Boolean.TRUE.equals(nouveauxCriteres.getHorsSujet());
-        String intentionSpeciale = nouveauxCriteres.getIntentionSpeciale();
+        boolean isFaqLegal = "FAQ_VERIFICATION_JURIDIQUE".equals(intentionSpeciale);
+        boolean isFaqDocuments = "FAQ_DOCUMENTS".equals(intentionSpeciale);
+        boolean isGeneralQuestion = "QUESTION_GENERALE".equals(intentionSpeciale);
+        boolean isExplication = "EXPLICATION_RECOMMANDATION".equals(intentionSpeciale);
 
         boolean aucunCritere = criteresFinaux.getType() == null
                 && criteresFinaux.getModeTransaction() == null
@@ -317,11 +324,14 @@ public class IAService {
                 && (criteresFinaux.getProximites() == null || criteresFinaux.getProximites().isEmpty())
                 && !"LISTE_DISPONIBLE".equals(intentionSpeciale);
 
-        boolean demandeExploratoire = criteresFinaux.getType() == null
-                && criteresFinaux.getBudgetMax() == null
-                && criteresFinaux.getBudgetMin() == null
+        boolean demandeExploratoire = !isGeneralQuestion
+                && !isFaqDocuments
+                && !isFaqLegal
                 && !"LISTE_DISPONIBLE".equals(intentionSpeciale)
-                && !"EXPLICATION_RECOMMANDATION".equals(intentionSpeciale);
+                && !isExplication
+                && criteresFinaux.getType() == null
+                && criteresFinaux.getBudgetMax() == null
+                && criteresFinaux.getBudgetMin() == null;
 
         // =========================================================================
         // ÉTAPE 3 : Recherche en lecture seule des annonces réelles et vérifiées
@@ -329,11 +339,12 @@ public class IAService {
         long tSearchStart = System.nanoTime();
         SearchExecutionResult searchResult;
         if (horsSujet
-                || "FAQ_DOCUMENTS".equals(intentionSpeciale)
-                || "FAQ_VERIFICATION_JURIDIQUE".equals(intentionSpeciale)
-                || ((aucunCritere || demandeExploratoire) && !"EXPLICATION_RECOMMANDATION".equals(intentionSpeciale))) {
+                || isFaqDocuments
+                || isFaqLegal
+                || isGeneralQuestion
+                || ((aucunCritere || demandeExploratoire) && !isExplication)) {
             searchResult = new SearchExecutionResult(List.of(), Map.of(), null);
-        } else if ("EXPLICATION_RECOMMANDATION".equals(intentionSpeciale)
+        } else if (isExplication
                 && criteresPrecedents != null
                 && criteresPrecedents.getAnnoncesSuggereesIds() != null
                 && !criteresPrecedents.getAnnoncesSuggereesIds().isEmpty()) {
@@ -341,6 +352,10 @@ public class IAService {
         } else {
             searchResult = executeInReadTx(() -> rechercherEtClasserAnnoncesPertinentes(criteresFinaux));
         }
+        List<AnnonceResponseDTO> catalogPreviewForLlm = (!horsSujet && !isFaqLegal && searchResult.annonces().isEmpty()
+                && (isGeneralQuestion || llmExtractionService.isExternalGeminiActive()))
+                ? executeInReadTx(() -> rechercherApercuCatalogueDisponible(criteresFinaux))
+                : List.of();
         long tempsRechercheMs = (System.nanoTime() - tSearchStart) / 1_000_000L;
 
         List<AnnonceResponseDTO> annoncesSuggerees = searchResult.annonces();
@@ -363,7 +378,7 @@ public class IAService {
             texteReponse = criteresFinaux.getQuestionDeRelance() != null
                     ? criteresFinaux.getQuestionDeRelance()
                     : "Je suis Samba, l'assistant immobilier d'E-Courtier Sénégal. Je vous accompagne exclusivement dans la recherche de logements (chambres, studios, appartements, villas). Quel bien immobilier recherchez-vous ?";
-        } else if ("FAQ_VERIFICATION_JURIDIQUE".equals(intentionSpeciale)) {
+        } else if (isFaqLegal) {
             if (!Boolean.TRUE.equals(nouveauxCriteres.getModeSecours()) && llmExtractionService.isExternalGeminiActive()) {
                 LlmExtractionService.GenerationOutcome genOutcome = llmExtractionService.generateConversationalResponseWithDiagnostic(
                         request.getMessage(), criteresFinaux, List.of(), null);
@@ -385,13 +400,32 @@ public class IAService {
                 criteresFinaux.setMotifSecours(resolvedMotif != null ? resolvedMotif : "CLE_ABSENTE");
                 texteReponse = construireReponseTransparenceJuridique();
             }
-        } else if ("FAQ_DOCUMENTS".equals(intentionSpeciale)) {
-            texteReponse = construireReponseFaqDocuments(criteresFinaux);
-        } else if ("EXPLICATION_RECOMMANDATION".equals(intentionSpeciale)) {
-            texteReponse = construireReponseExplicationRecommandation(annoncesSuggerees, explicationsAnnonces, criteresFinaux);
-        } else if (aucunCritere || demandeExploratoire) {
-            texteReponse = construireReponseAssistant(criteresFinaux, annoncesSuggerees, explicationsAnnonces, diagnosticCriteresBloquants, demandeExploratoire);
-        } else if (Boolean.TRUE.equals(nouveauxCriteres.getModeSecours()) || !llmExtractionService.isExternalGeminiActive()) {
+        } else if (!Boolean.TRUE.equals(nouveauxCriteres.getModeSecours()) && llmExtractionService.isExternalGeminiActive()) {
+            List<AnnonceResponseDTO> promptAnnonces = !annoncesSuggerees.isEmpty() ? annoncesSuggerees : catalogPreviewForLlm;
+            boolean strictSearchMiss = annoncesSuggerees.isEmpty() && !aucunCritere && !demandeExploratoire && !isGeneralQuestion && !isFaqDocuments;
+            String promptGuidance = buildLlmGuidance(criteresFinaux.getQuestionDeRelance(), strictSearchMiss ? diagnosticCriteresBloquants : null);
+            LlmExtractionService.GenerationOutcome genOutcome = llmExtractionService.generateConversationalResponseWithDiagnostic(
+                    request.getMessage(),
+                    criteresFinaux,
+                    promptAnnonces,
+                    promptGuidance
+            );
+            String llmResponse = genOutcome.responseText();
+            if (llmResponse != null && !llmResponse.isBlank()) {
+                texteReponse = llmResponse;
+                if (strictSearchMiss && diagnosticCriteresBloquants != null && !texteReponse.contains(diagnosticCriteresBloquants)) {
+                    texteReponse = texteReponse + " " + diagnosticCriteresBloquants;
+                }
+            } else {
+                criteresFinaux.setModeSecours(true);
+                criteresFinaux.setFournisseurIa("fallback-local");
+                criteresFinaux.setMotifSecours(genOutcome.motifSecours());
+                texteReponse = buildLocalFallbackResponse(
+                        request.getMessage(), intentionSpeciale, criteresFinaux, annoncesSuggerees,
+                        explicationsAnnonces, diagnosticCriteresBloquants, aucunCritere || demandeExploratoire, catalogPreviewForLlm
+                );
+            }
+        } else {
             criteresFinaux.setModeSecours(true);
             criteresFinaux.setFournisseurIa("fallback-local");
             if (criteresFinaux.getMotifSecours() == null || criteresFinaux.getMotifSecours().isBlank()) {
@@ -401,26 +435,10 @@ public class IAService {
                         : configMotif;
                 criteresFinaux.setMotifSecours(resolved != null ? resolved : "CLE_ABSENTE");
             }
-            texteReponse = construireReponseAssistant(criteresFinaux, annoncesSuggerees, explicationsAnnonces, diagnosticCriteresBloquants, false);
-        } else {
-            LlmExtractionService.GenerationOutcome genOutcome = llmExtractionService.generateConversationalResponseWithDiagnostic(
-                    request.getMessage(),
-                    criteresFinaux,
-                    annoncesSuggerees,
-                    criteresFinaux.getQuestionDeRelance()
+            texteReponse = buildLocalFallbackResponse(
+                    request.getMessage(), intentionSpeciale, criteresFinaux, annoncesSuggerees,
+                    explicationsAnnonces, diagnosticCriteresBloquants, aucunCritere || demandeExploratoire, catalogPreviewForLlm
             );
-            String llmResponse = genOutcome.responseText();
-            if (llmResponse != null && !llmResponse.isBlank()) {
-                texteReponse = llmResponse;
-                if (annoncesSuggerees.isEmpty() && diagnosticCriteresBloquants != null && !texteReponse.contains(diagnosticCriteresBloquants)) {
-                    texteReponse = texteReponse + " " + diagnosticCriteresBloquants;
-                }
-            } else {
-                criteresFinaux.setModeSecours(true);
-                criteresFinaux.setFournisseurIa("fallback-local");
-                criteresFinaux.setMotifSecours(genOutcome.motifSecours());
-                texteReponse = construireReponseAssistant(criteresFinaux, annoncesSuggerees, explicationsAnnonces, diagnosticCriteresBloquants, false);
-            }
         }
         final String texteReponseFinal = texteReponse;
         long tempsGenerationMs = (System.nanoTime() - tGenStart) / 1_000_000L;
@@ -673,9 +691,10 @@ public class IAService {
         return null;
     }
 
-    private CriteresExtraitsDTO preserveCriteriaForLegalFaq(
+    private CriteresExtraitsDTO preserveCriteriaForSpecialQuestion(
             CriteresExtraitsDTO precedents,
-            CriteresExtraitsDTO nouveaux
+            CriteresExtraitsDTO nouveaux,
+            String intentionSpeciale
     ) {
         if (precedents == null) {
             return nouveaux;
@@ -708,7 +727,7 @@ public class IAService {
                 .modeSecours(nouveaux.getModeSecours())
                 .motifSecours(nouveaux.getMotifSecours())
                 .horsSujet(false)
-                .intentionSpeciale("FAQ_VERIFICATION_JURIDIQUE")
+                .intentionSpeciale(intentionSpeciale)
                 .questionDeRelance(null)
                 .build();
     }
@@ -722,6 +741,10 @@ public class IAService {
         }
 
         Set<String> removals = nouveaux.getCriteresASupprimer() != null ? nouveaux.getCriteresASupprimer() : Set.of();
+        boolean villeChanged = nouveaux.getVille() != null
+                && precedents.getVille() != null
+                && !normalizeText(nouveaux.getVille()).equals(normalizeText(precedents.getVille()));
+        boolean newCityAndTypeSearch = villeChanged && nouveaux.getType() != null;
 
         String mergedQuartier;
         List<String> mergedQuartiers;
@@ -734,6 +757,9 @@ public class IAService {
         } else if (nouveaux.getQuartier() != null) {
             mergedQuartier = nouveaux.getQuartier();
             mergedQuartiers = List.of(nouveaux.getQuartier());
+        } else if (villeChanged) {
+            mergedQuartier = null;
+            mergedQuartiers = null;
         } else {
             mergedQuartier = precedents.getQuartier();
             mergedQuartiers = precedents.getQuartiers();
@@ -757,7 +783,7 @@ public class IAService {
 
         Boolean mergedMeuble = removals.contains("meuble")
                 ? null
-                : (nouveaux.getMeuble() != null ? nouveaux.getMeuble() : precedents.getMeuble());
+                : (nouveaux.getMeuble() != null ? nouveaux.getMeuble() : (newCityAndTypeSearch ? null : precedents.getMeuble()));
 
         List<String> mergedPreferencesSouples = mergeStringLists(
                 precedents.getPreferencesSouples(),
@@ -787,12 +813,12 @@ public class IAService {
                 .budgetMax(removals.contains("budget") ? null : (nouveaux.getBudgetMax() != null ? nouveaux.getBudgetMax() : precedents.getBudgetMax()))
                 .nombrePieces(nouveaux.getNombrePieces() != null ? nouveaux.getNombrePieces() : precedents.getNombrePieces())
                 .nombreChambres(nouveaux.getNombreChambres() != null ? nouveaux.getNombreChambres() : precedents.getNombreChambres())
-                .etage(removals.contains("etage") ? null : (nouveaux.getEtage() != null ? nouveaux.getEtage() : precedents.getEtage()))
-                .ascenseur(nouveaux.getAscenseur() != null ? nouveaux.getAscenseur() : precedents.getAscenseur())
+                .etage(removals.contains("etage") ? null : (nouveaux.getEtage() != null ? nouveaux.getEtage() : (newCityAndTypeSearch ? null : precedents.getEtage())))
+                .ascenseur(nouveaux.getAscenseur() != null ? nouveaux.getAscenseur() : (newCityAndTypeSearch ? null : precedents.getAscenseur()))
                 .meuble(mergedMeuble)
                 .animauxAcceptes(nouveaux.getAnimauxAcceptes() != null ? nouveaux.getAnimauxAcceptes() : precedents.getAnimauxAcceptes())
-                .superficieMin(removals.contains("superficie") ? null : (nouveaux.getSuperficieMin() != null ? nouveaux.getSuperficieMin() : precedents.getSuperficieMin()))
-                .superficieMax(removals.contains("superficie") ? null : (nouveaux.getSuperficieMax() != null ? nouveaux.getSuperficieMax() : precedents.getSuperficieMax()))
+                .superficieMin(removals.contains("superficie") ? null : (nouveaux.getSuperficieMin() != null ? nouveaux.getSuperficieMin() : (newCityAndTypeSearch ? null : precedents.getSuperficieMin())))
+                .superficieMax(removals.contains("superficie") ? null : (nouveaux.getSuperficieMax() != null ? nouveaux.getSuperficieMax() : (newCityAndTypeSearch ? null : precedents.getSuperficieMax())))
                 .equipements(mergedEquipements)
                 .proximites(mergedProximites)
                 .preferencesSouples(mergedPreferencesSouples)
@@ -932,8 +958,43 @@ public class IAService {
         return new SearchExecutionResult(restored, explications, null);
     }
 
-    private SearchExecutionResult rechercherEtClasserAnnoncesPertinentes(CriteresExtraitsDTO criteres) {
-        List<AnnonceEntity> poolVerifieDisponible = annonceRepository
+    private String buildLlmGuidance(String questionDeRelance, String diagnosticBlocage) {
+        if (diagnosticBlocage != null && questionDeRelance != null && !questionDeRelance.isBlank()) {
+            return diagnosticBlocage + " " + questionDeRelance;
+        }
+        return diagnosticBlocage != null ? diagnosticBlocage : questionDeRelance;
+    }
+
+    private String buildLocalFallbackResponse(
+            String userMessage,
+            String intentionSpeciale,
+            CriteresExtraitsDTO criteres,
+            List<AnnonceResponseDTO> annoncesSuggerees,
+            Map<String, String> explicationsAnnonces,
+            String diagnosticCriteresBloquants,
+            boolean demandeExploratoire,
+            List<AnnonceResponseDTO> catalogPreview
+    ) {
+        if ("FAQ_DOCUMENTS".equals(intentionSpeciale)) {
+            return construireReponseFaqDocuments(criteres);
+        }
+        if ("EXPLICATION_RECOMMANDATION".equals(intentionSpeciale)) {
+            return construireReponseExplicationRecommandation(annoncesSuggerees, explicationsAnnonces, criteres);
+        }
+        if ("QUESTION_GENERALE".equals(intentionSpeciale)) {
+            return construireReponseQuestionGenerale(userMessage, criteres, catalogPreview);
+        }
+        return construireReponseAssistant(
+                criteres,
+                annoncesSuggerees,
+                explicationsAnnonces,
+                diagnosticCriteresBloquants,
+                demandeExploratoire
+        );
+    }
+
+    private List<AnnonceEntity> loadVerifiedAvailablePool() {
+        return annonceRepository
                 .findBySupprimeFalseAndStatutPublicationAndStatutVerification(
                         StatutPublication.DISPONIBLE,
                         StatutVerification.VERIFIEE
@@ -942,6 +1003,27 @@ public class IAService {
                 .filter(a -> a.getStatutPublication() == StatutPublication.DISPONIBLE)
                 .filter(a -> a.getStatutVerification() == StatutVerification.VERIFIEE)
                 .toList();
+    }
+
+    private List<AnnonceResponseDTO> rechercherApercuCatalogueDisponible(CriteresExtraitsDTO criteres) {
+        List<AnnonceEntity> pool = loadVerifiedAvailablePool();
+        if (pool.isEmpty()) {
+            return List.of();
+        }
+        List<AnnonceEntity> prioritized = pool.stream()
+                .filter(a -> criteres == null
+                        || ((criteres.getVille() == null || (a.getVille() != null && normalizeText(a.getVille()).contains(normalizeText(criteres.getVille()))))
+                        && (criteres.getType() == null || a.getType() == criteres.getType())))
+                .limit(5)
+                .toList();
+        List<AnnonceEntity> selection = !prioritized.isEmpty() ? prioritized : pool.stream().limit(5).toList();
+        return selection.stream()
+                .map(entity -> sanitizeAnnonceForAssistant(annonceMapper.toResponseDTO(entity)))
+                .toList();
+    }
+
+    private SearchExecutionResult rechercherEtClasserAnnoncesPertinentes(CriteresExtraitsDTO criteres) {
+        List<AnnonceEntity> poolVerifieDisponible = loadVerifiedAvailablePool();
 
         List<AnnonceEntity> exactMatches = poolVerifieDisponible.stream()
                 .filter(a -> matchesAllActiveCriteria(a, criteres))
@@ -1188,10 +1270,69 @@ public class IAService {
                         + ", mais " + inCityWithoutQuartier + " bien(s) vérifié(s) sont disponibles dans d'autres quartiers");
             }
         }
+        if (c.getVille() != null && blocages.isEmpty()) {
+            List<AnnonceEntity> inVille = pool.stream()
+                    .filter(a -> a.getVille() != null && normalizeText(a.getVille()).contains(normalizeText(c.getVille())))
+                    .toList();
+            if (!inVille.isEmpty()) {
+                AnnonceEntity minInVille = inVille.stream()
+                        .filter(a -> a.getPrix() != null)
+                        .min(Comparator.comparing(AnnonceEntity::getPrix))
+                        .orElse(null);
+                String detailPrix = minInVille != null ? " (à partir de " + formatFcfa(minInVille.getPrix()) + " pour \"" + minInVille.getTitre() + "\")" : "";
+                blocages.add(inVille.size() + " autre(s) logement(s) vérifié(s) sont disponibles à " + c.getVille() + detailPrix);
+            }
+        }
+        if (c.getType() != null) {
+            List<AnnonceEntity> sameTypeElsewhere = pool.stream()
+                    .filter(a -> a.getType() == c.getType())
+                    .filter(a -> c.getVille() == null || a.getVille() == null || !normalizeText(a.getVille()).contains(normalizeText(c.getVille())))
+                    .toList();
+            if (!sameTypeElsewhere.isEmpty()) {
+                String cities = sameTypeElsewhere.stream()
+                        .map(AnnonceEntity::getVille)
+                        .filter(Objects::nonNull)
+                        .distinct()
+                        .collect(Collectors.joining(", "));
+                if (!cities.isBlank()) {
+                    blocages.add(sameTypeElsewhere.size() + " " + c.getType().name().toLowerCase(Locale.ROOT)
+                            + "(s) vérifié(s) sont disponibles dans d'autres secteurs (" + cities + ")");
+                }
+            }
+        }
         if (blocages.isEmpty()) {
             return null;
         }
         return "Diagnostic : " + String.join(" ; ", blocages) + ".";
+    }
+
+    private String construireReponseQuestionGenerale(
+            String userMessage,
+            CriteresExtraitsDTO criteres,
+            List<AnnonceResponseDTO> catalogPreview
+    ) {
+        String norm = normalizeText(userMessage);
+        StringBuilder sb = new StringBuilder();
+        if (norm.contains("caution") || norm.contains("mois")) {
+            sb.append("Sur E-Courtier Sénégal, la caution et le premier loyer se règlent uniquement après une visite réelle confirmée et la génération du contrat de bail sur la plateforme (ne versez jamais d'argent avant visite). ");
+        } else if (norm.contains("fonctionne") || norm.contains("marche") || norm.contains("c'est quoi")) {
+            sb.append("E-Courtier Sénégal vérifie administrativement les annonces et l'identité des propriétaires avant publication, organise les demandes de visite et sécurise le contrat de bail numérique. ");
+        } else if (norm.contains("quartier")) {
+            sb.append("À Dakar, les secteurs résidentiels calmes prisés incluent Mermoz, Sacré-Cœur, Almadies et Fann ; à Ziguinchor, vous pouvez explorer Nema, Boucotte ou Kenia selon votre budget. ");
+        } else {
+            sb.append("Bonjour ! Je suis Samba, votre conseiller immobilier E-Courtier Sénégal. Je peux vous aider à trouver un logement vérifié (chambre, studio, appartement ou villa), comparer des quartiers ou répondre à vos questions sur la location et l'achat au Sénégal. ");
+        }
+        if (catalogPreview != null && !catalogPreview.isEmpty()) {
+            AnnonceResponseDTO first = catalogPreview.get(0);
+            sb.append("Actuellement, ").append(catalogPreview.size()).append(" bien(s) vérifié(s) sont notamment disponibles, par exemple \"")
+                    .append(first.getTitre()).append("\" à ").append(first.getQuartier()).append(" (").append(first.getVille())
+                    .append(", ").append(formatFcfa(first.getPrix())).append("). ");
+        }
+        sb.append("Indiquez-moi votre ville, type de bien ou budget maximum en FCFA pour lancer une recherche ciblée.");
+        if (Boolean.TRUE.equals(criteres != null ? criteres.getModeSecours() : null)) {
+            sb.append(" (Mode secours local activé : réponse basée sur nos règles locales et notre catalogue vérifié.)");
+        }
+        return sb.toString().trim();
     }
 
     private String construireReponseTransparenceJuridique() {

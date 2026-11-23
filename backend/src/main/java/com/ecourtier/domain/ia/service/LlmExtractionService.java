@@ -368,9 +368,12 @@ public class LlmExtractionService {
         }
         llm.setPreferencesSouples(mergeStringLists(llm.getPreferencesSouples(), det.getPreferencesSouples()));
         llm.setAttentesComplementaires(mergeStringLists(llm.getAttentesComplementaires(), det.getAttentesComplementaires()));
-        llm.setPrecisionsAClarifier(mergeStringLists(llm.getPrecisionsAClarifier(), det.getPrecisionsAClarifier()));
-        if (llm.getQuestionDeRelance() == null && det.getQuestionDeRelance() != null) {
-            llm.setQuestionDeRelance(det.getQuestionDeRelance());
+        if (!"QUESTION_GENERALE".equals(llm.getIntentionSpeciale())
+                && !"FAQ_DOCUMENTS".equals(llm.getIntentionSpeciale())) {
+            llm.setPrecisionsAClarifier(mergeStringLists(llm.getPrecisionsAClarifier(), det.getPrecisionsAClarifier()));
+            if (llm.getQuestionDeRelance() == null && det.getQuestionDeRelance() != null) {
+                llm.setQuestionDeRelance(det.getQuestionDeRelance());
+            }
         }
         return llm;
     }

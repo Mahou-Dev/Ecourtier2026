@@ -330,6 +330,54 @@ class ComplianceAno03To11IntegrationTest {
         assertFalse(rep.getCriteresExtraits().getPrecisionsAClarifier().isEmpty());
     }
 
+    @Test
+    @DisplayName("Changement de ville réinitialise quartier/meublé obsolètes et diagnostic propose les alternatives réelles")
+    void testChangementVilleEtDiagnosticAlternatives() {
+        creerAnnonce("Bel appartement Almadies", TypeBien.APPARTEMENT, ModeTransaction.LOCATION,
+                "Dakar", "Almadies", new BigDecimal("250000"), true, StatutVerification.VERIFIEE, StatutPublication.DISPONIBLE,
+                "Appartement vérifié aux Almadies.");
+        creerAnnonce("Appartement Boucotte", TypeBien.APPARTEMENT, ModeTransaction.LOCATION,
+                "Ziguinchor", "Boucotte", new BigDecimal("95000"), false, StatutVerification.VERIFIEE, StatutPublication.DISPONIBLE,
+                "Appartement non meublé à Boucotte.");
+        creerAnnonce("Studio Kenia", TypeBien.STUDIO, ModeTransaction.LOCATION,
+                "Ziguinchor", "Kenia", new BigDecimal("80000"), true, StatutVerification.VERIFIEE, StatutPublication.DISPONIBLE,
+                "Studio meublé à Kenia.");
+
+        ConversationCreateResponseDTO conv = iaService.creerConversation(locataire.getEmail());
+
+        // Tour 1 : Studio meublé à Dakar (0 match exact à Dakar, mais diagnostic indique les appartements de Dakar + le studio à Ziguinchor)
+        MessageIaResponseDTO t1 = iaService.envoyerMessage(
+                conv.getConversationId(),
+                new MessageUserRequestDTO("Je cherche un studio meublé à Almadies Dakar"),
+                locataire.getEmail()
+        );
+        assertTrue(t1.getAnnoncesSuggeres().isEmpty());
+        assertTrue(t1.getReponse().contains("Dakar") && t1.getReponse().contains("Ziguinchor"),
+                "Le diagnostic doit mentionner les alternatives réelles à Dakar et le studio à Ziguinchor");
+
+        // Tour 2 : Nouvelle recherche complète dans une autre ville (Boucotte Ziguinchor) -> ne doit pas hériter meuble=true ni Almadies
+        MessageIaResponseDTO t2 = iaService.envoyerMessage(
+                conv.getConversationId(),
+                new MessageUserRequestDTO("Appartement à louer à Boucotte Ziguinchor budget 100000 FCFA"),
+                locataire.getEmail()
+        );
+        assertNull(t2.getCriteresExtraits().getMeuble(), "meuble=true de Dakar ne doit pas bloquer Ziguinchor");
+        assertEquals("Boucotte", t2.getCriteresExtraits().getQuartier());
+        assertEquals("Ziguinchor", t2.getCriteresExtraits().getVille());
+        assertEquals(1, t2.getAnnoncesSuggeres().size());
+        assertEquals("Appartement Boucotte", t2.getAnnoncesSuggeres().get(0).getTitre());
+
+        // Tour 3 : Passage simple à Dakar sans quartier -> doit effacer Boucotte au lieu de combiner Dakar + Boucotte
+        MessageIaResponseDTO t3 = iaService.envoyerMessage(
+                conv.getConversationId(),
+                new MessageUserRequestDTO("Et à Dakar budget 300 000 FCFA ?"),
+                locataire.getEmail()
+        );
+        assertNull(t3.getCriteresExtraits().getQuartier(), "Changer de ville sans quartier doit effacer le quartier précédent");
+        assertEquals("Dakar", t3.getCriteresExtraits().getVille());
+        assertEquals(1, t3.getAnnoncesSuggeres().size());
+    }
+
     private AnnonceEntity creerAnnonce(
             String titre,
             TypeBien type,

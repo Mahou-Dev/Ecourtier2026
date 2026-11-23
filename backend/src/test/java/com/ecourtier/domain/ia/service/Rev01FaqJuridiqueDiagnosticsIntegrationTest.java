@@ -273,4 +273,50 @@ class Rev01FaqJuridiqueDiagnosticsIntegrationTest {
         assertPriorCriteriaPreserved(resp.getCriteresExtraits());
         assertTrue(resp.getAnnoncesSuggeres().isEmpty());
     }
+
+    @Test
+    @DisplayName("7. Question générale / exploratoire appelle réellement Gemini au lieu d'être court-circuitée localement")
+    void testQuestionGeneraleAppelleGemini() {
+        ConversationCreateResponseDTO conv = iaService.creerConversation(null);
+        ReflectionTestUtils.setField(geminiLLMProvider, "apiKey", FAKE_KEY);
+
+        java.util.concurrent.atomic.AtomicInteger callNum = new java.util.concurrent.atomic.AtomicInteger(0);
+        String naturalReply = "Bonjour ! E-Courtier vérifie chaque annonce avant publication et sécurise la caution après visite physique.";
+        mockServer.createContext("/v1beta/models/gemini-flash-lite-latest:generateContent", exchange -> {
+            int n = callNum.incrementAndGet();
+            String textPayload = (n == 1)
+                    ? "{\\\"type\\\":null,\\\"modeTransaction\\\":null,\\\"ville\\\":null,\\\"intentionSpeciale\\\":\\\"QUESTION_GENERALE\\\",\\\"confiance\\\":0.92}"
+                    : naturalReply;
+            String json = """
+                    {
+                      "candidates": [{
+                        "content": {
+                          "parts": [{
+                            "text": "%s"
+                          }]
+                        }
+                      }]
+                    }
+                    """.formatted(textPayload);
+            byte[] bytes = json.getBytes(StandardCharsets.UTF_8);
+            exchange.getResponseHeaders().set("Content-Type", "application/json");
+            exchange.sendResponseHeaders(200, bytes.length);
+            try (OutputStream os = exchange.getResponseBody()) {
+                os.write(bytes);
+            }
+        });
+
+        MessageIaResponseDTO resp = iaService.envoyerMessage(
+                conv.getConversationId(),
+                new MessageUserRequestDTO("Bonjour, comment fonctionne E-Courtier ?"),
+                null,
+                conv.getSessionToken()
+        );
+
+        assertEquals(2, callNum.get(), "Extraction + génération conversationnelle Gemini doivent être exécutées");
+        assertEquals("gemini", resp.getCriteresExtraits().getFournisseurIa());
+        assertEquals(Boolean.FALSE, resp.getCriteresExtraits().getModeSecours());
+        assertNull(resp.getCriteresExtraits().getMotifSecours());
+        assertEquals(naturalReply, resp.getReponse());
+    }
 }
