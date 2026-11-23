@@ -8,6 +8,7 @@ export const IA_MESSAGE_MAX_LENGTH = 1000;
 
 export type IaErrorKind =
   | 'network'
+  | 'timeout'
   | 'security-policy'
   | 'too-long'
   | 'bad-request'
@@ -34,6 +35,8 @@ export interface IaErrorInfo {
 export const IA_ERROR_MESSAGES = {
   network:
     'Connexion impossible : vérifiez votre connexion internet puis réessayez dans quelques instants.',
+  timeout:
+    "Délai d'attente dépassé : le serveur met trop de temps à répondre (démarrage ou surcharge). Veuillez réessayer dans quelques instants.",
   securityPolicy:
     "Je ne peux pas traiter cette demande. Je ne propose que des annonces réelles, vérifiées et disponibles du catalogue E-Courtier.",
   tooLong: 'Votre message dépasse 1 000 caractères. Raccourcissez-le puis renvoyez-le.',
@@ -46,6 +49,8 @@ export const IA_ERROR_MESSAGES = {
     'Cette conversation est introuvable. Une nouvelle conversation a été démarrée : renvoyez votre message.',
   rateLimit:
     'Limite de requêtes IA atteinte. Veuillez patienter quelques instants avant de renvoyer un message.',
+  gatewayUnavailable:
+    'Le serveur est en cours de démarrage ou temporairement surchargé. Patientez quelques instants puis réessayez.',
   unavailable:
     "L'assistant IA est momentanément indisponible. Vous pouvez utiliser la recherche classique.",
 } as const;
@@ -66,9 +71,17 @@ const getMessage = (err: unknown): string =>
 
 const isOffline = (): boolean => typeof navigator !== 'undefined' && navigator.onLine === false;
 
+/** Erreur de délai d'attente dépassé (TimeoutError client avant réponse HTTP). */
+export const isTimeoutError = (err: unknown): boolean => {
+  if (getStatus(err) !== undefined) return false;
+  if ((err as { isTimeout?: unknown } | null | undefined)?.isTimeout === true) return true;
+  const name = (err as { name?: unknown } | null | undefined)?.name;
+  return name === 'TimeoutError';
+};
+
 /** Erreur réseau (fetch rejeté : TypeError / hors-ligne) — pas une réponse HTTP. */
 export const isNetworkError = (err: unknown): boolean => {
-  if (getStatus(err) !== undefined) return false;
+  if (getStatus(err) !== undefined || isTimeoutError(err)) return false;
   if (isOffline()) return true;
   if (err instanceof TypeError) return true;
   const name = (err as { name?: unknown } | null | undefined)?.name;
@@ -81,6 +94,9 @@ export const mapIaError = (err: unknown, context: IaErrorContext): IaErrorInfo =
   const msg = normalize(rawMessage);
 
   if (status === undefined) {
+    if (isTimeoutError(err)) {
+      return { kind: 'timeout', message: IA_ERROR_MESSAGES.timeout, resetConversation: false };
+    }
     if (isNetworkError(err)) {
       return { kind: 'network', message: IA_ERROR_MESSAGES.network, resetConversation: false };
     }
@@ -123,6 +139,15 @@ export const mapIaError = (err: unknown, context: IaErrorContext): IaErrorInfo =
         kind: 'rate-limit',
         status,
         message: rawMessage && !/^erreur \(\d+\)$/i.test(rawMessage) ? rawMessage : IA_ERROR_MESSAGES.rateLimit,
+        resetConversation: false,
+      };
+    case 502:
+    case 503:
+    case 504:
+      return {
+        kind: 'unavailable',
+        status,
+        message: IA_ERROR_MESSAGES.gatewayUnavailable,
         resetConversation: false,
       };
     default:

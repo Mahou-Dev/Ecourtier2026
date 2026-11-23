@@ -21,6 +21,8 @@ import {
   describeMotifSecours,
   formatFcfa,
   isAbandonedConversationStatus,
+  isNetworkError,
+  isTimeoutError,
   mapIaError,
   orderHistoryMessages,
 } from '../src/components/ai/iaErrors';
@@ -160,6 +162,38 @@ test.describe('Tests unitaires iaSession & iaErrors (sans navigateur)', () => {
       conversationScoped: true,
     });
     expect(r503.kind).toBe('unavailable');
+    expect(r503.message).toBe(IA_ERROR_MESSAGES.gatewayUnavailable);
+
+    for (const gwStatus of [502, 504]) {
+      const gwErr = mapIaError(Object.assign(new Error(`Gateway ${gwStatus}`), { status: gwStatus }), {
+        conversationScoped: true,
+      });
+      expect(gwErr.kind).toBe('unavailable');
+      expect(gwErr.message).toBe(IA_ERROR_MESSAGES.gatewayUnavailable);
+    }
+
+    const r500 = mapIaError(Object.assign(new Error('Internal Server Error'), { status: 500 }), {
+      conversationScoped: true,
+    });
+    expect(r500.kind).toBe('unavailable');
+    expect(r500.message).toBe(IA_ERROR_MESSAGES.unavailable);
+
+    const r401 = mapIaError(Object.assign(new Error('Unauthorized'), { status: 401 }), {
+      conversationScoped: true,
+    });
+    expect(r401.kind).toBe('unauthorized');
+    expect(r401.message).toBe(IA_ERROR_MESSAGES.unauthorized);
+
+    const timeoutByName = Object.assign(new Error('Timed out'), { name: 'TimeoutError' });
+    expect(isTimeoutError(timeoutByName)).toBe(true);
+    expect(isNetworkError(timeoutByName)).toBe(false);
+    const rTimeout = mapIaError(timeoutByName, { conversationScoped: true });
+    expect(rTimeout.kind).toBe('timeout');
+    expect(rTimeout.message).toBe(IA_ERROR_MESSAGES.timeout);
+    expect(rTimeout.resetConversation).toBe(false);
+
+    const timeoutByFlag = Object.assign(new Error('Timed out'), { isTimeout: true });
+    expect(mapIaError(timeoutByFlag, { conversationScoped: false }).kind).toBe('timeout');
 
     expect(isAbandonedConversationStatus(403)).toBe(true);
     expect(isAbandonedConversationStatus(404)).toBe(true);

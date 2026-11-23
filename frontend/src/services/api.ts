@@ -23,11 +23,70 @@ const processQueue = (error: unknown, token: string | null = null) => {
   failedQueue = [];
 };
 
+export const DEFAULT_REQUEST_TIMEOUT_MS = 45_000;
+
+export interface ApiFetchOptions extends RequestInit {
+  /** Délai maximal en millisecondes avant interruption de la requête (<= 0 pour désactiver). */
+  timeoutMs?: number;
+}
+
+const createTimeoutError = (): Error & { isTimeout?: boolean } => {
+  const err = new Error(
+    "Délai d'attente dépassé : le serveur met trop de temps à répondre."
+  ) as Error & { isTimeout?: boolean };
+  err.name = 'TimeoutError';
+  err.isTimeout = true;
+  return err;
+};
+
+async function fetchWithTimeout(
+  url: string,
+  init: RequestInit,
+  timeoutMs: number,
+  callerSignal?: AbortSignal | null
+): Promise<Response> {
+  if (timeoutMs <= 0) {
+    return fetch(url, { ...init, signal: callerSignal ?? undefined });
+  }
+
+  const requestController = new AbortController();
+  let didTimeout = false;
+  const onCallerAbort = () => requestController.abort(callerSignal?.reason);
+
+  if (callerSignal) {
+    if (callerSignal.aborted) {
+      requestController.abort(callerSignal.reason);
+    } else {
+      callerSignal.addEventListener('abort', onCallerAbort, { once: true });
+    }
+  }
+
+  const timeoutId = setTimeout(() => {
+    didTimeout = true;
+    requestController.abort();
+  }, timeoutMs);
+
+  try {
+    return await fetch(url, {
+      ...init,
+      signal: requestController.signal,
+    });
+  } catch (err) {
+    if (didTimeout && !callerSignal?.aborted) {
+      throw createTimeoutError();
+    }
+    throw err;
+  } finally {
+    clearTimeout(timeoutId);
+    callerSignal?.removeEventListener('abort', onCallerAbort);
+  }
+}
+
 export async function refreshSessionToken(): Promise<string> {
   const { refreshToken, updateTokens, logout } = useAuthStore.getState();
   if (!refreshToken) {
     logout();
-    throw new Error('Session expirée');
+    throw withStatus(new Error('Session expirée'), 401);
   }
 
   if (isRefreshing) {
@@ -44,11 +103,15 @@ export async function refreshSessionToken(): Promise<string> {
   isRefreshing = true;
 
   try {
-    const refreshRes = await fetch(`${API_BASE_URL}/api/v1/auth/rafraichir`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ refreshToken }),
-    });
+    const refreshRes = await fetchWithTimeout(
+      `${API_BASE_URL}/api/v1/auth/rafraichir`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ refreshToken }),
+      },
+      DEFAULT_REQUEST_TIMEOUT_MS
+    );
 
     if (!refreshRes.ok) {
       throw new Error('Rafraîchissement du token échoué');
@@ -69,27 +132,33 @@ export async function refreshSessionToken(): Promise<string> {
 
 const isIaEndpoint = (endpoint: string): boolean => endpoint.includes('/api/v1/ia/');
 
-const withStatus = (error: unknown, status: number): Error & { status?: number } => {
+function withStatus(error: unknown, status: number): Error & { status?: number } {
   const err = (error instanceof Error ? error : new Error(String(error))) as Error & { status?: number };
   if (err.status === undefined) err.status = status;
   return err;
-};
+}
 
 export async function apiFetch<T>(
   endpoint: string,
-  options: RequestInit = {},
+  options: ApiFetchOptions = {},
   isRetry = false
 ): Promise<T> {
   const { accessToken, refreshToken, logout } = useAuthStore.getState();
 
   const url = endpoint.startsWith('http') ? endpoint : `${API_BASE_URL}${endpoint}`;
+  const {
+    timeoutMs = DEFAULT_REQUEST_TIMEOUT_MS,
+    signal: callerSignal,
+    headers: optionHeaders,
+    ...fetchOptions
+  } = options;
 
   const headers: Record<string, string> = {
     'Content-Type': 'application/json',
-    ...(options.headers as Record<string, string>),
+    ...(optionHeaders as Record<string, string> | undefined),
   };
 
-  if (options.body instanceof FormData) {
+  if (fetchOptions.body instanceof FormData) {
     delete headers['Content-Type'];
   }
 
@@ -97,11 +166,16 @@ export async function apiFetch<T>(
     headers['Authorization'] = `Bearer ${accessToken}`;
   }
 
-  const response = await fetch(url, {
-    credentials: 'include',
-    ...options,
-    headers,
-  });
+  const response = await fetchWithTimeout(
+    url,
+    {
+      credentials: 'include',
+      ...fetchOptions,
+      headers,
+    },
+    timeoutMs,
+    callerSignal
+  );
 
   // Never attempt token refresh on 403 Forbidden; logout immediately if account was deactivated
   if (response.status === 403) {

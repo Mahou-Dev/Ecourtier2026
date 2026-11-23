@@ -283,6 +283,8 @@ test.describe('Conformité UI Widget Assistant IA — RENDER-GEMINI-06', () => {
         await route.abort('failed');
       } else if (postStep === 4) {
         await route.fulfill({ status: 500, contentType: 'application/json', body: '{"status":500,"error":"Internal"}' });
+      } else if (postStep === 5) {
+        await route.fulfill({ status: 503, contentType: 'application/json', body: '{"status":503,"error":"Service Unavailable"}' });
       } else {
         await route.fulfill({ status: 403, contentType: 'application/json', body: '{"status":403,"error":"Session expirée"}' });
       }
@@ -306,6 +308,10 @@ test.describe('Conformité UI Widget Assistant IA — RENDER-GEMINI-06', () => {
     await input.fill('Test 500');
     await sendBtn.click();
     await expect(page.locator(`text=${IA_ERROR_MESSAGES.unavailable}`)).toBeVisible();
+
+    await input.fill('Test 503 Render cold start');
+    await sendBtn.click();
+    await expect(page.locator(`text=${IA_ERROR_MESSAGES.gatewayUnavailable}`)).toBeVisible();
 
     await input.fill('Test 403 POST');
     await sendBtn.click();
@@ -397,5 +403,30 @@ test.describe('Conformité UI Widget Assistant IA — RENDER-GEMINI-06', () => {
       innerWidth: window.innerWidth,
     }));
     expect(overflow.scrollWidth).toBeLessThanOrEqual(overflow.innerWidth);
+  });
+
+  test('5. Dépassement du délai apiFetch (45s cold-start Render) : affiche le message timeout et débloque la saisie', async ({
+    page,
+  }) => {
+    await page.clock.install();
+    await mockDefaultBackgroundApis(page);
+
+    await page.route('**/api/v1/ia/conversations', async () => {
+      // Simule une absence totale de réponse (démarrage lent / réseau figé) jusqu'au timeout apiFetch
+    });
+
+    await page.goto('/');
+    await page.locator('button:has-text("Assistant IA E-Courtier")').click();
+
+    const input = page.locator('[data-testid="ia-input"]');
+    const sendBtn = page.locator('button[type="submit"]:has(svg.lucide-send)');
+    await input.fill('Appartement à Dakar');
+    await sendBtn.click();
+
+    await expect(input).toBeDisabled();
+    await page.clock.fastForward(45_100);
+
+    await expect(page.locator(`text=${IA_ERROR_MESSAGES.timeout}`)).toBeVisible();
+    await expect(input).toBeEnabled();
   });
 });
