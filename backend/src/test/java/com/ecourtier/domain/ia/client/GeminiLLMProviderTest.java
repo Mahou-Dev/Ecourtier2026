@@ -457,4 +457,21 @@ class GeminiLLMProviderTest {
         assertTrue(elapsed < 200, "L'appel pendant cooldown doit échouer immédiatement sans Thread.sleep");
         assertEquals(1, callCount.get(), "Aucun appel HTTP sortant ne doit être émis tant que le cooldown est actif");
     }
+
+    @Test
+    @DisplayName("Gemini Test 15 : Normalisation des guillemets/espaces, repli IA_API_KEY Google (AIza*) et rejet clé Groq (gsk_*)")
+    void testResolutionCleRobusteEtRejetCleGroq() {
+        ReflectionTestUtils.setField(geminiProvider, "apiKey", "  \"AIzaDummyQuotedGeminiKey987654\"  ");
+        ReflectionTestUtils.setField(geminiProvider, "legacyIaApiKey", "");
+        assertTrue(geminiProvider.isConfigured());
+        assertEquals("AIzaDummyQuotedGeminiKey987654", geminiProvider.resolveEffectiveApiKey());
+
+        ReflectionTestUtils.setField(geminiProvider, "apiKey", "");
+        ReflectionTestUtils.setField(geminiProvider, "legacyIaApiKey", "gsk_LegacyGroqKeyShouldBeIgnored");
+        assertFalse(geminiProvider.isConfigured(), "Une clé Groq gsk_ dans IA_API_KEY ne doit jamais être utilisée pour Gemini");
+
+        ReflectionTestUtils.setField(geminiProvider, "legacyIaApiKey", "AIzaLegacyGoogleKey123456");
+        assertTrue(geminiProvider.isConfigured());
+        assertEquals("AIzaLegacyGoogleKey123456", geminiProvider.resolveEffectiveApiKey());
+    }
 }

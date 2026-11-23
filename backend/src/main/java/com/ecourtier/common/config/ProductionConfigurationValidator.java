@@ -41,7 +41,7 @@ public class ProductionConfigurationValidator implements ApplicationRunner {
     @Value("${ecourtier.ia.provider:${AI_PROVIDER:${IA_PROVIDER:gemini}}}")
     private String iaProvider;
 
-    @Value("${ecourtier.ia.gemini.api-key:${GEMINI_API_KEY:}}")
+    @Value("${ecourtier.ia.gemini.api-key:${GEMINI_API_KEY:${GOOGLE_API_KEY:}}}")
     private String geminiApiKey;
 
     @Value("${ecourtier.ia.gemini.model:gemini-flash-lite-latest}")
@@ -187,13 +187,37 @@ public class ProductionConfigurationValidator implements ApplicationRunner {
             );
         }
 
+        String keySource = "aucune";
         String effectiveGeminiKey = resolveText(geminiApiKey, "ecourtier.ia.gemini.api-key");
+        if (!effectiveGeminiKey.isBlank()) {
+            String rawEnvGemini = resolveText("", "GEMINI_API_KEY");
+            String rawEnvGoogle = resolveText("", "GOOGLE_API_KEY");
+            if (!rawEnvGemini.isBlank()) {
+                keySource = "GEMINI_API_KEY";
+            } else if (!rawEnvGoogle.isBlank()) {
+                keySource = "GOOGLE_API_KEY";
+            } else {
+                keySource = "ecourtier.ia.gemini.api-key";
+            }
+        }
         if (effectiveGeminiKey.isBlank()) {
             effectiveGeminiKey = resolveText("", "GEMINI_API_KEY");
+            if (!effectiveGeminiKey.isBlank()) keySource = "GEMINI_API_KEY";
+        }
+        if (effectiveGeminiKey.isBlank()) {
+            effectiveGeminiKey = resolveText("", "GOOGLE_API_KEY");
+            if (!effectiveGeminiKey.isBlank()) keySource = "GOOGLE_API_KEY";
+        }
+        if (effectiveGeminiKey.isBlank()) {
+            String legacyIaKey = resolveText("", "IA_API_KEY");
+            if (legacyIaKey.startsWith("AIza")) {
+                effectiveGeminiKey = legacyIaKey;
+                keySource = "IA_API_KEY(Google)";
+            }
         }
 
         if (effectiveGeminiKey.isBlank()) {
-            log.warn("[VÉRIFICATION PRODUCTION] Variable GEMINI_API_KEY absente (AI_PROVIDER=gemini) : démarrage autorisé en mode dégradé local sécurisé avec RuleBasedCriteriaExtractor uniquement.");
+            log.warn("[VÉRIFICATION PRODUCTION] Variable GEMINI_API_KEY / GOOGLE_API_KEY absente (AI_PROVIDER=gemini) : démarrage autorisé en mode dégradé local sécurisé avec RuleBasedCriteriaExtractor uniquement.");
             return;
         }
 
@@ -208,7 +232,8 @@ public class ProductionConfigurationValidator implements ApplicationRunner {
         if (effectiveModel.isBlank()) {
             effectiveModel = resolveText("", "GEMINI_MODEL");
         }
-        log.info("[VÉRIFICATION PRODUCTION] Fournisseur IA Google Gemini configuré (modèle={}, secours=RuleBasedCriteriaExtractor, aucun fournisseur tiers requis).",
+        log.info("[VÉRIFICATION PRODUCTION] Fournisseur IA Google Gemini configuré (source={}, modèle={}, secours=RuleBasedCriteriaExtractor, aucun fournisseur tiers requis).",
+                keySource,
                 effectiveModel.isBlank() ? "gemini-flash-lite-latest" : effectiveModel);
     }
 

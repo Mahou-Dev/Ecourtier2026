@@ -143,4 +143,23 @@ class RuleBasedCriteriaExtractorTest {
         CriteresExtraitsDTO resSans = extractor.extractCriteria("location sans animaux");
         assertEquals(Boolean.FALSE, resSans.getAnimauxAcceptes());
     }
+
+    @Test
+    @DisplayName("Extraction quartier Kenia, intention LISTE_DISPONIBLE naturelle et QUESTION_GENERALE")
+    void testKeniaListeDisponibleEtQuestionGenerale() {
+        CriteresExtraitsDTO kenia = extractor.extractCriteria("Studio meublé à Kenia Ziguinchor 80 000 FCFA");
+        assertEquals(TypeBien.STUDIO, kenia.getType());
+        assertEquals("Kenia", kenia.getQuartier());
+        assertEquals("Ziguinchor", kenia.getVille());
+
+        CriteresExtraitsDTO listIntent = extractor.extractCriteria("Quels biens avez-vous à Dakar ?");
+        assertEquals("LISTE_DISPONIBLE", listIntent.getIntentionSpeciale());
+        assertEquals("Dakar", listIntent.getVille());
+
+        CriteresExtraitsDTO bonjour = extractor.extractCriteria("Bonjour !");
+        assertEquals("QUESTION_GENERALE", bonjour.getIntentionSpeciale());
+
+        CriteresExtraitsDTO caution = extractor.extractCriteria("Comment fonctionne la caution sur E-Courtier ?");
+        assertEquals("QUESTION_GENERALE", caution.getIntentionSpeciale());
+    }
 }
