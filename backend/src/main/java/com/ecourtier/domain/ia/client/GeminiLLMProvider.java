@@ -92,8 +92,12 @@ public class GeminiLLMProvider implements LLMProvider {
     }
 
     /**
-     * Résout la clé API Gemini effective en tolérant espaces/guillemets accidentels
-     * ainsi qu'une clé Google explicite (`GOOGLE_API_KEY`, ou `IA_API_KEY` si préfixée `AIza`).
+     * Résout la clé API Gemini effective en inspectant :
+     * 1) La propriété Spring ecourtier.ia.gemini.api-key (${GEMINI_API_KEY:${GOOGLE_API_KEY:}})
+     * 2) La propriété Spring legacy ecourtier.ia.api-key (${IA_API_KEY:})
+     * 3) Les variables d'environnement de l'OS (GEMINI_API_KEY, GOOGLE_API_KEY, GOOGLE_GEMINI_API_KEY, etc.)
+     * 4) Toute variable d'environnement contenant une clé Google (commençant par AIza...)
+     * 5) Les fichiers secrets montés par Render dans /etc/secrets/
      */
     public String resolveEffectiveApiKey() {
         String primary = normalizeConfiguredKey(apiKey);
@@ -104,7 +108,86 @@ public class GeminiLLMProvider implements LLMProvider {
         if (legacy != null && legacy.startsWith("AIza")) {
             return legacy;
         }
+
+        // 3) Variables d'environnement standard pour Gemini / Google (insensibles à la casse)
+        String[] candidateVars = {
+                "GEMINI_API_KEY", "GOOGLE_API_KEY", "GOOGLE_GEMINI_API_KEY",
+                "GEMINI_KEY", "GOOGLE_AI_API_KEY", "GEMINI_APIKEY",
+                "IA_API_KEY", "AI_API_KEY", "API_KEY", "VITE_GEMINI_API_KEY"
+        };
+        for (String varName : candidateVars) {
+            String val = normalizeConfiguredKey(System.getenv(varName));
+            if (val != null) {
+                return val;
+            }
+        }
+
+        // 4) Balayage des variables d'environnement de l'OS pour détecter toute variable Google
+        try {
+            for (Map.Entry<String, String> entry : System.getenv().entrySet()) {
+                String k = entry.getKey().toUpperCase(java.util.Locale.ROOT);
+                if (k.contains("GEMINI") || (k.contains("GOOGLE") && k.contains("KEY"))) {
+                    String val = normalizeConfiguredKey(entry.getValue());
+                    if (val != null) {
+                        return val;
+                    }
+                } else if (entry.getValue() != null && entry.getValue().trim().startsWith("AIza")) {
+                    String val = normalizeConfiguredKey(entry.getValue());
+                    if (val != null) {
+                        return val;
+                    }
+                }
+            }
+        } catch (Exception ignored) {
+        }
+
+        // 5) Balayage des fichiers de secrets Render (/etc/secrets/)
+        try {
+            java.io.File secretDir = new java.io.File("/etc/secrets");
+            if (secretDir.isDirectory()) {
+                java.io.File[] files = secretDir.listFiles();
+                if (files != null) {
+                    for (java.io.File f : files) {
+                        if (f.isFile() && f.canRead()) {
+                            String content = java.nio.file.Files.readString(f.toPath()).trim();
+                            for (String line : content.split("\\r?\\n")) {
+                                String trimmed = line.trim();
+                                if (trimmed.startsWith("GEMINI_API_KEY=") || trimmed.startsWith("GOOGLE_API_KEY=")) {
+                                    String val = normalizeConfiguredKey(trimmed.substring(trimmed.indexOf('=') + 1));
+                                    if (val != null) {
+                                        return val;
+                                    }
+                                } else if (trimmed.startsWith("AIza")) {
+                                    String val = normalizeConfiguredKey(trimmed);
+                                    if (val != null) {
+                                        return val;
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        } catch (Exception ignored) {
+        }
+
         return null;
+    }
+
+    public String getDiagnosticEnvSummary() {
+        StringBuilder sb = new StringBuilder();
+        String[] vars = {"GEMINI_API_KEY", "GOOGLE_API_KEY", "GOOGLE_GEMINI_API_KEY", "IA_API_KEY", "AI_API_KEY"};
+        for (String v : vars) {
+            boolean present = System.getenv(v) != null && !System.getenv(v).isBlank();
+            sb.append(v).append('=').append(present).append(' ');
+        }
+        boolean hasSecretsDir = false;
+        try {
+            hasSecretsDir = new java.io.File("/etc/secrets").isDirectory();
+        } catch (Exception ignored) {
+        }
+        sb.append("/etc/secrets=").append(hasSecretsDir);
+        return sb.toString().trim();
     }
 
     private String normalizeConfiguredKey(String raw) {
@@ -116,6 +199,15 @@ public class GeminiLLMProvider implements LLMProvider {
                 && ((cleaned.startsWith("\"") && cleaned.endsWith("\""))
                 || (cleaned.startsWith("'") && cleaned.endsWith("'")))) {
             cleaned = cleaned.substring(1, cleaned.length() - 1).trim();
+        }
+        if (cleaned.toLowerCase(java.util.Locale.ROOT).startsWith("bearer ")) {
+            cleaned = cleaned.substring(7).trim();
+        }
+        if (cleaned.toLowerCase(java.util.Locale.ROOT).startsWith("key=")) {
+            cleaned = cleaned.substring(4).trim();
+        }
+        if (cleaned.startsWith("gsk_")) {
+            return null;
         }
         return cleaned.isBlank() ? null : cleaned;
     }

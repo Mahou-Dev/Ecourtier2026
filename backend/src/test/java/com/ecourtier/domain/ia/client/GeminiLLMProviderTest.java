@@ -473,5 +473,16 @@ class GeminiLLMProviderTest {
         ReflectionTestUtils.setField(geminiProvider, "legacyIaApiKey", "AIzaLegacyGoogleKey123456");
         assertTrue(geminiProvider.isConfigured());
         assertEquals("AIzaLegacyGoogleKey123456", geminiProvider.resolveEffectiveApiKey());
+
+        ReflectionTestUtils.setField(geminiProvider, "apiKey", "Bearer AIzaBearerPrefixedKey123");
+        assertEquals("AIzaBearerPrefixedKey123", geminiProvider.resolveEffectiveApiKey());
+
+        ReflectionTestUtils.setField(geminiProvider, "apiKey", "key=AIzaKeyEqualsPrefixedKey456");
+        assertEquals("AIzaKeyEqualsPrefixedKey456", geminiProvider.resolveEffectiveApiKey());
+
+        String diagnostic = geminiProvider.getDiagnosticEnvSummary();
+        assertNotNull(diagnostic);
+        assertTrue(diagnostic.contains("GEMINI_API_KEY="));
+        assertTrue(diagnostic.contains("/etc/secrets="));
     }
 }
