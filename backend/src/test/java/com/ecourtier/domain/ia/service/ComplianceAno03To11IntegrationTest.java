@@ -378,6 +378,64 @@ class ComplianceAno03To11IntegrationTest {
         assertEquals(1, t3.getAnnoncesSuggeres().size());
     }
 
+    @Test
+    @DisplayName("NLU Multi-Tours : Demande de biens disponibles dans un nouveau quartier/ville ne propage pas les filtres stricts précédents (pièces/type/budget)")
+    void testTransitionVersListeDisponibleSansPollutionCriterePrecedent() {
+        // Annonce vérifiée disponible à Kenia (Ziguinchor) : Studio 1 pièce à 80 000 FCFA
+        AnnonceEntity studioKenia = annonceRepository.save(AnnonceEntity.builder()
+                .titre("Un studio meuble a Kenia/ziguinchor")
+                .description("Studio meublé avec commodités à Kenia Ziguinchor")
+                .type(TypeBien.APPARTEMENT)
+                .modeTransaction(ModeTransaction.LOCATION)
+                .prix(new BigDecimal("80000"))
+                .superficie(16.0)
+                .nombrePieces(1)
+                .quartier("Kenia")
+                .ville("Ziguinchor")
+                .latitude(12.583)
+                .longitude(-16.271)
+                .meuble(true)
+                .animauxAcceptes(false)
+                .confirmationAutomatique(true)
+                .statutVerification(StatutVerification.VERIFIEE)
+                .statutPublication(StatutPublication.DISPONIBLE)
+                .supprime(false)
+                .utilisateur(bailleur)
+                .build());
+
+        ConversationCreateResponseDTO conv = iaService.creerConversation(locataire.getEmail());
+
+        // Tour 1 : Demande ciblée 3 pièces à Nema (inhabitée ou sans correspondance 3 pièces)
+        MessageIaResponseDTO t1 = iaService.envoyerMessage(
+                conv.getConversationId(),
+                new MessageUserRequestDTO("Appartement 3 pièces à Nema < 160 000 FCFA"),
+                locataire.getEmail()
+        );
+        assertEquals("Nema", t1.getCriteresExtraits().getQuartier());
+        assertEquals(3, t1.getCriteresExtraits().getNombrePieces());
+
+        // Tour 2 : Question ouverte sur Kenia
+        MessageIaResponseDTO t2 = iaService.envoyerMessage(
+                conv.getConversationId(),
+                new MessageUserRequestDTO("Bonjour, avez-vous des biens disponibles à Ziguinchor ou à Kenia ?"),
+                locataire.getEmail()
+        );
+
+        // Vérification que les critères bloquants stricts du tour 1 ne polluent pas la question ouverte
+        assertEquals("Ziguinchor", t2.getCriteresExtraits().getVille());
+        assertEquals("Kenia", t2.getCriteresExtraits().getQuartier());
+        assertNull(t2.getCriteresExtraits().getNombrePieces(), "Le filtre 3 pièces ne doit pas être conservé sur une demande ouverte");
+        assertNull(t2.getCriteresExtraits().getBudgetMax(), "Le budget max ne doit pas brider une demande ouverte de biens disponibles");
+
+        // L'annonce du studio à Kenia doit être retournée avec succès !
+        assertFalse(t2.getAnnoncesSuggeres().isEmpty(), "Le studio vérifié de Kenia doit être trouvé");
+        assertEquals(studioKenia.getId(), t2.getAnnoncesSuggeres().get(0).getId());
+        assertTrue(t2.getReponse().contains("Un studio meuble a Kenia/ziguinchor") || t2.getReponse().contains("annonce(s) vérifiée(s)"),
+                "La réponse doit présenter le studio disponible");
+        assertFalse(t2.getReponse().contains("aucun bien vérifié n'est disponible dans le quartier Kenia"),
+                "Ne doit plus diagnostiquer faussement zéro bien à Kenia");
+    }
+
     private AnnonceEntity creerAnnonce(
             String titre,
             TypeBien type,

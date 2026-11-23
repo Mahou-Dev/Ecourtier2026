@@ -6,6 +6,7 @@ import com.ecourtier.domain.annonce.entity.Equipement;
 import com.ecourtier.domain.annonce.entity.ProximiteTag;
 import com.ecourtier.domain.annonce.entity.StatutPublication;
 import com.ecourtier.domain.annonce.entity.StatutVerification;
+import com.ecourtier.domain.annonce.entity.TypeBien;
 import com.ecourtier.domain.annonce.mapper.AnnonceMapper;
 import com.ecourtier.domain.annonce.repository.AnnonceRepository;
 import com.ecourtier.domain.ia.dto.ConversationCreateResponseDTO;
@@ -50,6 +51,7 @@ import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.HashSet;
 import java.util.HexFormat;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
@@ -741,10 +743,19 @@ public class IAService {
         }
 
         Set<String> removals = nouveaux.getCriteresASupprimer() != null ? nouveaux.getCriteresASupprimer() : Set.of();
+        boolean isListAvailable = "LISTE_DISPONIBLE".equals(nouveaux.getIntentionSpeciale());
         boolean villeChanged = nouveaux.getVille() != null
                 && precedents.getVille() != null
                 && !normalizeText(nouveaux.getVille()).equals(normalizeText(precedents.getVille()));
-        boolean newCityAndTypeSearch = villeChanged && nouveaux.getType() != null;
+        boolean quartierChanged = (nouveaux.getQuartier() != null && precedents.getQuartier() != null
+                && !normalizeText(nouveaux.getQuartier()).equals(normalizeText(precedents.getQuartier())))
+                || (nouveaux.getQuartiers() != null && !nouveaux.getQuartiers().isEmpty() && precedents.getQuartiers() != null
+                && !new HashSet<>(nouveaux.getQuartiers()).equals(new HashSet<>(precedents.getQuartiers())));
+        boolean typeChanged = nouveaux.getType() != null
+                && precedents.getType() != null
+                && nouveaux.getType() != precedents.getType();
+        boolean locationChanged = villeChanged || quartierChanged;
+        boolean newCityAndTypeSearch = (villeChanged && nouveaux.getType() != null) || isListAvailable;
 
         String mergedQuartier;
         List<String> mergedQuartiers;
@@ -783,7 +794,7 @@ public class IAService {
 
         Boolean mergedMeuble = removals.contains("meuble")
                 ? null
-                : (nouveaux.getMeuble() != null ? nouveaux.getMeuble() : (newCityAndTypeSearch ? null : precedents.getMeuble()));
+                : (nouveaux.getMeuble() != null ? nouveaux.getMeuble() : ((newCityAndTypeSearch || locationChanged) ? null : precedents.getMeuble()));
 
         List<String> mergedPreferencesSouples = mergeStringLists(
                 precedents.getPreferencesSouples(),
@@ -803,16 +814,67 @@ public class IAService {
                 nouveaux.getAttentesComplementaires()
         );
 
+        TypeBien mergedType;
+        if (removals.contains("type")) {
+            mergedType = null;
+        } else if (nouveaux.getType() != null) {
+            mergedType = nouveaux.getType();
+        } else if (isListAvailable) {
+            mergedType = null;
+        } else {
+            mergedType = precedents.getType();
+        }
+
+        BigDecimal mergedBudgetMin;
+        if (removals.contains("budget")) {
+            mergedBudgetMin = null;
+        } else if (nouveaux.getBudgetMin() != null) {
+            mergedBudgetMin = nouveaux.getBudgetMin();
+        } else if (isListAvailable) {
+            mergedBudgetMin = null;
+        } else {
+            mergedBudgetMin = precedents.getBudgetMin();
+        }
+
+        BigDecimal mergedBudgetMax;
+        if (removals.contains("budget")) {
+            mergedBudgetMax = null;
+        } else if (nouveaux.getBudgetMax() != null) {
+            mergedBudgetMax = nouveaux.getBudgetMax();
+        } else if (isListAvailable) {
+            mergedBudgetMax = null;
+        } else {
+            mergedBudgetMax = precedents.getBudgetMax();
+        }
+
+        Integer mergedNombrePieces;
+        if (nouveaux.getNombrePieces() != null) {
+            mergedNombrePieces = nouveaux.getNombrePieces();
+        } else if (isListAvailable || typeChanged || locationChanged) {
+            mergedNombrePieces = null;
+        } else {
+            mergedNombrePieces = precedents.getNombrePieces();
+        }
+
+        Integer mergedNombreChambres;
+        if (nouveaux.getNombreChambres() != null) {
+            mergedNombreChambres = nouveaux.getNombreChambres();
+        } else if (isListAvailable || typeChanged || locationChanged) {
+            mergedNombreChambres = null;
+        } else {
+            mergedNombreChambres = precedents.getNombreChambres();
+        }
+
         CriteresExtraitsDTO merged = CriteresExtraitsDTO.builder()
-                .type(nouveaux.getType() != null ? nouveaux.getType() : precedents.getType())
+                .type(mergedType)
                 .modeTransaction(nouveaux.getModeTransaction() != null ? nouveaux.getModeTransaction() : precedents.getModeTransaction())
                 .ville(nouveaux.getVille() != null ? nouveaux.getVille() : precedents.getVille())
                 .quartier(mergedQuartier)
                 .quartiers(mergedQuartiers)
-                .budgetMin(removals.contains("budget") ? null : (nouveaux.getBudgetMin() != null ? nouveaux.getBudgetMin() : precedents.getBudgetMin()))
-                .budgetMax(removals.contains("budget") ? null : (nouveaux.getBudgetMax() != null ? nouveaux.getBudgetMax() : precedents.getBudgetMax()))
-                .nombrePieces(nouveaux.getNombrePieces() != null ? nouveaux.getNombrePieces() : precedents.getNombrePieces())
-                .nombreChambres(nouveaux.getNombreChambres() != null ? nouveaux.getNombreChambres() : precedents.getNombreChambres())
+                .budgetMin(mergedBudgetMin)
+                .budgetMax(mergedBudgetMax)
+                .nombrePieces(mergedNombrePieces)
+                .nombreChambres(mergedNombreChambres)
                 .etage(removals.contains("etage") ? null : (nouveaux.getEtage() != null ? nouveaux.getEtage() : (newCityAndTypeSearch ? null : precedents.getEtage())))
                 .ascenseur(nouveaux.getAscenseur() != null ? nouveaux.getAscenseur() : (newCityAndTypeSearch ? null : precedents.getAscenseur()))
                 .meuble(mergedMeuble)
@@ -1050,7 +1112,16 @@ public class IAService {
 
     private boolean matchesAllActiveCriteria(AnnonceEntity a, CriteresExtraitsDTO criteres) {
         if (criteres.getType() != null && a.getType() != criteres.getType()) {
-            return false;
+            boolean isStudioSearchingApartment1Piece = criteres.getType() == TypeBien.STUDIO
+                    && a.getType() == TypeBien.APPARTEMENT
+                    && ((a.getNombrePieces() != null && a.getNombrePieces() <= 1)
+                    || (a.getTitre() != null && a.getTitre().toLowerCase(Locale.ROOT).contains("studio")));
+            boolean isApartmentSearchingStudio = criteres.getType() == TypeBien.APPARTEMENT
+                    && a.getType() == TypeBien.STUDIO
+                    && (criteres.getNombrePieces() == null || criteres.getNombrePieces() <= 1);
+            if (!isStudioSearchingApartment1Piece && !isApartmentSearchingStudio) {
+                return false;
+            }
         }
         if (criteres.getModeTransaction() != null && a.getModeTransaction() != criteres.getModeTransaction()) {
             return false;

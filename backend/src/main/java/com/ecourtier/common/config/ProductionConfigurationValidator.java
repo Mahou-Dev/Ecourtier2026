@@ -215,9 +215,24 @@ public class ProductionConfigurationValidator implements ApplicationRunner {
                 keySource = "IA_API_KEY(Google)";
             }
         }
+        if (effectiveGeminiKey.isBlank()) {
+            String[] candidateVars = {"GOOGLE_GEMINI_API_KEY", "GEMINI_KEY", "GOOGLE_AI_API_KEY", "AI_API_KEY", "API_KEY", "VITE_GEMINI_API_KEY"};
+            for (String var : candidateVars) {
+                String val = resolveText("", var);
+                if (!val.isBlank() && !val.startsWith("gsk_")) {
+                    effectiveGeminiKey = val;
+                    keySource = var;
+                    break;
+                }
+            }
+        }
 
         if (effectiveGeminiKey.isBlank()) {
-            log.warn("[VÉRIFICATION PRODUCTION] Variable GEMINI_API_KEY / GOOGLE_API_KEY absente (AI_PROVIDER=gemini) : démarrage autorisé en mode dégradé local sécurisé avec RuleBasedCriteriaExtractor uniquement.");
+            log.warn("[VÉRIFICATION PRODUCTION] Variable GEMINI_API_KEY / GOOGLE_API_KEY absente (AI_PROVIDER=gemini, vérifié: GEMINI_API_KEY={}, GOOGLE_API_KEY={}, GOOGLE_GEMINI_API_KEY={}, IA_API_KEY={}) : démarrage autorisé en mode dégradé local sécurisé avec RuleBasedCriteriaExtractor uniquement.",
+                    !resolveText("", "GEMINI_API_KEY").isBlank(),
+                    !resolveText("", "GOOGLE_API_KEY").isBlank(),
+                    !resolveText("", "GOOGLE_GEMINI_API_KEY").isBlank(),
+                    !resolveText("", "IA_API_KEY").isBlank());
             return;
         }
 
