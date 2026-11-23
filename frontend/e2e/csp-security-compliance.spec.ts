@@ -2,14 +2,17 @@ import fs from 'node:fs';
 import http from 'node:http';
 import type { AddressInfo } from 'node:net';
 import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { test, expect } from '@playwright/test';
 
-const repoRoot = path.resolve(process.cwd(), '..');
-const nginxConfPath = path.join(process.cwd(), 'nginx.conf');
-const indexHtmlPath = path.join(process.cwd(), 'index.html');
-const distDir = path.join(process.cwd(), 'dist');
+const currentDir = path.dirname(fileURLToPath(import.meta.url));
+const frontendDir = path.resolve(currentDir, '..');
+const repoRoot = path.resolve(frontendDir, '..');
+const nginxConfPath = path.join(frontendDir, 'nginx.conf');
+const indexHtmlPath = path.join(frontendDir, 'index.html');
+const distDir = path.join(frontendDir, 'dist');
 const distIndexHtmlPath = path.join(distDir, 'index.html');
-const prefetchScriptPath = path.join(process.cwd(), 'public', 'prefetch-annonce.js');
+const prefetchScriptPath = path.join(frontendDir, 'public', 'prefetch-annonce.js');
 const renderYamlPath = path.join(repoRoot, 'render.yaml');
 
 const MIME_TYPES: Record<string, string> = {
@@ -307,6 +310,7 @@ test.describe('Conformité Content-Security-Policy & Durcissement XSS (REV-04)',
       expect(xssOutcome.executed).toBeUndefined();
       expect(xssOutcome.violations.some((v) => v.directive.startsWith('script-src'))).toBe(true);
     } finally {
+      server.closeAllConnections?.();
       await new Promise<void>((resolve) => server.close(() => resolve()));
     }
   });

@@ -81,7 +81,7 @@ jobs:
           if-no-files-found: warn
 
   postgres16-flyway-integration:
-    name: 3. Base de données PostgreSQL 16 & Flyway (V1..V20)
+    name: 3. Base de données PostgreSQL 16 & Flyway (V1..V22)
     needs: prechecks
     runs-on: ubuntu-latest
     services:
@@ -109,9 +109,9 @@ jobs:
           java-version: "21"
           cache: maven
 
-      - name: Tests Testcontainers PostgreSQL 16 (Flyway V1..V20, verrous & index)
+      - name: Tests Testcontainers PostgreSQL 16 (Flyway V1..V22, verrous & index)
         run: |
-          mvn -B -f backend/pom.xml test -Decourtier.test.pg16=true -Dtest=FlywayFreshMigrationIntegrationTest,Postgres16Phase3IntegrationTest
+          mvn -B -f backend/pom.xml test -Decourtier.test.pg16=true -Dtest=FlywayFreshMigrationIntegrationTest,Postgres16Phase3IntegrationTest,Postgres16IaConcurrencyIntegrationTest
 
   frontend-quality:
     name: 4. Frontend Node 20, ESLint, TypeScript & Build Vite
@@ -200,7 +200,7 @@ jobs:
             sleep 2
           done
           curl -sf http://127.0.0.1:18080/api/v1/health
-          npx --prefix frontend playwright test --config frontend/playwright.config.ts e2e/phase2-security-ui.spec.ts e2e/phase3-real-backend.spec.ts
+          npx --prefix frontend playwright test --config frontend/playwright.config.ts e2e/phase2-security-ui.spec.ts e2e/phase3-real-backend.spec.ts e2e/csp-security-compliance.spec.ts
 
       - name: Archive logs & captures en cas d'échec E2E
         if: failure()
