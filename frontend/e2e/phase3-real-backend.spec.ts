@@ -475,12 +475,12 @@ test.describe('Phase 3 — Real Backend Full-Stack E2E', () => {
       await locWin.page.getByRole('button', { name: 'Ouvrir le dossier' }).first().click();
       const locDialog = locWin.page.locator('div[role="dialog"]');
       await expect(locDialog).toBeVisible();
-      await expect(locDialog).toContainText('Séquestre : En attente de dépôt');
+      await expect(locDialog).toContainText('Paiement : En attente');
 
       const payLocPromise = locWin.page.waitForResponse(
         (res) => res.url().includes(`/api/v1/transactions/${txInit.id}/paiement-caution`) && res.request().method() === 'POST'
       );
-      await locDialog.getByRole('button', { name: /Payer .* via Wave/i }).click();
+      await locDialog.getByRole('button', { name: /Initier le paiement .* via PayTech \/ Wave/i }).click();
       const payLocRes = await payLocPromise;
       expect(payLocRes.status()).toBe(200);
 

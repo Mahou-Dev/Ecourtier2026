@@ -9,9 +9,6 @@ import com.ecourtier.domain.annonce.service.AnnonceStatutStateMachine;
 import com.ecourtier.domain.rendezvous.entity.RendezVousEntity;
 import com.ecourtier.domain.rendezvous.entity.StatutRendezVous;
 import com.ecourtier.domain.rendezvous.repository.RendezVousRepository;
-import com.ecourtier.domain.transaction.client.WaveCheckoutResponse;
-import com.ecourtier.domain.transaction.client.WaveClient;
-import com.ecourtier.domain.transaction.client.WaveRefundResponse;
 import com.ecourtier.domain.transaction.dto.AnnulationTransactionRequestDTO;
 import com.ecourtier.domain.transaction.dto.RemboursementRequestDTO;
 import com.ecourtier.domain.transaction.dto.TransactionRequestDTO;
@@ -23,6 +20,14 @@ import com.ecourtier.domain.transaction.entity.StatutPaiementWave;
 import com.ecourtier.domain.transaction.entity.StatutSequestre;
 import com.ecourtier.domain.transaction.entity.TransactionEntity;
 import com.ecourtier.domain.transaction.entity.TypeOperationWave;
+import com.ecourtier.domain.transaction.gateway.PayTechClient;
+import com.ecourtier.domain.transaction.gateway.PaymentGateway;
+import com.ecourtier.domain.transaction.gateway.PaymentGateway.ExternalPaymentState;
+import com.ecourtier.domain.transaction.gateway.PaymentGateway.OwnerTransferResult;
+import com.ecourtier.domain.transaction.gateway.PaymentGateway.PaymentInitRequest;
+import com.ecourtier.domain.transaction.gateway.PaymentGateway.PaymentInitResponse;
+import com.ecourtier.domain.transaction.gateway.PaymentGateway.PaymentRefundResult;
+import com.ecourtier.domain.transaction.gateway.PaymentGateway.PaymentStatusResult;
 import com.ecourtier.domain.transaction.mapper.TransactionMapper;
 import com.ecourtier.domain.transaction.repository.PaiementWaveRepository;
 import com.ecourtier.domain.transaction.repository.TransactionRepository;
@@ -88,7 +93,7 @@ public class TransactionService {
     private final AnnonceRepository annonceRepository;
     private final UtilisateurRepository utilisateurRepository;
     private final TransactionMapper transactionMapper;
-    private final WaveClient waveClient;
+    private final PaymentGateway paymentGateway;
     private final PdfBailGeneratorService pdfBailGeneratorService;
     private final AnnonceStatutStateMachine annonceStatutStateMachine;
 
@@ -389,16 +394,16 @@ public class TransactionService {
 
             if (estExpiree(tx, currentNow) && (tx.getReferenceWave() == null || tx.getReferenceWave().isBlank())) {
                 cloturerTransactionExpiree(tx, currentNow);
-                return new PaymentClaim(null, tx.getId(), tx.getMontantTotalSequestre(), null, true);
+                return new PaymentClaim(null, tx.getId(), null, null, null, tx.getMontantTotalSequestre(), null, null, true, null);
             }
 
             if (tx.getStatutSequestre() != StatutSequestre.INITIALISE
                     || (tx.getReferenceWave() != null && !tx.getReferenceWave().isBlank())) {
-                log.warn("[PAIEMENT SÉQUESTRE REFUSÉ] Tentative de paiement multiple ou sur état incompatible pour la transaction {} (statut={}, ref={})",
+                log.warn("[PAIEMENT REFUSÉ] Tentative de paiement multiple ou sur état incompatible pour la transaction {} (statut={}, ref={})",
                         transactionId, tx.getStatutSequestre(), tx.getReferenceWave());
                 throw new ResponseStatusException(
                         HttpStatus.CONFLICT,
-                        "Impossible d'effectuer le paiement : la caution a déjà été payée ou la transaction est dans un état incompatible ("
+                        "Impossible d'effectuer le paiement : la transaction a déjà été payée ou est dans un état incompatible ("
                                 + tx.getStatutSequestre() + ")."
                 );
             }
@@ -416,14 +421,46 @@ public class TransactionService {
                 );
             }
 
+            // Idempotence PayTech : si une session PayTech EN_ATTENTE_CONFIRMATION est déjà ouverte, la retourner sans doublon
+            if ("EN_ATTENTE_CONFIRMATION".equals(tx.getStatutPaiementExterne())
+                    && tx.getRefCommandPaytech() != null && !tx.getRefCommandPaytech().isBlank()
+                    && tx.getTokenPaiementExterne() != null && !tx.getTokenPaiementExterne().isBlank()) {
+                return new PaymentClaim(
+                        null, tx.getId(), annonce != null ? annonce.getId() : null,
+                        annonce != null ? annonce.getTitre() : null,
+                        tx.getRefCommandPaytech(),
+                        tx.getMontantTotalSequestre(),
+                        tx.getLocataire() != null ? tx.getLocataire().getTelephone() : null,
+                        tx.getLocataire() != null ? tx.getLocataire().getEmail() : userEmail,
+                        false,
+                        transactionMapper.toResponseDTO(tx)
+                );
+            }
+
             BigDecimal montantTotalSequestre = tx.getMontantTotalSequestre();
             String telephone = tx.getLocataire() != null ? tx.getLocataire().getTelephone() : null;
+            String email = tx.getLocataire() != null ? tx.getLocataire().getEmail() : userEmail;
+            String refCommand = PayTechClient.generateUniqueRefCommand(tx.getId());
             UUID paiementWaveId = claimPaiementWaveOperation(tx, TypeOperationWave.PAIEMENT_SEQUESTRE, montantTotalSequestre, currentNow);
-            return new PaymentClaim(paiementWaveId, tx.getId(), montantTotalSequestre, telephone, false);
+            return new PaymentClaim(
+                    paiementWaveId,
+                    tx.getId(),
+                    annonce != null ? annonce.getId() : null,
+                    annonce != null ? annonce.getTitre() : "Dossier E-Courtier",
+                    refCommand,
+                    montantTotalSequestre,
+                    telephone,
+                    email,
+                    false,
+                    null
+            );
         });
 
         if (claim == null) {
             throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, "Erreur interne lors de l'initialisation du paiement.");
+        }
+        if (claim.existingPendingDto() != null) {
+            return claim.existingPendingDto();
         }
         if (claim.expired()) {
             throw new ResponseStatusException(
@@ -432,31 +469,122 @@ public class TransactionService {
             );
         }
 
-        // Phase 2 (HORS transaction SQL, SANS verrou base tenu) : appel réseau au prestataire Wave
-        WaveCheckoutResponse response;
+        // Phase 2 (HORS transaction SQL, SANS verrou base tenu) : appel au prestataire de paiement (PayTech Sandbox ou Simulation Locale)
+        PaymentInitRequest initRequest = PaymentInitRequest.builder()
+                .transactionId(claim.transactionId())
+                .annonceId(claim.annonceId())
+                .amount(claim.montant())
+                .currency("XOF")
+                .itemName(claim.annonceTitre() != null ? claim.annonceTitre() : "Paiement E-Courtier")
+                .commandName("Dossier E-Courtier " + claim.refCommand())
+                .refCommand(claim.refCommand())
+                .customerPhone(claim.telephone())
+                .customerEmail(claim.customerEmail())
+                .paymentMethod(paymentGateway.getDefaultPaymentMethod())
+                .build();
+
+        PaymentInitResponse response;
         try {
-            response = waveClient.initiateEscrowCheckout(claim.transactionId(), claim.montant(), claim.telephone());
+            response = paymentGateway.initiatePayment(initRequest);
         } catch (ResponseStatusException e) {
             updatePaiementWaveStateRequiresNew(claim.paiementWaveId(), null, StatutPaiementWave.ECHOUE, e.getReason(), null);
             throw e;
+        } catch (IllegalStateException e) {
+            // Ex: refus de configuration env=prod ou paramètres Sandbox manquants
+            log.warn("[PAIEMENT BLOQUÉ CONFIGURATION] tx={}: {}", transactionId, e.getMessage());
+            updatePaiementWaveStateRequiresNew(claim.paiementWaveId(), null, StatutPaiementWave.ECHOUE, truncateError(e.getMessage()), null);
+            throw new ResponseStatusException(HttpStatus.SERVICE_UNAVAILABLE, e.getMessage());
         } catch (Exception e) {
-            log.error("[PAIEMENT SÉQUESTRE ÉCHEC] Erreur lors de l'appel au prestataire Wave pour la transaction {}", transactionId, e);
+            log.error("[PAIEMENT ÉCHEC] Erreur lors de l'appel au prestataire ({}) pour la transaction {}",
+                    paymentGateway.getProviderCode(), transactionId, e);
             updatePaiementWaveStateRequiresNew(claim.paiementWaveId(), null, StatutPaiementWave.ECHOUE, truncateError(e.getMessage()), null);
             throw new ResponseStatusException(
                     HttpStatus.BAD_GATEWAY,
-                    "Échec de communication avec le prestataire de paiement Wave. La transaction n'a pas été débitée."
+                    "Échec de communication avec le prestataire de paiement. La transaction n'a pas été débitée."
             );
         }
 
-        String candidateRef = response != null && response.getWaveReference() != null
-                ? response.getWaveReference().trim()
+        // Cas A : Flux asynchrone PayTech Sandbox (PENDING -> JAMAIS marqué payé avant IPN authentifié ou get-status confirmé)
+        if (response != null && response.getState() == ExternalPaymentState.PENDING) {
+            String extToken = response.getExternalToken() != null ? response.getExternalToken().trim() : null;
+            String extRefCommand = response.getRefCommand() != null ? response.getRefCommand().trim() : claim.refCommand();
+            String redirectUrl = response.getRedirectUrl() != null ? response.getRedirectUrl().trim() : null;
+
+            if (extToken == null || extToken.isBlank()
+                    || (response.isZeroDebitGuaranteed() && (redirectUrl == null || redirectUrl.isBlank()))) {
+                updatePaiementWaveStateRequiresNew(claim.paiementWaveId(), extToken, StatutPaiementWave.ECHOUE,
+                        "Réponse PayTech incomplète (token ou redirect_url manquant)", null);
+                throw new ResponseStatusException(HttpStatus.BAD_GATEWAY,
+                        "Réponse d'initialisation PayTech invalide ou incomplète.");
+            }
+
+            return executeInTransaction(() -> {
+                LocalDateTime initNow = now();
+                TransactionEntity tx = lockAnnonceThenTransaction(transactionId)
+                        .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Transaction introuvable"));
+
+                // AUDIT-PT-005 : Re-contrôler l'état après l'appel HTTP hors transaction (concurrence annulation/expiration/IPN)
+                if (!Boolean.TRUE.equals(tx.getDossierActif())
+                        || tx.getStatutSequestre() != StatutSequestre.INITIALISE
+                        || (tx.getReferenceWave() != null && !tx.getReferenceWave().isBlank())
+                        || estExpiree(tx, initNow)) {
+                    updatePaiementWaveStateRequiresNew(
+                            claim.paiementWaveId(),
+                            extToken,
+                            StatutPaiementWave.ANNULE,
+                            "Conflit concurrent durant l'initialisation PayTech (statut=" + tx.getStatutSequestre() + ")",
+                            null
+                    );
+                    throw new ResponseStatusException(
+                            HttpStatus.CONFLICT,
+                            "Impossible d'enregistrer la session PayTech : l'état de la transaction a changé pendant l'appel ("
+                                    + tx.getStatutSequestre() + ")."
+                    );
+                }
+
+                tx.setPrestatairePaiement(response.getProviderCode());
+                tx.setMoyenPaiement(response.getPaymentMethod() != null ? response.getPaymentMethod() : "Wave");
+                tx.setModeSimulationPaiement(response.isSimulated());
+                tx.setRefCommandPaytech(extRefCommand);
+                tx.setTokenPaiementExterne(extToken);
+                tx.setRedirectUrlPaiement(response.isZeroDebitGuaranteed() ? redirectUrl : null);
+                tx.setStatutPaiementExterne("EN_ATTENTE_CONFIRMATION");
+                // IMPORTANT : statutSequestre RESTE INITIALISE jusqu'à confirmation IPN authentifiée !
+
+                if (paiementWaveRepository != null && claim.paiementWaveId() != null) {
+                    paiementWaveRepository.findByIdForUpdate(claim.paiementWaveId()).ifPresent(pw -> {
+                        pw.setStatut(StatutPaiementWave.EN_ATTENTE_CONFIRMATION);
+                        pw.setPrestataire(response.getProviderCode());
+                        pw.setMoyenPaiement(response.getPaymentMethod() != null ? response.getPaymentMethod() : "Wave");
+                        pw.setEnvironnement("test");
+                        pw.setRefCommand(extRefCommand);
+                        pw.setTokenExterne(extToken);
+                        pw.setReferenceExterne(extToken);
+                        pw.setRedirectUrl(response.isZeroDebitGuaranteed() ? redirectUrl : null);
+                        pw.setModeSimulation(response.isSimulated());
+                        pw.setDateModification(initNow);
+                        paiementWaveRepository.saveAndFlush(pw);
+                    });
+                }
+
+                TransactionEntity saved = transactionRepository.saveAndFlush(tx);
+                log.info("[PAYTECH SANDBOX INITIALISÉ] tx={} ref_command={} token={} — en attente de confirmation IPN (statutSequestre=INITIALISE)",
+                        saved.getId(), extRefCommand, extToken);
+                return transactionMapper.toResponseDTO(saved);
+            });
+        }
+
+        // Cas B : Simulation locale contrôlée (CONFIRMED_SIMULATED)
+        String candidateRef = response != null && response.getExternalReference() != null
+                ? response.getExternalReference().trim()
                 : null;
         if (candidateRef != null && !candidateRef.isBlank()) {
             attachWaveReferenceRequiresNew(claim.paiementWaveId(), candidateRef);
         }
 
         boolean structureValid = response != null
-                && "SUCCESS".equalsIgnoreCase(response.getStatus())
+                && (response.getState() == ExternalPaymentState.CONFIRMED_SIMULATED
+                    || response.getState() == ExternalPaymentState.CONFIRMED)
                 && candidateRef != null
                 && !candidateRef.isBlank()
                 && (response.getTransactionId() == null || claim.transactionId().equals(response.getTransactionId()))
@@ -465,12 +593,16 @@ public class TransactionService {
         boolean verified = false;
         if (structureValid) {
             try {
-                verified = waveClient.verifyPaymentStatus(candidateRef, claim.transactionId(), claim.montant());
+                PaymentStatusResult statusResult = paymentGateway.checkPaymentStatus(
+                        candidateRef, claim.transactionId(), claim.montant());
+                verified = statusResult != null
+                        && (statusResult.getState() == ExternalPaymentState.CONFIRMED
+                            || statusResult.getState() == ExternalPaymentState.CONFIRMED_SIMULATED);
             } catch (ResponseStatusException e) {
                 updatePaiementWaveStateRequiresNew(claim.paiementWaveId(), candidateRef, StatutPaiementWave.A_RECONCILIER, e.getReason(), null);
                 throw e;
             } catch (Exception verifyEx) {
-                log.error("[PAIEMENT SÉQUESTRE INCERTAIN] Vérification Wave échouée après initiation (ref={}) pour tx={}",
+                log.error("[PAIEMENT INCERTAIN] Vérification prestataire échouée après initiation (ref={}) pour tx={}",
                         candidateRef, transactionId, verifyEx);
                 updatePaiementWaveStateRequiresNew(
                         claim.paiementWaveId(),
@@ -481,25 +613,28 @@ public class TransactionService {
                 );
                 throw new ResponseStatusException(
                         HttpStatus.SERVICE_UNAVAILABLE,
-                        "Le statut du paiement Wave est en attente de réconciliation."
+                        "Le statut du paiement est en attente de réconciliation."
                 );
             }
         }
 
         if (!structureValid || !verified) {
-            log.error("[PAIEMENT SÉQUESTRE NON CONFIRMÉ] Réponse invalide ou non confirmée du prestataire Wave pour la transaction {}", transactionId);
+            log.error("[PAIEMENT NON CONFIRMÉ] Réponse invalide ou non confirmée du prestataire pour la transaction {}", transactionId);
             updatePaiementWaveStateRequiresNew(
                     claim.paiementWaveId(),
                     candidateRef,
                     StatutPaiementWave.ECHOUE,
-                    "Réponse prestataire Wave invalide ou non confirmée",
+                    "Réponse prestataire invalide ou non confirmée",
                     null
             );
             throw new ResponseStatusException(
                     HttpStatus.BAD_GATEWAY,
-                    "Le paiement de la caution n'a pas été confirmé par le prestataire Wave."
+                    "Le paiement n'a pas été confirmé par le prestataire."
             );
         }
+
+        String providerCode = response.getProviderCode() != null ? response.getProviderCode() : paymentGateway.getProviderCode();
+        boolean simulated = response.isSimulated();
 
         // Phase 3 (nouveau verrou court Annonce -> Transaction) : re-vérification d'état et confirmation ou marquage tardif
         PaymentConfirmationResult confirmation;
@@ -508,24 +643,27 @@ public class TransactionService {
                     transactionId,
                     claim.paiementWaveId(),
                     candidateRef,
+                    claim.refCommand(),
+                    providerCode,
+                    simulated,
                     claim.montant(),
                     null
             ));
         } catch (ResponseStatusException e) {
             throw e;
         } catch (RuntimeException persistenceEx) {
-            log.error("[PAIEMENT SÉQUESTRE À RÉCONCILIER] Échec SQL lors de la confirmation locale après débit Wave (tx={}, ref={})",
+            log.error("[PAIEMENT À RÉCONCILIER] Échec SQL lors de la confirmation locale après validation prestataire (tx={}, ref={})",
                     transactionId, candidateRef, persistenceEx);
             updatePaiementWaveStateRequiresNew(
                     claim.paiementWaveId(),
                     candidateRef,
                     StatutPaiementWave.A_RECONCILIER,
-                    "Échec persistance SQL post-confirmation Wave: " + truncateError(persistenceEx.getMessage()),
+                    "Échec persistance SQL post-confirmation: " + truncateError(persistenceEx.getMessage()),
                     null
             );
             throw new ResponseStatusException(
                     HttpStatus.SERVICE_UNAVAILABLE,
-                    "Le paiement Wave a été reçu mais la confirmation locale nécessite une réconciliation.",
+                    "Le paiement a été reçu mais la confirmation locale nécessite une réconciliation.",
                     persistenceEx
             );
         }
@@ -725,19 +863,19 @@ public class TransactionService {
             return new RefundClaim(paiementWaveId, tx.getId(), referencePaiementInitial, montantARembourser);
         });
 
-        // Phase 2 (HORS transaction SQL, SANS verrou base tenu) : appel au prestataire Wave
-        WaveRefundResponse refundResponse;
+        // Phase 2 (HORS transaction SQL, SANS verrou base tenu) : remboursement via passerelle (simulé localement en Sandbox)
+        PaymentRefundResult refundResponse;
         try {
-            refundResponse = waveClient.initiateEscrowRefund(claim.transactionId(), claim.referencePaiementInitial(), claim.montant());
+            refundResponse = paymentGateway.initiateRefund(claim.transactionId(), claim.referencePaiementInitial(), claim.montant());
         } catch (ResponseStatusException e) {
             updatePaiementWaveStateRequiresNew(claim.paiementWaveId(), null, StatutPaiementWave.ECHOUE, e.getReason(), null);
             throw e;
         } catch (Exception e) {
-            log.error("[REMBOURSEMENT SÉQUESTRE ÉCHEC] Erreur lors de l'appel de remboursement Wave pour la transaction {}", transactionId, e);
+            log.error("[REMBOURSEMENT ÉCHEC] Erreur lors de l'appel de remboursement pour la transaction {}", transactionId, e);
             updatePaiementWaveStateRequiresNew(claim.paiementWaveId(), null, StatutPaiementWave.ECHOUE, truncateError(e.getMessage()), null);
             throw new ResponseStatusException(
                     HttpStatus.BAD_GATEWAY,
-                    "Échec de communication avec le prestataire Wave lors du remboursement."
+                    "Échec de communication avec le prestataire lors du remboursement."
             );
         }
 
@@ -752,20 +890,20 @@ public class TransactionService {
                 && "SUCCESS".equalsIgnoreCase(refundResponse.getStatus())
                 && candidateRefundRef != null
                 && !candidateRefundRef.isBlank()
-                && refundResponse.getOriginalWaveReference() != null
-                && claim.referencePaiementInitial().equals(refundResponse.getOriginalWaveReference().trim())
+                && refundResponse.getOriginalReference() != null
+                && claim.referencePaiementInitial().equals(refundResponse.getOriginalReference().trim())
                 && refundResponse.getRefundedAmount() != null
                 && claim.montant().compareTo(refundResponse.getRefundedAmount()) == 0;
 
         boolean verified = false;
         if (structureValid) {
             try {
-                verified = waveClient.verifyRefundStatus(candidateRefundRef, claim.referencePaiementInitial(), claim.montant());
+                verified = paymentGateway.verifyRefundStatus(candidateRefundRef, claim.referencePaiementInitial(), claim.montant());
             } catch (ResponseStatusException e) {
                 updatePaiementWaveStateRequiresNew(claim.paiementWaveId(), candidateRefundRef, StatutPaiementWave.A_RECONCILIER, e.getReason(), null);
                 throw e;
             } catch (Exception verifyEx) {
-                log.error("[REMBOURSEMENT SÉQUESTRE INCERTAIN] Vérification remboursement Wave échouée (ref={}) pour tx={}",
+                log.error("[REMBOURSEMENT INCERTAIN] Vérification remboursement échouée (ref={}) pour tx={}",
                         candidateRefundRef, transactionId, verifyEx);
                 updatePaiementWaveStateRequiresNew(
                         claim.paiementWaveId(),
@@ -776,28 +914,28 @@ public class TransactionService {
                 );
                 throw new ResponseStatusException(
                         HttpStatus.SERVICE_UNAVAILABLE,
-                        "Le statut du remboursement Wave est en attente de réconciliation."
+                        "Le statut du remboursement est en attente de réconciliation."
                 );
             }
         }
 
         if (!structureValid || !verified) {
-            log.error("[REMBOURSEMENT SÉQUESTRE NON CONFIRMÉ] Réponse invalide ou incohérente du prestataire Wave pour la transaction {} (réf attendue={}, réf reçue={}, montant attendu={}, montant reçu={})",
+            log.error("[REMBOURSEMENT NON CONFIRMÉ] Réponse invalide ou incohérente du prestataire pour la transaction {} (réf attendue={}, réf reçue={}, montant attendu={}, montant reçu={})",
                     transactionId,
                     claim.referencePaiementInitial(),
-                    refundResponse != null ? refundResponse.getOriginalWaveReference() : null,
+                    refundResponse != null ? refundResponse.getOriginalReference() : null,
                     claim.montant(),
                     refundResponse != null ? refundResponse.getRefundedAmount() : null);
             updatePaiementWaveStateRequiresNew(
                     claim.paiementWaveId(),
                     candidateRefundRef,
                     StatutPaiementWave.ECHOUE,
-                    "Réponse prestataire Wave invalide ou incohérente",
+                    "Réponse prestataire invalide ou incohérente",
                     null
             );
             throw new ResponseStatusException(
                     HttpStatus.BAD_GATEWAY,
-                    "Le remboursement n'a pas été confirmé par le prestataire Wave."
+                    "Le remboursement n'a pas été confirmé par le prestataire."
             );
         }
 
@@ -876,6 +1014,19 @@ public class TransactionService {
             TransactionEntity tx = lockAnnonceThenTransaction(transactionId)
                     .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Transaction introuvable"));
 
+            // ESCROW-SIGN-001 : Seules les parties contractantes authentifiées peuvent signer.
+            // Un administrateur (ROLE_ADMIN) ne peut JAMAIS signer à la place du locataire ou du propriétaire.
+            boolean isLocataire = tx.getLocataire() != null && userEmail != null && tx.getLocataire().getEmail().equalsIgnoreCase(userEmail);
+            boolean isProprietaire = tx.getProprietaire() != null && userEmail != null && tx.getProprietaire().getEmail().equalsIgnoreCase(userEmail);
+
+            if (!isLocataire && !isProprietaire) {
+                log.warn("[SIGNATURE BAIL REFUSÉE — ESCROW-SIGN-001] Acteur non partie contractante ({}) sur transaction {}", userEmail, transactionId);
+                throw new ResponseStatusException(
+                        HttpStatus.FORBIDDEN,
+                        "Accès refusé : seules les parties contractantes (locataire/acheteur ou propriétaire/vendeur) peuvent signer ce contrat. Un administrateur ne peut pas signer à la place des parties."
+                );
+            }
+
             if (!Boolean.TRUE.equals(tx.getDossierActif())) {
                 log.warn("[SIGNATURE BAIL REFUSÉE] Tentative de signature sur un dossier historique inactif {}", transactionId);
                 throw new ResponseStatusException(
@@ -913,14 +1064,14 @@ public class TransactionService {
             if (tx.getStatutSequestre() == StatutSequestre.LIBERE) {
                 throw new ResponseStatusException(
                         HttpStatus.CONFLICT,
-                        "Ce contrat a déjà été entièrement signé et les fonds ont été libérés."
+                        "Ce contrat a déjà été entièrement signé et la libération logique du dossier a déjà été effectuée."
                 );
             }
 
             if (tx.getStatutSequestre() == StatutSequestre.INITIALISE) {
                 throw new ResponseStatusException(
                         HttpStatus.CONFLICT,
-                        "Le contrat ne peut pas être signé avant le paiement et le blocage du séquestre."
+                        "Le contrat ne peut pas être signé avant confirmation du paiement."
                 );
             }
 
@@ -940,30 +1091,37 @@ public class TransactionService {
                 );
             }
 
-            boolean isLocataire = tx.getLocataire() != null && tx.getLocataire().getEmail().equalsIgnoreCase(userEmail);
-            boolean isProprietaire = tx.getProprietaire() != null && tx.getProprietaire().getEmail().equalsIgnoreCase(userEmail);
-
-            if (isLocataire) {
-                appliquerSignatureLocataire(tx, currentNow);
-            } else if (isProprietaire) {
-                appliquerSignatureProprietaire(tx, currentNow);
-            } else {
-                if (!isAdminCaller(userEmail)) {
+            // ESCROW-SIGN-002 : Figer ou vérifier l'empreinte SHA-256 des termes contractuels canoniques
+            String canonicalDigest = pdfBailGeneratorService != null
+                    ? pdfBailGeneratorService.computeCanonicalContractSha256(tx)
+                    : null;
+            if (canonicalDigest != null && !canonicalDigest.isBlank()) {
+                if (tx.getBailDocumentSha256() == null || tx.getBailDocumentSha256().isBlank()) {
+                    tx.setBailDocumentSha256(canonicalDigest);
+                } else if (!tx.getBailDocumentSha256().equals(canonicalDigest)) {
+                    log.error("[INTÉGRITÉ BAIL COMPROMISE] Empreinte SHA-256 modifiée entre signatures sur tx={}", transactionId);
                     throw new ResponseStatusException(
-                            HttpStatus.FORBIDDEN,
-                            "Vous n'êtes pas autorisé à signer ce contrat."
+                            HttpStatus.CONFLICT,
+                            "Intégrité compromise : les termes contractuels ont été modifiés après la première signature."
                     );
-                }
-                if (tx.getDateSignatureLocataire() == null) {
-                    appliquerSignatureLocataire(tx, currentNow);
-                } else if (tx.getDateSignatureProprietaire() == null) {
-                    appliquerSignatureProprietaire(tx, currentNow);
-                } else {
-                    throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Ce contrat de bail a déjà été entièrement signé.");
                 }
             }
 
-            // Vérifier si la libération automatique doit se déclencher
+            if (isLocataire) {
+                appliquerSignatureLocataire(tx, currentNow);
+                if (pdfBailGeneratorService != null) {
+                    tx.setSignatureLocataireHash(pdfBailGeneratorService.computeSignatureTraceHash(
+                            tx.getId(), "LOCATAIRE", userEmail, currentNow, tx.getBailDocumentSha256()));
+                }
+            } else {
+                appliquerSignatureProprietaire(tx, currentNow);
+                if (pdfBailGeneratorService != null) {
+                    tx.setSignatureProprietaireHash(pdfBailGeneratorService.computeSignatureTraceHash(
+                            tx.getId(), "PROPRIETAIRE", userEmail, currentNow, tx.getBailDocumentSha256()));
+                }
+            }
+
+            // Vérifier si la libération logique automatique doit se déclencher (uniquement après les 2 signatures)
             verifierEtDeclencherLiberation(tx);
 
             TransactionEntity saved = transactionRepository.saveAndFlush(tx);
@@ -983,16 +1141,59 @@ public class TransactionService {
         if (tx.getStatutBail() == StatutBail.SIGNE_COMPLET && tx.getStatutSequestre() == StatutSequestre.BLOQUE) {
             BigDecimal montantVerseProprietaire = tx.getMontantVerseProprietaire();
             BigDecimal fraisConserves = tx.getFraisDossier() != null ? tx.getFraisDossier() : BigDecimal.valueOf(5000);
+            LocalDateTime releaseNow = now();
 
-            log.info("[LIBÉRATION AUTOMATIQUE SÉQUESTRE] Bail signé complet ET séquestre bloqué pour la transaction {}. " +
-                            "Total séquestre: {} FCFA. Reversé au propriétaire: {} FCFA (caution {} + premier loyer {}). " +
-                            "Frais plateforme conservés: {} FCFA. Statut -> LIBERE",
-                    tx.getId(), tx.getMontantTotalSequestre(), montantVerseProprietaire,
+            // ESCROW-FIN-001 : Transfert propriétaire clairement simulé (aucun virement réel déclenché en Sandbox)
+            String ownerPhone = tx.getProprietaire() != null ? tx.getProprietaire().getTelephone() : null;
+            OwnerTransferResult transferResult = paymentGateway != null
+                    ? paymentGateway.initiateSimulatedOwnerTransfer(tx.getId(), montantVerseProprietaire, ownerPhone)
+                    : null;
+            String transferRef = (transferResult != null && transferResult.getTransferReference() != null && !transferResult.getTransferReference().isBlank())
+                    ? transferResult.getTransferReference()
+                    : "SIM-TRANSFER-" + UUID.randomUUID().toString().substring(0, 8).toUpperCase();
+            String transferStatus = (transferResult != null && transferResult.getStatus() != null && !transferResult.getStatus().isBlank())
+                    ? transferResult.getStatus()
+                    : "TRANSFERT_SIMULE";
+
+            log.info("[LIBÉRATION LOGIQUE DOSSIER — TRANSFERT SIMULÉ] Double signature complète pour tx={}. " +
+                            "Total dossier: {} FCFA. Part propriétaire (transfert simulé {} réf={}): {} FCFA (caution {} + premier loyer {}). " +
+                            "Frais plateforme: {} FCFA. Statut logique -> LIBERE (aucun virement financier réel déclenché).",
+                    tx.getId(), tx.getMontantTotalSequestre(), transferStatus, transferRef, montantVerseProprietaire,
                     tx.getMontantCaution(), tx.getMontantPremierLoyer(), fraisConserves);
 
             tx.setStatutSequestre(StatutSequestre.LIBERE);
             if (tx.getDateLiberation() == null) {
-                tx.setDateLiberation(now());
+                tx.setDateLiberation(releaseNow);
+            }
+            tx.setStatutTransfertProprietaire(transferStatus);
+            tx.setReferenceTransfertProprietaire(transferRef);
+            tx.setDateTransfertProprietaire(releaseNow);
+
+            if (paiementWaveRepository != null && montantVerseProprietaire.compareTo(BigDecimal.ZERO) > 0) {
+                try {
+                    PaiementWaveEntity transferLog = PaiementWaveEntity.builder()
+                            .transaction(tx)
+                            .typeOperation(TypeOperationWave.TRANSFERT_PROPRIETAIRE)
+                            .statut(StatutPaiementWave.SIMULE)
+                            .prestataire(paymentGateway != null ? paymentGateway.getProviderCode() : "MOCK_LOCAL")
+                            .moyenPaiement(tx.getMoyenPaiement() != null ? tx.getMoyenPaiement() : "Wave")
+                            .environnement("test")
+                            .modeSimulation(Boolean.TRUE)
+                            .cleIdempotence("SIM-TRANSFER-" + tx.getId())
+                            .referenceExterne(transferRef)
+                            .tokenExterne(transferRef)
+                            .montant(montantVerseProprietaire)
+                            .devise("XOF")
+                            .tentatives(1)
+                            .dateCreation(releaseNow)
+                            .dateModification(releaseNow)
+                            .dateConfirmation(releaseNow)
+                            .build();
+                    paiementWaveRepository.saveAndFlush(transferLog);
+                } catch (Exception ex) {
+                    log.warn("[TRANSFERT SIMULÉ] Impossible de tracer l'opération TRANSFERT_PROPRIETAIRE pour tx={}: {}",
+                            tx.getId(), ex.getMessage());
+                }
             }
 
             // Mise à jour du statut de l'annonce en LOUEE ou VENDUE via la machine à états centralisée
@@ -1084,8 +1285,8 @@ public class TransactionService {
     }
 
     /**
-     * Point d'entrée transactionnel partagé pour confirmer un paiement Wave externe
-     * (appelé par Phase 3, webhook signé ou service de réconciliation) sous verrou canonique Annonce -> Transaction.
+     * Point d'entrée transactionnel partagé pour confirmer un paiement externe
+     * (appelé par Phase 3, webhook signé PayTech/Wave ou service de réconciliation) sous verrou canonique Annonce -> Transaction.
      */
     public PaymentConfirmationResult confirmWavePaymentFromExternal(
             UUID transactionId,
@@ -1094,8 +1295,113 @@ public class TransactionService {
             BigDecimal expectedAmount,
             String payloadWebhook
     ) {
-        return executeInTransaction(() ->
-                confirmWavePaymentInTransaction(transactionId, paiementWaveId, waveReference, expectedAmount, payloadWebhook));
+        String providerCode = paymentGateway != null ? paymentGateway.getProviderCode() : "MOCK_LOCAL";
+        boolean simulated = paymentGateway == null || paymentGateway.isSimulated();
+        return confirmExternalPayment(
+                transactionId,
+                paiementWaveId,
+                waveReference,
+                null,
+                providerCode,
+                simulated,
+                expectedAmount,
+                payloadWebhook
+        );
+    }
+
+    public PaymentConfirmationResult confirmExternalPayment(
+            UUID transactionId,
+            UUID paiementWaveId,
+            String externalReference,
+            String refCommand,
+            String providerCode,
+            boolean simulated,
+            BigDecimal expectedAmount,
+            String payloadWebhook
+    ) {
+        return executeInTransaction(() -> confirmWavePaymentInTransaction(
+                transactionId,
+                paiementWaveId,
+                externalReference,
+                refCommand,
+                providerCode,
+                simulated,
+                expectedAmount,
+                payloadWebhook
+        ));
+    }
+
+    /**
+     * Consulte le statut d'un paiement externe en attente (ex: PayTech get-status) hors verrou SQL,
+     * puis applique la transition appropriée (CONFIRME -> BLOQUE, CANCELED -> ANNULE, PENDING -> inchangé).
+     */
+    public TransactionResponseDTO verifierStatutPaiementExterne(UUID transactionId, String userEmail) {
+        PendingPaymentSnapshot snap = executeInTransaction(() -> {
+            TransactionEntity tx = transactionRepository.findById(transactionId)
+                    .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Transaction introuvable"));
+            return new PendingPaymentSnapshot(
+                    tx.getId(),
+                    tx.getStatutSequestre(),
+                    tx.getTokenPaiementExterne(),
+                    tx.getRefCommandPaytech(),
+                    tx.getMontantTotalSequestre(),
+                    transactionMapper.toResponseDTO(tx)
+            );
+        });
+
+        if (snap.statutSequestre() != StatutSequestre.INITIALISE) {
+            return snap.initialDto();
+        }
+
+        String tokenOrRef = snap.tokenPaiementExterne();
+        if (tokenOrRef == null || tokenOrRef.isBlank()) {
+            return snap.initialDto();
+        }
+
+        // Appel prestataire HORS transaction SQL
+        PaymentStatusResult statusResult = paymentGateway.checkPaymentStatus(
+                tokenOrRef,
+                snap.transactionId(),
+                snap.montantTotalSequestre()
+        );
+        if (statusResult == null) {
+            return snap.initialDto();
+        }
+
+        return switch (statusResult.getState()) {
+            case CONFIRMED, CONFIRMED_SIMULATED -> {
+                BigDecimal confirmedAmount = statusResult.getConfirmedAmount() != null
+                        ? statusResult.getConfirmedAmount()
+                        : (statusResult.isSimulated() ? snap.montantTotalSequestre() : null);
+                PaymentConfirmationResult res = confirmExternalPayment(
+                        snap.transactionId(),
+                        null,
+                        statusResult.getExternalReference() != null ? statusResult.getExternalReference() : tokenOrRef,
+                        snap.refCommandPaytech(),
+                        paymentGateway.getProviderCode(),
+                        statusResult.isSimulated(),
+                        confirmedAmount,
+                        null
+                );
+                yield res != null ? res.dto() : snap.initialDto();
+            }
+            case CANCELED -> markExternalPaymentCanceled(
+                    snap.transactionId(),
+                    snap.refCommandPaytech(),
+                    tokenOrRef,
+                    statusResult.getMessage() != null ? statusResult.getMessage() : "Paiement annulé chez le prestataire",
+                    null
+            );
+            case FAILED -> {
+                markWebhookPaymentFailed(snap.transactionId(), tokenOrRef,
+                        statusResult.getMessage() != null ? statusResult.getMessage() : "Paiement échoué chez le prestataire",
+                        null);
+                yield executeInTransaction(() -> transactionRepository.findById(transactionId)
+                        .map(transactionMapper::toResponseDTO)
+                        .orElse(snap.initialDto()));
+            }
+            default -> snap.initialDto();
+        };
     }
 
     private UUID claimPaiementWaveOperation(
@@ -1110,6 +1416,7 @@ public class TransactionService {
         List<StatutPaiementWave> blockingStatuses = List.of(
                 StatutPaiementWave.INITIE,
                 StatutPaiementWave.EN_COURS,
+                StatutPaiementWave.EN_ATTENTE_CONFIRMATION,
                 StatutPaiementWave.A_RECONCILIER,
                 StatutPaiementWave.CONFIRME,
                 StatutPaiementWave.TARDIF_A_REMBOURSER
@@ -1120,14 +1427,21 @@ public class TransactionService {
         if (!existing.isEmpty()) {
             throw new ResponseStatusException(
                     HttpStatus.CONFLICT,
-                    "Une opération Wave (" + typeOperation + ") est déjà active ou finalisée pour cette transaction."
+                    "Une opération de paiement (" + typeOperation + ") est déjà active ou finalisée pour cette transaction."
             );
         }
+
+        String providerCode = paymentGateway != null ? paymentGateway.getProviderCode() : "MOCK_LOCAL";
+        boolean simulated = paymentGateway == null || paymentGateway.isSimulated();
 
         PaiementWaveEntity claim = PaiementWaveEntity.builder()
                 .transaction(tx)
                 .typeOperation(typeOperation)
                 .statut(StatutPaiementWave.EN_COURS)
+                .prestataire(providerCode)
+                .moyenPaiement(paymentGateway != null ? paymentGateway.getDefaultPaymentMethod() : "Wave")
+                .environnement("test")
+                .modeSimulation(simulated)
                 .cleIdempotence(typeOperation.name() + "-" + tx.getId() + "-" + UUID.randomUUID())
                 .montant(montant)
                 .devise("XOF")
@@ -1140,7 +1454,7 @@ public class TransactionService {
         } catch (DataIntegrityViolationException ex) {
             throw new ResponseStatusException(
                     HttpStatus.CONFLICT,
-                    "Opération Wave concurrente déjà engagée pour cette transaction.",
+                    "Opération de paiement concurrente déjà engagée pour cette transaction.",
                     ex
             );
         }
@@ -1223,13 +1537,16 @@ public class TransactionService {
             UUID transactionId,
             UUID paiementWaveId,
             String candidateRef,
+            String refCommand,
+            String providerCode,
+            boolean simulated,
             BigDecimal expectedAmount,
             String payloadWebhook
     ) {
         LocalDateTime confirmNow = now();
         String normalizedRef = candidateRef != null ? candidateRef.trim() : null;
         if (normalizedRef == null || normalizedRef.isBlank()) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Référence Wave manquante.");
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Référence de paiement manquante.");
         }
 
         // Idempotence : si ce webhook / cette référence est déjà enregistrée comme tardive/réconciliée ou confirmée
@@ -1240,7 +1557,7 @@ public class TransactionService {
                 if (existingRef.getTransaction() != null && !existingRef.getTransaction().getId().equals(transactionId)) {
                     throw new ResponseStatusException(
                             HttpStatus.CONFLICT,
-                            "Référence Wave déjà associée à une autre transaction."
+                            "Référence de paiement déjà associée à une autre transaction."
                     );
                 }
                 if (existingRef.getStatut() == StatutPaiementWave.TARDIF_A_REMBOURSER
@@ -1260,23 +1577,51 @@ public class TransactionService {
         TransactionEntity tx = lockAnnonceThenTransaction(transactionId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Transaction introuvable"));
 
+        // AUDIT-PT-002 : Exiger impérativement un montant vérifié pour toute confirmation externe / webhook PayTech
+        boolean externalProvider = "PAYTECH".equalsIgnoreCase(providerCode) || payloadWebhook != null;
+        if (externalProvider && (expectedAmount == null || expectedAmount.compareTo(BigDecimal.ZERO) <= 0)) {
+            throw new ResponseStatusException(
+                    HttpStatus.BAD_REQUEST,
+                    "Montant de paiement obligatoire pour confirmer la transaction " + transactionId
+            );
+        }
         if (expectedAmount != null && tx.getMontantTotalSequestre().compareTo(expectedAmount) != 0) {
             throw new ResponseStatusException(
                     HttpStatus.BAD_REQUEST,
-                    "Montant Wave incohérent pour la transaction " + transactionId
+                    "Montant de paiement incohérent pour la transaction " + transactionId
             );
         }
 
-        if (tx.getReferenceWave() != null && normalizedRef.equals(tx.getReferenceWave().trim())
+        // AUDIT-PT-004 : Vérifier la correspondance stricte ref_command et token avec la session PayTech active
+        if (refCommand != null && !refCommand.isBlank()
+                && tx.getRefCommandPaytech() != null && !tx.getRefCommandPaytech().isBlank()
+                && !tx.getRefCommandPaytech().trim().equals(refCommand.trim())) {
+            throw new ResponseStatusException(
+                    HttpStatus.CONFLICT,
+                    "Référence commande PayTech (ref_command) incohérente avec la session active de la transaction."
+            );
+        }
+        if ("PAYTECH".equalsIgnoreCase(providerCode)
+                && tx.getTokenPaiementExterne() != null && !tx.getTokenPaiementExterne().isBlank()
+                && !tx.getTokenPaiementExterne().trim().equals(normalizedRef)) {
+            throw new ResponseStatusException(
+                    HttpStatus.CONFLICT,
+                    "Token de paiement PayTech incohérent avec la session active de la transaction."
+            );
+        }
+
+        boolean sameRefAlreadyConfirmed = (tx.getReferenceWave() != null && normalizedRef.equals(tx.getReferenceWave().trim()))
+                || (refCommand != null && tx.getRefCommandPaytech() != null && refCommand.trim().equals(tx.getRefCommandPaytech().trim()));
+        if (sameRefAlreadyConfirmed
                 && (tx.getStatutSequestre() == StatutSequestre.BLOQUE || tx.getStatutSequestre() == StatutSequestre.LIBERE)) {
-            markOrCreateWebhookPaiementLocked(tx, paiementWaveId, normalizedRef, StatutPaiementWave.CONFIRME, confirmNow, null, payloadWebhook);
+            markOrCreateWebhookPaiementLocked(tx, paiementWaveId, normalizedRef, refCommand, providerCode, simulated, StatutPaiementWave.CONFIRME, confirmNow, null, payloadWebhook);
             return new PaymentConfirmationResult(transactionMapper.toResponseDTO(tx), false, null, false);
         }
 
         if (estExpiree(tx, confirmNow)) {
             cloturerTransactionExpiree(tx, confirmNow);
-            String lateMsg = "Paiement Wave confirmé tardivement après dépassement du délai d'expiration de 24h ; remboursement automatique requis.";
-            markOrCreateWebhookPaiementLocked(tx, paiementWaveId, normalizedRef, StatutPaiementWave.TARDIF_A_REMBOURSER, confirmNow, lateMsg, payloadWebhook);
+            String lateMsg = "Paiement confirmé tardivement après dépassement du délai d'expiration de 24h ; remboursement automatique requis.";
+            markOrCreateWebhookPaiementLocked(tx, paiementWaveId, normalizedRef, refCommand, providerCode, simulated, StatutPaiementWave.TARDIF_A_REMBOURSER, confirmNow, lateMsg, payloadWebhook);
             TransactionEntity savedExpired = transactionRepository.saveAndFlush(tx);
             return new PaymentConfirmationResult(transactionMapper.toResponseDTO(savedExpired), true, lateMsg, false);
         }
@@ -1284,8 +1629,8 @@ public class TransactionService {
         if (!Boolean.TRUE.equals(tx.getDossierActif())
                 || tx.getStatutSequestre() != StatutSequestre.INITIALISE
                 || (tx.getReferenceWave() != null && !tx.getReferenceWave().isBlank())) {
-            String lateMsg = "Paiement Wave reçu sur transaction non éligible (" + tx.getStatutSequestre() + ") ; remboursement automatique requis.";
-            markOrCreateWebhookPaiementLocked(tx, paiementWaveId, normalizedRef, StatutPaiementWave.TARDIF_A_REMBOURSER, confirmNow, lateMsg, payloadWebhook);
+            String lateMsg = "Paiement reçu sur transaction non éligible (" + tx.getStatutSequestre() + ") ; remboursement automatique requis.";
+            markOrCreateWebhookPaiementLocked(tx, paiementWaveId, normalizedRef, refCommand, providerCode, simulated, StatutPaiementWave.TARDIF_A_REMBOURSER, confirmNow, lateMsg, payloadWebhook);
             return new PaymentConfirmationResult(transactionMapper.toResponseDTO(tx), true, lateMsg, false);
         }
 
@@ -1295,16 +1640,27 @@ public class TransactionService {
                 || annonce.getStatutPublication() == StatutPublication.LOUEE
                 || annonce.getStatutPublication() == StatutPublication.VENDUE
                 || annonce.getStatutPublication() == StatutPublication.RESERVEE)) {
-            String lateMsg = "Paiement Wave tardif reçu alors que l'annonce est au statut "
+            String lateMsg = "Paiement tardif reçu alors que l'annonce est au statut "
                     + (annonce.isSupprime() ? "SUPPRIMEE" : annonce.getStatutPublication())
                     + " ; remboursement automatique requis.";
-            markOrCreateWebhookPaiementLocked(tx, paiementWaveId, normalizedRef, StatutPaiementWave.TARDIF_A_REMBOURSER, confirmNow, lateMsg, payloadWebhook);
+            markOrCreateWebhookPaiementLocked(tx, paiementWaveId, normalizedRef, refCommand, providerCode, simulated, StatutPaiementWave.TARDIF_A_REMBOURSER, confirmNow, lateMsg, payloadWebhook);
             return new PaymentConfirmationResult(transactionMapper.toResponseDTO(tx), true, lateMsg, false);
         }
 
         tx.setReferenceWave(normalizedRef);
         tx.setDatePaiement(confirmNow);
         tx.setStatutSequestre(StatutSequestre.BLOQUE);
+        if (providerCode != null && !providerCode.isBlank()) {
+            tx.setPrestatairePaiement(providerCode);
+        }
+        tx.setModeSimulationPaiement(simulated);
+        tx.setStatutPaiementExterne(simulated ? "CONFIRME_SIMULE" : "CONFIRME");
+        if (refCommand != null && !refCommand.isBlank() && tx.getRefCommandPaytech() == null) {
+            tx.setRefCommandPaytech(refCommand.trim());
+        }
+        if (tx.getBailDocumentSha256() == null && pdfBailGeneratorService != null) {
+            tx.setBailDocumentSha256(pdfBailGeneratorService.computeCanonicalContractSha256(tx));
+        }
 
         verifierEtDeclencherLiberation(tx);
 
@@ -1315,7 +1671,7 @@ public class TransactionService {
             annonceRepository.save(annonce);
         }
 
-        markOrCreateWebhookPaiementLocked(tx, paiementWaveId, normalizedRef, StatutPaiementWave.CONFIRME, confirmNow, null, payloadWebhook);
+        markOrCreateWebhookPaiementLocked(tx, paiementWaveId, normalizedRef, refCommand, providerCode, simulated, StatutPaiementWave.CONFIRME, confirmNow, null, payloadWebhook);
         TransactionEntity saved = transactionRepository.saveAndFlush(tx);
         return new PaymentConfirmationResult(transactionMapper.toResponseDTO(saved), false, null, true);
     }
@@ -1324,6 +1680,9 @@ public class TransactionService {
             TransactionEntity tx,
             UUID paiementWaveId,
             String normalizedRef,
+            String refCommand,
+            String providerCode,
+            boolean simulated,
             StatutPaiementWave targetStatut,
             LocalDateTime eventNow,
             String messageErreur,
@@ -1336,6 +1695,9 @@ public class TransactionService {
         if (paiementWaveId != null) {
             target = paiementWaveRepository.findByIdForUpdate(paiementWaveId).orElse(null);
         }
+        if (target == null && refCommand != null && !refCommand.isBlank()) {
+            target = paiementWaveRepository.findByRefCommand(refCommand.trim()).orElse(null);
+        }
         if (target == null && normalizedRef != null) {
             target = paiementWaveRepository.findByReferenceExterne(normalizedRef).orElse(null);
         }
@@ -1343,7 +1705,12 @@ public class TransactionService {
             List<PaiementWaveEntity> actives = paiementWaveRepository.findByTransactionAndTypeAndStatutInForUpdate(
                     tx.getId(),
                     TypeOperationWave.PAIEMENT_SEQUESTRE,
-                    List.of(StatutPaiementWave.INITIE, StatutPaiementWave.EN_COURS, StatutPaiementWave.A_RECONCILIER)
+                    List.of(
+                            StatutPaiementWave.INITIE,
+                            StatutPaiementWave.EN_COURS,
+                            StatutPaiementWave.EN_ATTENTE_CONFIRMATION,
+                            StatutPaiementWave.A_RECONCILIER
+                    )
             );
             if (!actives.isEmpty()) {
                 target = actives.get(0);
@@ -1354,6 +1721,10 @@ public class TransactionService {
             target = PaiementWaveEntity.builder()
                     .transaction(tx)
                     .typeOperation(TypeOperationWave.PAIEMENT_SEQUESTRE)
+                    .prestataire(providerCode != null ? providerCode : "MOCK_LOCAL")
+                    .moyenPaiement(tx.getMoyenPaiement() != null ? tx.getMoyenPaiement() : "Wave")
+                    .environnement("test")
+                    .modeSimulation(simulated)
                     .cleIdempotence("WEBHOOK-" + tx.getId() + "-" + normalizedRef)
                     .montant(tx.getMontantTotalSequestre())
                     .devise("XOF")
@@ -1362,6 +1733,13 @@ public class TransactionService {
                     .build();
         }
         target.setReferenceExterne(normalizedRef);
+        if (refCommand != null && !refCommand.isBlank()) {
+            target.setRefCommand(refCommand.trim());
+        }
+        if (providerCode != null && !providerCode.isBlank()) {
+            target.setPrestataire(providerCode);
+        }
+        target.setModeSimulation(simulated);
         target.setStatut(targetStatut);
         target.setDateModification(eventNow);
         target.setMessageErreur(truncateError(messageErreur));
@@ -1389,10 +1767,219 @@ public class TransactionService {
             TransactionEntity tx = lockAnnonceThenTransaction(transactionId)
                     .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Transaction introuvable"));
             if (tx.getStatutSequestre() == StatutSequestre.INITIALISE) {
-                markOrCreateWebhookPaiementLocked(tx, null, waveReference, StatutPaiementWave.ECHOUE, now(), errorReason, payloadWebhook);
+                tx.setStatutPaiementExterne("ECHOUE");
+                transactionRepository.saveAndFlush(tx);
+                markOrCreateWebhookPaiementLocked(tx, null, waveReference, tx.getRefCommandPaytech(),
+                        tx.getPrestatairePaiement(), Boolean.TRUE.equals(tx.getModeSimulationPaiement()),
+                        StatutPaiementWave.ECHOUE, now(), errorReason, payloadWebhook);
             }
             return null;
         });
+    }
+
+    /**
+     * Traite une annulation prestataire (ex: PayTech sale_canceled) de manière idempotente sans corrompre un paiement déjà confirmé.
+     */
+    public TransactionResponseDTO markExternalPaymentCanceled(
+            UUID transactionId,
+            String refCommand,
+            String externalRef,
+            String reason,
+            String payloadWebhook
+    ) {
+        return executeInTransaction(() -> {
+            LocalDateTime eventNow = now();
+            TransactionEntity tx = lockAnnonceThenTransaction(transactionId)
+                    .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Transaction introuvable"));
+
+            if (tx.getStatutSequestre() == StatutSequestre.INITIALISE) {
+                tx.setStatutPaiementExterne("ANNULE");
+                tx.setRedirectUrlPaiement(null);
+                tx.setTokenPaiementExterne(null);
+                String safeRef = (externalRef != null && !externalRef.isBlank())
+                        ? externalRef.trim()
+                        : (refCommand != null && !refCommand.isBlank() ? refCommand.trim() : "CANCELED-" + transactionId);
+                markOrCreateWebhookPaiementLocked(tx, null, safeRef, refCommand,
+                        "PAYTECH", false, StatutPaiementWave.ANNULE, eventNow, reason, payloadWebhook);
+                TransactionEntity saved = transactionRepository.saveAndFlush(tx);
+                return transactionMapper.toResponseDTO(saved);
+            }
+            // Déjà BLOQUE/LIBERE/clôturé : idempotent, aucune régression
+            return transactionMapper.toResponseDTO(tx);
+        });
+    }
+
+    /**
+     * Traite une notification IPN PayTech refund_complete de manière idempotente.
+     */
+    public TransactionResponseDTO handleExternalRefundNotification(
+            UUID transactionId,
+            String refCommand,
+            String externalRef,
+            BigDecimal refundedAmount,
+            String payloadWebhook
+    ) {
+        return executeInTransaction(() -> {
+            LocalDateTime eventNow = now();
+            TransactionEntity tx = lockAnnonceThenTransaction(transactionId)
+                    .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Transaction introuvable"));
+
+            if (refundedAmount != null && tx.getMontantTotalSequestre() != null
+                    && tx.getMontantTotalSequestre().compareTo(refundedAmount) != 0) {
+                throw new ResponseStatusException(
+                        HttpStatus.BAD_REQUEST,
+                        "Montant de remboursement IPN incohérent avec le montant total du dossier."
+                );
+            }
+
+            // Préfixer de manière déterministe afin d'éviter toute collision avec la ligne PAIEMENT_SEQUESTRE
+            // sur les index uniques PostgreSQL uq_paiements_wave_reference_externe et uq_paiements_wave_ref_command.
+            String rawBaseRef = (externalRef != null && !externalRef.isBlank())
+                    ? externalRef.trim()
+                    : (refCommand != null && !refCommand.isBlank() ? refCommand.trim() : transactionId.toString());
+            String safeRef = (rawBaseRef.startsWith("REFUND-") || rawBaseRef.startsWith("SIM-REFUND-"))
+                    ? rawBaseRef
+                    : "REFUND-" + rawBaseRef;
+
+            if (paiementWaveRepository != null) {
+                PaiementWaveEntity refundRow = paiementWaveRepository.findByReferenceExterne(safeRef)
+                        .filter(p -> p.getTypeOperation() == TypeOperationWave.REMBOURSEMENT)
+                        .orElseGet(() -> PaiementWaveEntity.builder()
+                                .transaction(tx)
+                                .typeOperation(TypeOperationWave.REMBOURSEMENT)
+                                .prestataire("PAYTECH")
+                                .moyenPaiement(tx.getMoyenPaiement() != null ? tx.getMoyenPaiement() : "Wave")
+                                .environnement("test")
+                                .modeSimulation(Boolean.FALSE)
+                                .cleIdempotence("IPN-REFUND-" + tx.getId() + "-" + safeRef)
+                                .referenceExterne(safeRef)
+                                .montant(refundedAmount != null && refundedAmount.compareTo(BigDecimal.ZERO) > 0
+                                        ? refundedAmount : tx.getMontantTotalSequestre())
+                                .devise("XOF")
+                                .tentatives(1)
+                                .dateCreation(eventNow)
+                                .build());
+                refundRow.setStatut(StatutPaiementWave.CONFIRME);
+                refundRow.setDateModification(eventNow);
+                if (refundRow.getDateConfirmation() == null) {
+                    refundRow.setDateConfirmation(eventNow);
+                }
+                if (payloadWebhook != null) {
+                    refundRow.setPayloadWebhook(payloadWebhook);
+                }
+                paiementWaveRepository.saveAndFlush(refundRow);
+            }
+
+            if (tx.getStatutSequestre() == StatutSequestre.BLOQUE && tx.getStatutBail() != StatutBail.SIGNE_COMPLET) {
+                tx.setReferenceRemboursementWave(safeRef);
+                tx.setMontantRembourse(refundedAmount != null ? refundedAmount : tx.getMontantTotalSequestre());
+                tx.setDateRemboursement(eventNow);
+                tx.setMotifRemboursement("Remboursement confirmé via IPN PayTech (refund_complete)");
+                tx.setDateCloture(eventNow);
+                tx.setMotifCloture(tx.getMotifRemboursement());
+                tx.setStatutSequestre(StatutSequestre.REMBOURSE);
+                tx.setDossierActif(Boolean.FALSE);
+
+                AnnonceEntity annonce = tx.getAnnonce();
+                if (annonce != null && annonce.getStatutPublication() == StatutPublication.RESERVEE) {
+                    stateMachine().appliquerTransitionTransaction(annonce, StatutPublication.DISPONIBLE);
+                    annonceRepository.save(annonce);
+                }
+                return transactionMapper.toResponseDTO(transactionRepository.saveAndFlush(tx));
+            }
+
+            return transactionMapper.toResponseDTO(tx);
+        });
+    }
+
+    /**
+     * Traite une notification IPN PayTech transfer_success ou transfer_failed de manière idempotente.
+     */
+    public TransactionResponseDTO handleExternalTransferNotification(
+            String idTransfer,
+            String externalId,
+            boolean success,
+            String rawState,
+            String payloadWebhook
+    ) {
+        return executeInTransaction(() -> {
+            LocalDateTime eventNow = now();
+            if (paiementWaveRepository == null) {
+                throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Registre des opérations indisponible.");
+            }
+            PaiementWaveEntity transferRow = null;
+            if (idTransfer != null && !idTransfer.isBlank()) {
+                transferRow = paiementWaveRepository.findByTokenExterne(idTransfer.trim())
+                        .or(() -> paiementWaveRepository.findByReferenceExterne(idTransfer.trim()))
+                        .filter(p -> p.getTypeOperation() == TypeOperationWave.TRANSFERT_PROPRIETAIRE)
+                        .orElse(null);
+            }
+            if (transferRow == null && externalId != null && !externalId.isBlank()) {
+                transferRow = paiementWaveRepository.findByRefCommand(externalId.trim())
+                        .or(() -> paiementWaveRepository.findByReferenceExterne(externalId.trim()))
+                        .filter(p -> p.getTypeOperation() == TypeOperationWave.TRANSFERT_PROPRIETAIRE)
+                        .orElse(null);
+            }
+            if (transferRow == null || transferRow.getTransaction() == null) {
+                throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Transfert inconnu.");
+            }
+
+            TransactionEntity tx = lockAnnonceThenTransaction(transferRow.getTransaction().getId())
+                    .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Transaction associée introuvable."));
+
+            // AUDIT-PT-005 : Protéger l'état terminal CONFIRME contre tout événement transfer_failed hors ordre
+            if (transferRow.getStatut() == StatutPaiementWave.CONFIRME) {
+                if (!success) {
+                    log.warn("[IPN TRANSFERT IGNORÉ] Événement transfer_failed hors ordre ignoré sur transfert déjà CONFIRME (rowId={}, tx={})",
+                            transferRow.getId(), tx.getId());
+                }
+                return transactionMapper.toResponseDTO(tx);
+            }
+
+            transferRow.setStatut(success ? StatutPaiementWave.CONFIRME : StatutPaiementWave.ECHOUE);
+            transferRow.setDateModification(eventNow);
+            if (success && transferRow.getDateConfirmation() == null) {
+                transferRow.setDateConfirmation(eventNow);
+            }
+            if (!success) {
+                transferRow.setMessageErreur("Transfert échoué (state=" + rawState + ")");
+            }
+            if (payloadWebhook != null) {
+                transferRow.setPayloadWebhook(payloadWebhook);
+            }
+            paiementWaveRepository.saveAndFlush(transferRow);
+
+            // Ne jamais écraser un statut simulé comme réel si l'opération est une simulation locale
+            if (!Boolean.TRUE.equals(transferRow.getModeSimulation())) {
+                tx.setStatutTransfertProprietaire(success ? "CONFIRME" : "ECHOUE");
+                tx.setDateTransfertProprietaire(eventNow);
+                tx = transactionRepository.saveAndFlush(tx);
+            }
+            return transactionMapper.toResponseDTO(tx);
+        });
+    }
+
+    /**
+     * ESCROW-SIGN-002 : Génère en mémoire un aperçu PDF pré-signature (avec empreinte SHA-256).
+     */
+    @Transactional(readOnly = true)
+    public byte[] genererApercuPdfBail(UUID transactionId, String actorEmail, boolean isAdmin) {
+        TransactionEntity tx = transactionRepository.findById(transactionId)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Transaction introuvable"));
+
+        boolean estLocataire = tx.getLocataire() != null && actorEmail != null
+                && tx.getLocataire().getEmail().equalsIgnoreCase(actorEmail);
+        boolean estProprietaire = tx.getProprietaire() != null && actorEmail != null
+                && tx.getProprietaire().getEmail().equalsIgnoreCase(actorEmail);
+        if (!isAdmin && !estLocataire && !estProprietaire) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN,
+                    "Accès refusé : vous n'êtes pas partie prenante de cette transaction.");
+        }
+        if (tx.getStatutSequestre() != StatutSequestre.BLOQUE && tx.getStatutSequestre() != StatutSequestre.LIBERE) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT,
+                    "L'aperçu du contrat n'est disponible qu'après confirmation du paiement.");
+        }
+        return pdfBailGeneratorService.generatePreviewPdfBytes(tx);
     }
 
     public boolean finalizeReconciledRefund(UUID transactionId, UUID paiementWaveId, String refundRef, BigDecimal refundedAmount, String motif) {
@@ -1550,9 +2137,29 @@ public class TransactionService {
 
     private record PdfGenerationOutcome(TransactionResponseDTO dto, String errorMessage) {}
 
-    private record PaymentClaim(UUID paiementWaveId, UUID transactionId, BigDecimal montant, String telephone, boolean expired) {}
+    private record PaymentClaim(
+            UUID paiementWaveId,
+            UUID transactionId,
+            UUID annonceId,
+            String annonceTitre,
+            String refCommand,
+            BigDecimal montant,
+            String telephone,
+            String customerEmail,
+            boolean expired,
+            TransactionResponseDTO existingPendingDto
+    ) {}
 
     private record RefundClaim(UUID paiementWaveId, UUID transactionId, String referencePaiementInitial, BigDecimal montant) {}
+
+    private record PendingPaymentSnapshot(
+            UUID transactionId,
+            StatutSequestre statutSequestre,
+            String tokenPaiementExterne,
+            String refCommandPaytech,
+            BigDecimal montantTotalSequestre,
+            TransactionResponseDTO initialDto
+    ) {}
 
     public record PaymentConfirmationResult(TransactionResponseDTO dto, boolean latePayment, String lateReason, boolean stateUpdated) {}
 }

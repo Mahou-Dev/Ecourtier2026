@@ -41,3 +41,15 @@ ecourtier:
     webhook-secret: test-wave-webhook-secret-local-only
     stale-timeout: PT2M
     reconciliation-delay-ms: 3600000
+  payment:
+    provider: mock
+    paytech:
+      api-key: ""
+      api-secret: ""
+      env: test
+      base-url: https://paytech.sn/api
+      ipn-url: https://test.ecourtier.local/api/v1/webhooks/paytech
+      success-url: https://test.ecourtier.local/dashboard?tab=transactions&payment=success
+      cancel-url: https://test.ecourtier.local/dashboard?tab=transactions&payment=cancel
+      target-payment: Wave
+      zero-debit-guaranteed: false

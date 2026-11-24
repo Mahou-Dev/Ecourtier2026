@@ -59,6 +59,31 @@ public class PaiementWaveEntity {
     @Column(name = "reference_externe", length = 150)
     private String referenceExterne;
 
+    @Column(name = "prestataire", nullable = false, length = 30)
+    @Builder.Default
+    private String prestataire = "MOCK_LOCAL";
+
+    @Column(name = "moyen_paiement", nullable = false, length = 40)
+    @Builder.Default
+    private String moyenPaiement = "Wave";
+
+    @Column(name = "environnement", nullable = false, length = 16)
+    @Builder.Default
+    private String environnement = "test";
+
+    @Column(name = "ref_command", length = 150)
+    private String refCommand;
+
+    @Column(name = "token_externe", length = 150)
+    private String tokenExterne;
+
+    @Column(name = "redirect_url", length = 1000)
+    private String redirectUrl;
+
+    @Column(name = "mode_simulation", nullable = false)
+    @Builder.Default
+    private Boolean modeSimulation = Boolean.TRUE;
+
     @Column(name = "montant", nullable = false, precision = 15, scale = 2)
     private BigDecimal montant;
 
@@ -96,6 +121,18 @@ public class PaiementWaveEntity {
         }
         if (devise == null || devise.isBlank()) {
             devise = "XOF";
+        }
+        if (prestataire == null || prestataire.isBlank()) {
+            prestataire = "MOCK_LOCAL";
+        }
+        if (moyenPaiement == null || moyenPaiement.isBlank()) {
+            moyenPaiement = "Wave";
+        }
+        if (environnement == null || environnement.isBlank()) {
+            environnement = "test";
+        }
+        if (modeSimulation == null) {
+            modeSimulation = Boolean.TRUE;
         }
         if (tentatives == null) {
             tentatives = 1;

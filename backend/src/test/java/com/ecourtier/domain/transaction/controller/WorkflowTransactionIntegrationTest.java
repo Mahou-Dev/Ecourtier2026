@@ -591,7 +591,7 @@ class WorkflowTransactionIntegrationTest {
 
         TransactionEntity updated = transactionRepository.findById(tx.getId()).orElseThrow();
         assertEquals(StatutSequestre.BLOQUE, updated.getStatutSequestre());
-        assertTrue(updated.getReferenceWave() != null && updated.getReferenceWave().startsWith("WAVE-SANDBOX-"));
+        assertTrue(updated.getReferenceWave() != null && updated.getReferenceWave().startsWith("SIM-LOCAL-"));
     }
 
     @Test
@@ -918,7 +918,7 @@ class WorkflowTransactionIntegrationTest {
         TransactionEntity reloaded = transactionRepository.findById(txBloquee.getId()).orElseThrow();
         assertEquals(StatutSequestre.REMBOURSE, reloaded.getStatutSequestre());
         assertEquals(paidWaveRef, reloaded.getReferenceWave());
-        assertTrue(reloaded.getReferenceRemboursementWave() != null && reloaded.getReferenceRemboursementWave().startsWith("WAVE-REFUND-SANDBOX-"));
+        assertTrue(reloaded.getReferenceRemboursementWave() != null && reloaded.getReferenceRemboursementWave().startsWith("SIM-REFUND-"));
     }
 
     @Test

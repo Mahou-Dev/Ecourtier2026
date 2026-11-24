@@ -45,14 +45,14 @@
     "name" : "Référentiels",
     "description" : "Listes de référence dynamiques (types, équipements, proximités, documents)"
   }, {
-    "name" : "Transactions & Séquestre",
-    "description" : "Séquestre Wave simulé (caution + 1er loyer en LOCATION, acompte en VENTE), double signature électronique et génération PDF"
-  }, {
     "name" : "Health Check",
     "description" : "Vérification de l'état de santé du service backend"
   }, {
     "name" : "Assistant IA Chatbot",
     "description" : "Endpoints de gestion du chatbot conversationnel intelligent et shortlist personnalisée"
+  }, {
+    "name" : "Transactions & Séquestre",
+    "description" : "Paiement via PayTech Sandbox (Wave) ou simulation locale, double signature contractuelle avec empreinte SHA-256 et génération PDF"
   }, {
     "name" : "Annonces Immobilières",
     "description" : "Endpoints de gestion, recherche et publication d'annonces"
@@ -1469,6 +1469,102 @@
         }
       }
     },
+    "/api/v1/webhooks/paytech" : {
+      "post" : {
+        "tags" : [ "Transactions & Séquestre" ],
+        "summary" : "Recevoir une notification IPN PayTech Sandbox (HMAC-SHA256 / SHA-256)",
+        "description" : "Endpoint IPN PayTech authentifié par hmac_compute (HMAC-SHA256) ou api_key_sha256/api_secret_sha256. Traite de manière idempotente sale_complete, sale_canceled, refund_complete, transfer_success et transfer_failed en environnement Sandbox uniquement (env=test).",
+        "operationId" : "recevoirIpnPayTech",
+        "responses" : {
+          "403" : {
+            "description" : "Signature HMAC/SHA-256 invalide ou environnement prod refusé",
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/PayTechWebhookResponseDTO"
+                }
+              },
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            }
+          },
+          "400" : {
+            "description" : "Payload IPN invalide ou type_event non supporté",
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/PayTechWebhookResponseDTO"
+                }
+              },
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            }
+          },
+          "404" : {
+            "description" : "Référence PayTech (ref_command / id_transfer) introuvable",
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/PayTechWebhookResponseDTO"
+                }
+              },
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            }
+          },
+          "401" : {
+            "description" : "Clés PayTech non configurées ou jeton d'authentification manquant",
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/PayTechWebhookResponseDTO"
+                }
+              },
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            }
+          },
+          "200" : {
+            "description" : "Notification IPN PayTech authentifiée et traitée de manière idempotente",
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/PayTechWebhookResponseDTO"
+                }
+              }
+            }
+          },
+          "409" : {
+            "description" : "Conflit de référence ou d'état",
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/PayTechWebhookResponseDTO"
+                }
+              },
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            }
+          }
+        },
+        "security" : [ ]
+      }
+    },
     "/api/v1/transactions/{id}/remboursement" : {
       "post" : {
         "tags" : [ "Transactions & Séquestre" ],
@@ -1734,8 +1830,8 @@
     "/api/v1/transactions/{id}/paiement-caution" : {
       "post" : {
         "tags" : [ "Transactions & Séquestre" ],
-        "summary" : "Simuler le paiement du séquestre via Wave Sandbox",
-        "description" : "Déclenche le paiement Mobile Money simulé du montant total séquestré et fait passer statutSequestre de INITIALISE à BLOQUE.",
+        "summary" : "Initier le paiement via PayTech Sandbox (Wave) ou simulation locale",
+        "description" : "En mode PayTech Sandbox (env=test, target_payment=Wave), initialise la session et retourne un statut EN_ATTENTE_CONFIRMATION sans jamais marquer payé avant IPN authentifié. En mode simulation locale (mock), enregistre un paiement simulé (SIM-LOCAL-).",
         "operationId" : "effectuerPaiementCaution",
         "parameters" : [ {
           "name" : "id",
@@ -1762,6 +1858,46 @@
               }
             }
           },
+          "502" : {
+            "description" : "Refus ou réponse incohérente du prestataire de paiement",
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/TransactionResponseDTO"
+                }
+              },
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            }
+          },
+          "503" : {
+            "description" : "Configuration Sandbox incomplète/interdite ou opération en attente de réconciliation",
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/TransactionResponseDTO"
+                }
+              },
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            }
+          },
+          "200" : {
+            "description" : "Session PayTech initialisée en attente (INITIALISE + EN_ATTENTE_CONFIRMATION) ou paiement simulé localement (BLOQUE)",
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/TransactionResponseDTO"
+                }
+              }
+            }
+          },
           "401" : {
             "description" : "Authentification JWT requise ou compte désactivé",
             "content" : {
@@ -1777,48 +1913,23 @@
               }
             }
           },
-          "200" : {
-            "description" : "Paiement confirmé, séquestre BLOQUE",
+          "504" : {
+            "description" : "Timeout réseau lors de la communication avec le prestataire",
             "content" : {
               "*/*" : {
                 "schema" : {
                   "$ref" : "#/components/schemas/TransactionResponseDTO"
+                }
+              },
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ApiErrorResponse"
                 }
               }
             }
           },
           "409" : {
-            "description" : "Transaction expirée, annulée, non INITIALISE ou opération Wave déjà en cours",
-            "content" : {
-              "*/*" : {
-                "schema" : {
-                  "$ref" : "#/components/schemas/TransactionResponseDTO"
-                }
-              },
-              "application/json" : {
-                "schema" : {
-                  "$ref" : "#/components/schemas/ApiErrorResponse"
-                }
-              }
-            }
-          },
-          "503" : {
-            "description" : "Opération Wave incertaine mise en file A_RECONCILIER",
-            "content" : {
-              "*/*" : {
-                "schema" : {
-                  "$ref" : "#/components/schemas/TransactionResponseDTO"
-                }
-              },
-              "application/json" : {
-                "schema" : {
-                  "$ref" : "#/components/schemas/ApiErrorResponse"
-                }
-              }
-            }
-          },
-          "502" : {
-            "description" : "Refus ou réponse incohérente du prestataire Wave",
+            "description" : "Transaction expirée, annulée, non INITIALISE ou opération déjà en cours",
             "content" : {
               "*/*" : {
                 "schema" : {
@@ -1856,8 +1967,8 @@
     "/api/v1/transactions/{id}/bail/signer" : {
       "post" : {
         "tags" : [ "Transactions & Séquestre" ],
-        "summary" : "Signer électroniquement le bail ou le récapitulatif de réservation d'achat",
-        "description" : "Enregistre la signature électronique du locataire/acheteur ou du propriétaire/agent. À la double signature (SIGNE_COMPLET), génère le PDF et libère automatiquement les fonds séquestrés (LIBERE).",
+        "summary" : "Signer le bail ou le récapitulatif de réservation (parties contractantes uniquement)",
+        "description" : "ESCROW-SIGN-001 : strictement réservé au locataire/acheteur et au propriétaire/vendeur authentifiés (ADMIN interdit). Enregistre l'empreinte SHA-256 des termes et la trace de signature. À la double signature (SIGNE_COMPLET), déclenche la libération logique du dossier et un transfert propriétaire simulé.",
         "operationId" : "signerBail",
         "parameters" : [ {
           "name" : "id",
@@ -1869,8 +1980,8 @@
           }
         } ],
         "responses" : {
-          "409" : {
-            "description" : "Signature impossible : caution non BLOQUE, signature en double ou dossier clôturé/inactif",
+          "403" : {
+            "description" : "Accès refusé aux tiers et aux administrateurs (seules les parties contractantes peuvent signer)",
             "content" : {
               "*/*" : {
                 "schema" : {
@@ -1885,7 +1996,7 @@
             }
           },
           "200" : {
-            "description" : "Signature enregistrée ; libération automatique du séquestre dès double signature",
+            "description" : "Signature enregistrée ; libération logique du dossier dès double signature",
             "content" : {
               "*/*" : {
                 "schema" : {
@@ -1894,8 +2005,8 @@
               }
             }
           },
-          "403" : {
-            "description" : "Accès refusé aux tiers ou acteur non signataire",
+          "409" : {
+            "description" : "Signature impossible : paiement non confirmé, intégrité modifiée ou dossier clôturé/inactif",
             "content" : {
               "*/*" : {
                 "schema" : {
@@ -1911,6 +2022,21 @@
           },
           "401" : {
             "description" : "Authentification JWT requise ou compte désactivé",
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/TransactionResponseDTO"
+                }
+              },
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            }
+          },
+          "400" : {
+            "description" : "Double signature par la même partie refusée",
             "content" : {
               "*/*" : {
                 "schema" : {
@@ -4502,6 +4628,113 @@
         } ]
       }
     },
+    "/api/v1/transactions/{id}/paiement/statut" : {
+      "get" : {
+        "tags" : [ "Transactions & Séquestre" ],
+        "summary" : "Consulter et synchroniser le statut de paiement auprès du prestataire",
+        "description" : "Interroge le prestataire (PayTech get-status en Sandbox) lorsqu'un paiement est en attente de confirmation et retourne l'état actualisé du dossier.",
+        "operationId" : "verifierStatutPaiement",
+        "parameters" : [ {
+          "name" : "id",
+          "in" : "path",
+          "required" : true,
+          "schema" : {
+            "type" : "string",
+            "format" : "uuid"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "description" : "Statut de paiement vérifié et retourné",
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/TransactionResponseDTO"
+                }
+              }
+            }
+          },
+          "403" : {
+            "description" : "Accès réservé aux parties prenantes ou à l'administrateur",
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/TransactionResponseDTO"
+                }
+              },
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            }
+          },
+          "502" : {
+            "description" : "Erreur lors de la consultation du prestataire",
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/TransactionResponseDTO"
+                }
+              },
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            }
+          },
+          "401" : {
+            "description" : "Authentification JWT requise",
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/TransactionResponseDTO"
+                }
+              },
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            }
+          },
+          "404" : {
+            "description" : "Transaction introuvable",
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/TransactionResponseDTO"
+                }
+              },
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            }
+          },
+          "504" : {
+            "description" : "Timeout lors de la consultation du prestataire",
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/TransactionResponseDTO"
+                }
+              },
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            }
+          }
+        },
+        "security" : [ {
+          "bearerAuth" : [ ]
+        } ]
+      }
+    },
     "/api/v1/transactions/{id}/bail/pdf" : {
       "get" : {
         "tags" : [ "Transactions & Séquestre" ],
@@ -4584,6 +4817,103 @@
                 "schema" : {
                   "type" : "string",
                   "format" : "binary"
+                }
+              },
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            }
+          }
+        },
+        "security" : [ {
+          "bearerAuth" : [ ]
+        } ]
+      }
+    },
+    "/api/v1/transactions/{id}/bail/apercu-pdf" : {
+      "get" : {
+        "tags" : [ "Transactions & Séquestre" ],
+        "summary" : "Télécharger l'aperçu PDF pré-signature du contrat avec empreinte SHA-256",
+        "description" : "ESCROW-SIGN-002 : permet aux parties de consulter les conditions contractuelles et l'empreinte SHA-256 canonique avant signature.",
+        "operationId" : "telechargerApercuPdfBail",
+        "parameters" : [ {
+          "name" : "id",
+          "in" : "path",
+          "required" : true,
+          "schema" : {
+            "type" : "string",
+            "format" : "uuid"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "description" : "Aperçu PDF pré-signature retourné",
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "type" : "string",
+                  "format" : "byte"
+                }
+              }
+            }
+          },
+          "409" : {
+            "description" : "Aperçu disponible uniquement après confirmation du paiement",
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "type" : "string",
+                  "format" : "byte"
+                }
+              },
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            }
+          },
+          "403" : {
+            "description" : "Accès réservé aux parties prenantes ou à un ADMIN",
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "type" : "string",
+                  "format" : "byte"
+                }
+              },
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            }
+          },
+          "401" : {
+            "description" : "Authentification requise",
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "type" : "string",
+                  "format" : "byte"
+                }
+              },
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            }
+          },
+          "404" : {
+            "description" : "Transaction introuvable",
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "type" : "string",
+                  "format" : "byte"
                 }
               },
               "application/json" : {
@@ -6279,6 +6609,37 @@
           }
         }
       },
+      "PayTechWebhookResponseDTO" : {
+        "type" : "object",
+        "properties" : {
+          "transactionId" : {
+            "type" : "string",
+            "format" : "uuid"
+          },
+          "typeEvent" : {
+            "type" : "string"
+          },
+          "refCommand" : {
+            "type" : "string"
+          },
+          "statutPaiement" : {
+            "type" : "string"
+          },
+          "statutSequestre" : {
+            "type" : "string",
+            "enum" : [ "INITIALISE", "BLOQUE", "LIBERE", "REMBOURSE", "ANNULE", "EXPIRE" ]
+          },
+          "latePayment" : {
+            "type" : "boolean"
+          },
+          "idempotentReplay" : {
+            "type" : "boolean"
+          },
+          "message" : {
+            "type" : "string"
+          }
+        }
+      },
       "RemboursementRequestDTO" : {
         "type" : "object",
         "properties" : {
@@ -6352,6 +6713,65 @@
           },
           "referenceWave" : {
             "type" : "string"
+          },
+          "prestatairePaiement" : {
+            "type" : "string",
+            "description" : "Prestataire de paiement utilisé (PAYTECH ou MOCK_LOCAL)",
+            "example" : "PAYTECH"
+          },
+          "moyenPaiement" : {
+            "type" : "string",
+            "description" : "Moyen de paiement ciblé",
+            "example" : "Wave"
+          },
+          "modeSimulationPaiement" : {
+            "type" : "boolean",
+            "description" : "Indique si le paiement repose sur une simulation locale (true) ou un prestataire externe (false)"
+          },
+          "zeroDebitGaranti" : {
+            "type" : "boolean",
+            "description" : "Indique si le zéro débit réel est garanti avant redirection (false en Sandbox PayTech où 100-150 FCFA peuvent être débités)"
+          },
+          "refCommandPaytech" : {
+            "type" : "string",
+            "description" : "Référence commande PayTech unique (ref_command)"
+          },
+          "tokenPaiementExterne" : {
+            "type" : "string",
+            "description" : "Token de paiement externe retourné par le prestataire (ex: token PayTech)"
+          },
+          "redirectUrlPaiement" : {
+            "type" : "string",
+            "description" : "URL de redirection retournée par le prestataire pour finaliser le paiement"
+          },
+          "statutPaiementExterne" : {
+            "type" : "string",
+            "description" : "Statut détaillé du paiement prestataire (EN_ATTENTE_CONFIRMATION, CONFIRME, CONFIRME_SIMULE, ANNULE, ECHOUE)"
+          },
+          "statutTransfertProprietaire" : {
+            "type" : "string",
+            "description" : "Statut du transfert propriétaire lors de la libération logique (NON_INITIE, TRANSFERT_SIMULE, CONFIRME, ECHOUE)"
+          },
+          "referenceTransfertProprietaire" : {
+            "type" : "string",
+            "description" : "Référence du transfert propriétaire (clairement préfixée SIM-TRANSFER- en simulation locale)"
+          },
+          "dateTransfertProprietaire" : {
+            "type" : "string",
+            "description" : "Date d'enregistrement du transfert propriétaire (ou simulation)",
+            "format" : "date-time"
+          },
+          "bailDocumentSha256" : {
+            "type" : "string",
+            "description" : "Empreinte SHA-256 canonique des termes contractuels figés avant signature"
+          },
+          "signatureLocataireHash" : {
+            "type" : "string",
+            "description" : "Trace SHA-256 de la signature applicative du locataire/acheteur"
+          },
+          "signatureProprietaireHash" : {
+            "type" : "string",
+            "description" : "Trace SHA-256 de la signature applicative du propriétaire/vendeur"
           },
           "datePaiement" : {
             "type" : "string",

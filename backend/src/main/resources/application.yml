@@ -82,6 +82,23 @@ ecourtier:
     webhook-secret: ${WAVE_WEBHOOK_SECRET:}
     stale-timeout: ${WAVE_STALE_TIMEOUT:PT2M}
     reconciliation-delay-ms: ${WAVE_RECONCILIATION_DELAY_MS:300000}
+  payment:
+    # Fournisseur actif : mock (simulation locale zéro débit par défaut) ou paytech (Sandbox uniquement, env=test)
+    provider: ${PAYMENT_PROVIDER:mock}
+    paytech:
+      api-key: ${PAYTECH_API_KEY:}
+      api-secret: ${PAYTECH_API_SECRET:}
+      env: ${PAYTECH_ENV:test}
+      base-url: ${PAYTECH_BASE_URL:https://paytech.sn/api}
+      ipn-url: ${PAYTECH_IPN_URL:}
+      refund-notif-url: ${PAYTECH_REFUND_NOTIF_URL:}
+      success-url: ${PAYTECH_SUCCESS_URL:}
+      cancel-url: ${PAYTECH_CANCEL_URL:}
+      target-payment: ${PAYTECH_TARGET_PAYMENT:Wave}
+      connect-timeout-ms: ${PAYTECH_CONNECT_TIMEOUT_MS:5000}
+      read-timeout-ms: ${PAYTECH_READ_TIMEOUT_MS:10000}
+      # PayTech Sandbox (env=test) peut débiter 100 à 150 FCFA réels : false par défaut par sécurité.
+      zero-debit-guaranteed: false
 
 
 # Springdoc OpenAPI Configuration

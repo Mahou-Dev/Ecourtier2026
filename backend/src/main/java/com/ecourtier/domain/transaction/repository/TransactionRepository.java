@@ -57,6 +57,10 @@ public interface TransactionRepository extends JpaRepository<TransactionEntity, 
 
     Optional<TransactionEntity> findByAnnonceIdAndLocataireId(UUID annonceId, UUID locataireId);
 
+    Optional<TransactionEntity> findByRefCommandPaytech(String refCommandPaytech);
+
+    Optional<TransactionEntity> findByTokenPaiementExterne(String tokenPaiementExterne);
+
     Page<TransactionEntity> findByStatutSequestre(StatutSequestre statutSequestre, Pageable pageable);
 
     @Query("SELECT t.id FROM TransactionEntity t " +

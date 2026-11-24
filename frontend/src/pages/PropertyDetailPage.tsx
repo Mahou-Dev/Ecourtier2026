@@ -1221,8 +1221,8 @@ export const PropertyDetailPage: React.FC = () => {
                       <CheckCircle2 className="w-3.5 h-3.5 text-sahel-600 shrink-0" />
                       <span>
                         {property.modeTransaction === 'VENTE'
-                          ? 'Acompte de réservation sécurisé sous séquestre'
-                          : 'Caution 100% sécurisée sous séquestre Wave'}
+                          ? 'Acompte de réservation via PayTech (environnement test)'
+                          : 'Paiement caution via PayTech / Wave (environnement test)'}
                       </span>
                     </p>
                   </div>
@@ -1255,7 +1255,7 @@ export const PropertyDetailPage: React.FC = () => {
                       <>
                         <p className="flex items-start gap-1.5">
                           <CheckCircle2 className="w-3.5 h-3.5 text-sahel-600 shrink-0 mt-0.5" aria-hidden="true" />
-                          <span>Acompte de réservation protégé sous séquestre avant signature</span>
+                          <span>Acompte de réservation suivi via PayTech avant signature</span>
                         </p>
                         <p className="flex items-start gap-1.5">
                           <CheckCircle2 className="w-3.5 h-3.5 text-sahel-600 shrink-0 mt-0.5" aria-hidden="true" />
@@ -1266,7 +1266,7 @@ export const PropertyDetailPage: React.FC = () => {
                       <>
                         <p className="flex items-start gap-1.5">
                           <CheckCircle2 className="w-3.5 h-3.5 text-sahel-600 shrink-0 mt-0.5" aria-hidden="true" />
-                          <span>Séquestre bloqué via Wave sandbox</span>
+                          <span>Paiement via PayTech / Wave (Sandbox test)</span>
                         </p>
                         <p className="flex items-start gap-1.5">
                           <CheckCircle2 className="w-3.5 h-3.5 text-sahel-600 shrink-0 mt-0.5" aria-hidden="true" />
@@ -1319,8 +1319,8 @@ export const PropertyDetailPage: React.FC = () => {
                       </p>
                       <p className="text-[11px] text-sahel-600">
                         {property.modeTransaction === 'VENTE'
-                          ? "Vous pouvez dès maintenant réserver ce bien et consigner l'acompte de réservation (10 % du prix) sous séquestre sécurisé."
-                          : "Vous pouvez dès maintenant réserver ce bien et consigner les fonds (caution + 1er loyer + frais) sous séquestre sécurisé."}
+                          ? "Vous pouvez dès maintenant réserver ce bien et initier le paiement de l'acompte de réservation (10 % du prix — environnement test)."
+                          : "Vous pouvez dès maintenant réserver ce bien et initier le paiement du dossier (caution + 1er loyer + frais — mode test / simulation)."}
                       </p>
                       <Button
                         variant="primary"
@@ -1380,7 +1380,7 @@ export const PropertyDetailPage: React.FC = () => {
                     <>
                       <p className="flex items-start gap-1.5">
                         <CheckCircle2 className="w-3.5 h-3.5 text-sahel-600 shrink-0 mt-0.5" aria-hidden="true" />
-                        <span>Acompte de réservation protégé sous séquestre avant signature</span>
+                        <span>Acompte de réservation suivi via PayTech avant signature</span>
                       </p>
                       <p className="flex items-start gap-1.5">
                         <CheckCircle2 className="w-3.5 h-3.5 text-sahel-600 shrink-0 mt-0.5" aria-hidden="true" />
@@ -1391,7 +1391,7 @@ export const PropertyDetailPage: React.FC = () => {
                     <>
                       <p className="flex items-start gap-1.5">
                         <CheckCircle2 className="w-3.5 h-3.5 text-sahel-600 shrink-0 mt-0.5" aria-hidden="true" />
-                        <span>Séquestre bloqué via Wave sandbox</span>
+                        <span>Paiement via PayTech / Wave (Sandbox test)</span>
                       </p>
                       <p className="flex items-start gap-1.5">
                         <CheckCircle2 className="w-3.5 h-3.5 text-sahel-600 shrink-0 mt-0.5" aria-hidden="true" />

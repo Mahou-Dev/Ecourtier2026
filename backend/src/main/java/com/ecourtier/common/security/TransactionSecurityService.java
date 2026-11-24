@@ -35,6 +35,32 @@ public class TransactionSecurityService {
         return isLocataire || isProprietaire;
     }
 
+    /**
+     * ESCROW-SIGN-001 : Contrôle strict de partie contractante pour la signature du bail.
+     * Un administrateur ne peut JAMAIS signer à la place du locataire/acheteur ou du propriétaire/vendeur.
+     */
+    @Transactional(readOnly = true)
+    public boolean isContractParty(UUID transactionId, Authentication authentication) {
+        if (authentication == null || !authentication.isAuthenticated()) {
+            return false;
+        }
+
+        String currentUserEmail = authentication.getName();
+        if (currentUserEmail == null || currentUserEmail.isBlank()) {
+            return false;
+        }
+
+        TransactionEntity tx = transactionRepository.findById(transactionId).orElse(null);
+        if (tx == null) {
+            return false;
+        }
+
+        boolean isLocataire = tx.getLocataire() != null && tx.getLocataire().getEmail().equalsIgnoreCase(currentUserEmail);
+        boolean isProprietaire = tx.getProprietaire() != null && tx.getProprietaire().getEmail().equalsIgnoreCase(currentUserEmail);
+
+        return isLocataire || isProprietaire;
+    }
+
     @Transactional(readOnly = true)
     public boolean isLocataireOrAdmin(UUID transactionId, Authentication authentication) {
         if (authentication == null || !authentication.isAuthenticated()) {

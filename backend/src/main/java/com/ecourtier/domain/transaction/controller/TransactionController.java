@@ -43,7 +43,7 @@ import java.util.UUID;
 @RestController
 @RequestMapping("/api/v1")
 @RequiredArgsConstructor
-@Tag(name = "Transactions & Séquestre", description = "Séquestre Wave simulé (caution + 1er loyer en LOCATION, acompte en VENTE), double signature électronique et génération PDF")
+@Tag(name = "Transactions & Séquestre", description = "Paiement via PayTech Sandbox (Wave) ou simulation locale, double signature contractuelle avec empreinte SHA-256 et génération PDF")
 @SecurityRequirement(name = "bearerAuth")
 public class TransactionController {
 
@@ -75,23 +75,46 @@ public class TransactionController {
     @PostMapping("/transactions/{id}/paiement-caution")
     @PreAuthorize("@transactionSecurityService.isLocataireOrAdmin(#id, authentication)")
     @Operation(
-            summary = "Simuler le paiement du séquestre via Wave Sandbox",
-            description = "Déclenche le paiement Mobile Money simulé du montant total séquestré et fait passer statutSequestre de INITIALISE à BLOQUE."
+            summary = "Initier le paiement via PayTech Sandbox (Wave) ou simulation locale",
+            description = "En mode PayTech Sandbox (env=test, target_payment=Wave), initialise la session et retourne un statut EN_ATTENTE_CONFIRMATION sans jamais marquer payé avant IPN authentifié. En mode simulation locale (mock), enregistre un paiement simulé (SIM-LOCAL-)."
     )
     @ApiResponses({
-            @ApiResponse(responseCode = "200", description = "Paiement confirmé, séquestre BLOQUE"),
+            @ApiResponse(responseCode = "200", description = "Session PayTech initialisée en attente (INITIALISE + EN_ATTENTE_CONFIRMATION) ou paiement simulé localement (BLOQUE)"),
             @ApiResponse(responseCode = "401", description = "Authentification JWT requise ou compte désactivé"),
             @ApiResponse(responseCode = "403", description = "Accès refusé (ni locataire/acheteur concerné ni ADMIN)"),
             @ApiResponse(responseCode = "404", description = "Transaction introuvable"),
-            @ApiResponse(responseCode = "409", description = "Transaction expirée, annulée, non INITIALISE ou opération Wave déjà en cours"),
-            @ApiResponse(responseCode = "502", description = "Refus ou réponse incohérente du prestataire Wave"),
-            @ApiResponse(responseCode = "503", description = "Opération Wave incertaine mise en file A_RECONCILIER")
+            @ApiResponse(responseCode = "409", description = "Transaction expirée, annulée, non INITIALISE ou opération déjà en cours"),
+            @ApiResponse(responseCode = "502", description = "Refus ou réponse incohérente du prestataire de paiement"),
+            @ApiResponse(responseCode = "503", description = "Configuration Sandbox incomplète/interdite ou opération en attente de réconciliation"),
+            @ApiResponse(responseCode = "504", description = "Timeout réseau lors de la communication avec le prestataire")
     })
     public ResponseEntity<TransactionResponseDTO> effectuerPaiementCaution(
             @PathVariable("id") UUID id,
             Authentication authentication
     ) {
         TransactionResponseDTO response = transactionService.effectuerPaiementCaution(id, authentication.getName());
+        return ResponseEntity.ok(response);
+    }
+
+    @GetMapping("/transactions/{id}/paiement/statut")
+    @PreAuthorize("@transactionSecurityService.isStakeholderOrAdmin(#id, authentication)")
+    @Operation(
+            summary = "Consulter et synchroniser le statut de paiement auprès du prestataire",
+            description = "Interroge le prestataire (PayTech get-status en Sandbox) lorsqu'un paiement est en attente de confirmation et retourne l'état actualisé du dossier."
+    )
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "Statut de paiement vérifié et retourné"),
+            @ApiResponse(responseCode = "401", description = "Authentification JWT requise"),
+            @ApiResponse(responseCode = "403", description = "Accès réservé aux parties prenantes ou à l'administrateur"),
+            @ApiResponse(responseCode = "404", description = "Transaction introuvable"),
+            @ApiResponse(responseCode = "502", description = "Erreur lors de la consultation du prestataire"),
+            @ApiResponse(responseCode = "504", description = "Timeout lors de la consultation du prestataire")
+    })
+    public ResponseEntity<TransactionResponseDTO> verifierStatutPaiement(
+            @PathVariable("id") UUID id,
+            Authentication authentication
+    ) {
+        TransactionResponseDTO response = transactionService.verifierStatutPaiementExterne(id, authentication.getName());
         return ResponseEntity.ok(response);
     }
 
@@ -161,17 +184,18 @@ public class TransactionController {
     }
 
     @PostMapping("/transactions/{id}/bail/signer")
-    @PreAuthorize("@transactionSecurityService.isStakeholderOrAdmin(#id, authentication)")
+    @PreAuthorize("@transactionSecurityService.isContractParty(#id, authentication)")
     @Operation(
-            summary = "Signer électroniquement le bail ou le récapitulatif de réservation d'achat",
-            description = "Enregistre la signature électronique du locataire/acheteur ou du propriétaire/agent. À la double signature (SIGNE_COMPLET), génère le PDF et libère automatiquement les fonds séquestrés (LIBERE)."
+            summary = "Signer le bail ou le récapitulatif de réservation (parties contractantes uniquement)",
+            description = "ESCROW-SIGN-001 : strictement réservé au locataire/acheteur et au propriétaire/vendeur authentifiés (ADMIN interdit). Enregistre l'empreinte SHA-256 des termes et la trace de signature. À la double signature (SIGNE_COMPLET), déclenche la libération logique du dossier et un transfert propriétaire simulé."
     )
     @ApiResponses({
-            @ApiResponse(responseCode = "200", description = "Signature enregistrée ; libération automatique du séquestre dès double signature"),
+            @ApiResponse(responseCode = "200", description = "Signature enregistrée ; libération logique du dossier dès double signature"),
+            @ApiResponse(responseCode = "400", description = "Double signature par la même partie refusée"),
             @ApiResponse(responseCode = "401", description = "Authentification JWT requise ou compte désactivé"),
-            @ApiResponse(responseCode = "403", description = "Accès refusé aux tiers ou acteur non signataire"),
+            @ApiResponse(responseCode = "403", description = "Accès refusé aux tiers et aux administrateurs (seules les parties contractantes peuvent signer)"),
             @ApiResponse(responseCode = "404", description = "Transaction introuvable"),
-            @ApiResponse(responseCode = "409", description = "Signature impossible : caution non BLOQUE, signature en double ou dossier clôturé/inactif")
+            @ApiResponse(responseCode = "409", description = "Signature impossible : paiement non confirmé, intégrité modifiée ou dossier clôturé/inactif")
     })
     public ResponseEntity<TransactionResponseDTO> signerBail(
             @PathVariable("id") UUID id,
@@ -179,6 +203,36 @@ public class TransactionController {
     ) {
         TransactionResponseDTO response = transactionService.signerBail(id, authentication.getName());
         return ResponseEntity.ok(response);
+    }
+
+    @GetMapping("/transactions/{id}/bail/apercu-pdf")
+    @PreAuthorize("@transactionSecurityService.isStakeholderOrAdmin(#id, authentication)")
+    @Operation(
+            summary = "Télécharger l'aperçu PDF pré-signature du contrat avec empreinte SHA-256",
+            description = "ESCROW-SIGN-002 : permet aux parties de consulter les conditions contractuelles et l'empreinte SHA-256 canonique avant signature."
+    )
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "Aperçu PDF pré-signature retourné"),
+            @ApiResponse(responseCode = "401", description = "Authentification requise"),
+            @ApiResponse(responseCode = "403", description = "Accès réservé aux parties prenantes ou à un ADMIN"),
+            @ApiResponse(responseCode = "404", description = "Transaction introuvable"),
+            @ApiResponse(responseCode = "409", description = "Aperçu disponible uniquement après confirmation du paiement")
+    })
+    public ResponseEntity<byte[]> telechargerApercuPdfBail(
+            @PathVariable("id") UUID id,
+            Authentication authentication
+    ) {
+        boolean isAdmin = authentication != null && authentication.getAuthorities().stream()
+                .anyMatch(a -> "ROLE_ADMIN".equals(a.getAuthority()));
+        byte[] pdfBytes = transactionService.genererApercuPdfBail(
+                id,
+                authentication != null ? authentication.getName() : null,
+                isAdmin
+        );
+        return ResponseEntity.ok()
+                .header(HttpHeaders.CONTENT_DISPOSITION, "inline; filename=\"apercu_contrat_" + id + ".pdf\"")
+                .contentType(MediaType.APPLICATION_PDF)
+                .body(pdfBytes);
     }
 
     @GetMapping("/transactions/mes-transactions")

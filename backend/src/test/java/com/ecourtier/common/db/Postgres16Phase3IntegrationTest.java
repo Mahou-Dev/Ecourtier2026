@@ -7,12 +7,17 @@ import com.ecourtier.domain.annonce.entity.StatutPublication;
 import com.ecourtier.domain.annonce.entity.StatutVerification;
 import com.ecourtier.domain.annonce.entity.TypeBien;
 import com.ecourtier.domain.annonce.repository.AnnonceRepository;
+import com.ecourtier.domain.transaction.entity.PaiementWaveEntity;
 import com.ecourtier.domain.transaction.entity.StatutBail;
 import com.ecourtier.domain.transaction.entity.StatutDocumentBail;
 import com.ecourtier.domain.transaction.entity.StatutSequestre;
 import com.ecourtier.domain.transaction.entity.TransactionEntity;
+import com.ecourtier.domain.transaction.entity.TypeOperationWave;
+import com.ecourtier.domain.transaction.repository.PaiementWaveRepository;
 import com.ecourtier.domain.transaction.repository.TransactionRepository;
 import com.ecourtier.domain.transaction.service.BailPdfRecoveryScheduler;
+import com.ecourtier.domain.transaction.service.TransactionService;
+import org.springframework.web.server.ResponseStatusException;
 import com.ecourtier.domain.utilisateur.entity.Role;
 import com.ecourtier.domain.utilisateur.entity.UtilisateurEntity;
 import com.ecourtier.domain.utilisateur.repository.UtilisateurRepository;
@@ -90,6 +95,12 @@ class Postgres16Phase3IntegrationTest {
 
     @Autowired
     private BailPdfRecoveryScheduler bailPdfRecoveryScheduler;
+
+    @Autowired
+    private TransactionService transactionService;
+
+    @Autowired
+    private PaiementWaveRepository paiementWaveRepository;
 
     @Test
     @DisplayName("1. Flyway V1 à V21 appliquées sans erreur sur PostgreSQL 16 + validation Hibernate + index partiels")
@@ -322,5 +333,91 @@ class Postgres16Phase3IntegrationTest {
         boolean takeoverRun = schedulerLockService.tryExecuteWithLock(lockName, Duration.ofMinutes(5), executions::incrementAndGet);
         assertTrue(takeoverRun, "Un verrou expiré doit être repris atomiquement sur PostgreSQL 16");
         assertEquals(2, executions.get());
+    }
+
+    @Test
+    @DisplayName("5. V23 sur PostgreSQL 16 : sale_complete puis refund_complete avec même ref_command/token sans collision d'index unique")
+    void testPayTechSaleThenRefundSameRefCommandAndTokenOnPostgres16() {
+        UtilisateurEntity owner = utilisateurRepository.saveAndFlush(UtilisateurEntity.builder()
+                .email("pg16.pt.owner." + UUID.randomUUID() + "@test.sn")
+                .motDePasse("HashTest123!")
+                .prenom("Modou")
+                .nom("Diop")
+                .telephone("+22177" + String.valueOf(Math.abs(UUID.randomUUID().hashCode()) + 1000000).substring(0, 7))
+                .role(Role.PROPRIETAIRE)
+                .actif(true)
+                .build());
+
+        UtilisateurEntity locataire = utilisateurRepository.saveAndFlush(UtilisateurEntity.builder()
+                .email("pg16.pt.loc." + UUID.randomUUID() + "@test.sn")
+                .motDePasse("HashTest123!")
+                .prenom("Fatou")
+                .nom("Ndiaye")
+                .telephone("+22178" + String.valueOf(Math.abs(UUID.randomUUID().hashCode()) + 1000000).substring(0, 7))
+                .role(Role.LOCATAIRE)
+                .actif(true)
+                .build());
+
+        AnnonceEntity annonce = annonceRepository.saveAndFlush(AnnonceEntity.builder()
+                .titre("Studio Point E PG16 PayTech")
+                .description("Test PostgreSQL 16 index uniques V19/V23 sur sale_complete puis refund_complete.")
+                .type(TypeBien.STUDIO)
+                .modeTransaction(ModeTransaction.LOCATION)
+                .prix(new BigDecimal("200000"))
+                .superficie(45.0)
+                .nombrePieces(2)
+                .quartier("Point E")
+                .ville("Dakar")
+                .latitude(14.695)
+                .longitude(-17.460)
+                .meuble(false)
+                .animauxAcceptes(false)
+                .confirmationAutomatique(true)
+                .statutVerification(StatutVerification.VERIFIEE)
+                .statutPublication(StatutPublication.DISPONIBLE)
+                .utilisateur(owner)
+                .build());
+
+        String refCommand = "ECOURTIER-PG16-" + UUID.randomUUID().toString().substring(0, 8).toUpperCase();
+        String token = "tok_pg16_" + UUID.randomUUID().toString().substring(0, 8);
+        TransactionEntity tx = transactionRepository.saveAndFlush(TransactionEntity.builder()
+                .annonce(annonce)
+                .locataire(locataire)
+                .proprietaire(owner)
+                .montantCaution(new BigDecimal("200000"))
+                .montantPremierLoyer(new BigDecimal("200000"))
+                .fraisDossier(new BigDecimal("5000"))
+                .statutSequestre(StatutSequestre.INITIALISE)
+                .statutBail(StatutBail.NON_SIGNE)
+                .statutDocumentBail(StatutDocumentBail.NON_GENERE)
+                .dossierActif(true)
+                .refCommandPaytech(refCommand)
+                .tokenPaiementExterne(token)
+                .statutPaiementExterne("EN_ATTENTE_CONFIRMATION")
+                .dateExpiration(LocalDateTime.now(ZoneId.of("Africa/Dakar")).plusHours(24))
+                .build());
+
+        // 1. Confirmation paiement (crée ligne PAIEMENT_SEQUESTRE avec ref_command et reference_externe=token)
+        transactionService.confirmExternalPayment(
+                tx.getId(), null, token, refCommand, "PAYTECH", false, new BigDecimal("405000"), "{\"type_event\":\"sale_complete\"}");
+
+        // 2. Notification transfert pointant sur un token PAIEMENT_SEQUESTRE -> doit être rejetée 404
+        ResponseStatusException transferEx = assertThrows(ResponseStatusException.class, () ->
+                transactionService.handleExternalTransferNotification(token, null, false, "failed", "{}"));
+        assertEquals(404, transferEx.getStatusCode().value());
+
+        // 3. Remboursement IPN avec MÊME ref_command et MÊME token (et rejeu idempotent) -> aucune violation d'index PostgreSQL !
+        var refunded = transactionService.handleExternalRefundNotification(
+                tx.getId(), refCommand, token, new BigDecimal("405000"), "{\"type_event\":\"refund_complete\"}");
+        assertEquals(StatutSequestre.REMBOURSE, refunded.getStatutSequestre());
+
+        var replayed = transactionService.handleExternalRefundNotification(
+                tx.getId(), refCommand, token, new BigDecimal("405000"), "{\"type_event\":\"refund_complete\"}");
+        assertEquals(StatutSequestre.REMBOURSE, replayed.getStatutSequestre());
+
+        List<PaiementWaveEntity> rows = paiementWaveRepository.findByTransactionIdOrderByDateCreationDesc(tx.getId());
+        assertEquals(2, rows.size());
+        assertTrue(rows.stream().anyMatch(r -> r.getTypeOperation() == TypeOperationWave.PAIEMENT_SEQUESTRE && refCommand.equals(r.getRefCommand())));
+        assertTrue(rows.stream().anyMatch(r -> r.getTypeOperation() == TypeOperationWave.REMBOURSEMENT && ("REFUND-" + token).equals(r.getReferenceExterne())));
     }
 }

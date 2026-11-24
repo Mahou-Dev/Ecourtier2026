@@ -422,7 +422,7 @@ test.describe('Lot 2.2.C — Fiche annonce : Prix unique, Galerie 1..10, Statuts
     const bookingCard = page.locator('#booking-card');
     await expect(bookingCard).toContainText('Prix de Vente');
     await expect(bookingCard).toContainText('85 000 000 FCFA');
-    await expect(bookingCard).toContainText('Acompte de réservation sécurisé sous séquestre');
+    await expect(bookingCard).toContainText('Acompte de réservation via PayTech (environnement test)');
     await expect(bookingCard).not.toContainText(/Loyer|Caution|bail|Wave|✔/i);
 
     // etage absent -> omitted completely (no N/A!)
