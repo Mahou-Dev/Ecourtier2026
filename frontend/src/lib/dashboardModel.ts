@@ -319,12 +319,15 @@ export function getTransactionNextStep(
     return { text: 'Dossier clos : aucune action requise.', tone: 'closed' };
   }
   if (tx.statutSequestre === 'LIBERE') {
-    return { text: 'Fonds libérés : le dossier est finalisé.', tone: 'done' };
+    return { text: 'Libération logique effectuée : le dossier est finalisé.', tone: 'done' };
   }
   if (tx.statutSequestre === 'INITIALISE') {
+    if (tx.statutPaiementExterne === 'EN_ATTENTE_CONFIRMATION') {
+      return { text: 'Paiement PayTech initialisé : en attente de confirmation.', tone: 'waiting' };
+    }
     return side === 'proprietaire'
-      ? { text: `En attente du règlement du séquestre par ${isVente ? 'l’acquéreur' : 'le locataire'}.`, tone: 'waiting' }
-      : { text: 'Prochaine étape : régler le séquestre pour débloquer la signature.', tone: 'action' };
+      ? { text: `En attente du paiement via PayTech par ${isVente ? 'l’acquéreur' : 'le locataire'}.`, tone: 'waiting' }
+      : { text: 'Prochaine étape : initier le paiement pour débloquer la signature.', tone: 'action' };
   }
 
   // Séquestre bloqué : la suite dépend des signatures.
@@ -351,19 +354,19 @@ export function getTransactionNextStep(
 export function getSequestreMeta(statut: TransactionResponseDTO['statutSequestre']): { label: string; variant: BadgeVariant } {
   switch (statut) {
     case 'INITIALISE':
-      return { label: 'Séquestre : à consigner', variant: 'warning' };
+      return { label: 'Paiement : en attente', variant: 'warning' };
     case 'BLOQUE':
-      return { label: 'Séquestre : bloqué', variant: 'info' };
+      return { label: 'Paiement : confirmé', variant: 'info' };
     case 'LIBERE':
-      return { label: 'Séquestre : libéré', variant: 'success' };
+      return { label: 'Dossier : libération logique', variant: 'success' };
     case 'REMBOURSE':
-      return { label: 'Séquestre : remboursé', variant: 'neutral' };
+      return { label: 'Paiement : remboursé (simulé)', variant: 'neutral' };
     case 'ANNULE':
       return { label: 'Transaction : annulée', variant: 'neutral' };
     case 'EXPIRE':
       return { label: 'Transaction : expirée', variant: 'rose' };
     default:
-      return { label: 'Séquestre : statut inconnu', variant: 'neutral' };
+      return { label: 'Paiement : statut inconnu', variant: 'neutral' };
   }
 }
 

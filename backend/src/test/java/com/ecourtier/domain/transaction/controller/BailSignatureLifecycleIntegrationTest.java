@@ -197,17 +197,22 @@ class BailSignatureLifecycleIntegrationTest {
     }
 
     @Test
-    @DisplayName("1. RES-03 : Refus 409 de signerBail sur INITIALISE pour locataire, propriétaire et admin")
+    @DisplayName("1. RES-03 / ESCROW-SIGN-001 : Refus 409 sur INITIALISE pour locataire/propriétaire et 403 pour ADMIN")
     void testRefusSignatureSurInitialisePourTousActeurs() throws Exception {
         AnnonceEntity annonce = createAnnonce(StatutPublication.DISPONIBLE);
         TransactionEntity tx = createTransaction(annonce, StatutSequestre.INITIALISE, StatutBail.NON_SIGNE,
                 null, null, LocalDateTime.now().plusHours(24));
 
-        for (String token : List.of(tokenLocataire, tokenProprietaire, tokenAdmin)) {
+        for (String token : List.of(tokenLocataire, tokenProprietaire)) {
             mockMvc.perform(post("/api/v1/transactions/{id}/bail/signer", tx.getId())
                             .header("Authorization", "Bearer " + token))
                     .andExpect(status().isConflict());
         }
+
+        // ESCROW-SIGN-001 : ADMIN est toujours interdit de signer (403 Forbidden)
+        mockMvc.perform(post("/api/v1/transactions/{id}/bail/signer", tx.getId())
+                        .header("Authorization", "Bearer " + tokenAdmin))
+                .andExpect(status().isForbidden());
 
         TransactionEntity unchanged = transactionRepository.findById(tx.getId()).orElseThrow();
         assertEquals(StatutBail.NON_SIGNE, unchanged.getStatutBail());
@@ -262,8 +267,8 @@ class BailSignatureLifecycleIntegrationTest {
     }
 
     @Test
-    @DisplayName("4. RES-03 : ADMIN complète SIGNE_PROPRIETAIRE -> SIGNE_COMPLET sans régression vers SIGNE_LOCATAIRE")
-    void testAdminCompleteSignatureApresProprietaireSansRegression() throws Exception {
+    @DisplayName("4. ESCROW-SIGN-001 : ADMIN est strictement interdit (403) de signer à la place du locataire après le propriétaire")
+    void testAdminInterditDeSignerApresProprietaire() throws Exception {
         AnnonceEntity annonce = createAnnonce(StatutPublication.RESERVEE);
         TransactionEntity tx = createTransaction(annonce, StatutSequestre.BLOQUE, StatutBail.NON_SIGNE,
                 null, null, LocalDateTime.now().plusHours(24));
@@ -271,26 +276,46 @@ class BailSignatureLifecycleIntegrationTest {
         mockMvc.perform(post("/api/v1/transactions/{id}/bail/signer", tx.getId())
                         .header("Authorization", "Bearer " + tokenProprietaire))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.statutBail", is("SIGNE_PROPRIETAIRE")));
+                .andExpect(jsonPath("$.statutBail", is("SIGNE_PROPRIETAIRE")))
+                .andExpect(jsonPath("$.statutSequestre", is("BLOQUE")));
 
         mockMvc.perform(post("/api/v1/transactions/{id}/bail/signer", tx.getId())
                         .header("Authorization", "Bearer " + tokenAdmin))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.statutBail", is("SIGNE_COMPLET")))
-                .andExpect(jsonPath("$.statutSequestre", is("LIBERE")));
+                .andExpect(status().isForbidden());
 
-        TransactionEntity updatedTx = transactionRepository.findById(tx.getId()).orElseThrow();
-        assertNotNull(updatedTx.getDateSignatureLocataire());
-        assertNotNull(updatedTx.getDateSignatureProprietaire());
+        ResponseStatusException serviceEx = assertThrows(ResponseStatusException.class,
+                () -> transactionService.signerBail(tx.getId(), admin.getEmail()));
+        assertEquals(403, serviceEx.getStatusCode().value());
+
+        TransactionEntity unchangedTx = transactionRepository.findById(tx.getId()).orElseThrow();
+        assertEquals(StatutBail.SIGNE_PROPRIETAIRE, unchangedTx.getStatutBail());
+        assertEquals(StatutSequestre.BLOQUE, unchangedTx.getStatutSequestre());
+        assertNull(unchangedTx.getDateSignatureLocataire());
+        assertNotNull(unchangedTx.getDateSignatureProprietaire());
     }
 
     @Test
-    @DisplayName("5. RES-03 : ADMIN complète SIGNE_LOCATAIRE -> SIGNE_COMPLET + LIBERE")
-    void testAdminCompleteSignatureApresLocataire() throws Exception {
+    @DisplayName("5. ESCROW-SIGN-001 : ADMIN ne peut provoquer la double signature ni après locataire ni par deux appels successifs")
+    void testAdminInterditDeSignerApresLocataireOuParDoubleAppel() throws Exception {
         AnnonceEntity annonce = createAnnonce(StatutPublication.RESERVEE);
         TransactionEntity tx = createTransaction(annonce, StatutSequestre.BLOQUE, StatutBail.NON_SIGNE,
                 null, null, LocalDateTime.now().plusHours(24));
 
+        // Deux appels successifs par ADMIN -> 403 à chaque appel, aucune signature, aucune libération
+        mockMvc.perform(post("/api/v1/transactions/{id}/bail/signer", tx.getId())
+                        .header("Authorization", "Bearer " + tokenAdmin))
+                .andExpect(status().isForbidden());
+        mockMvc.perform(post("/api/v1/transactions/{id}/bail/signer", tx.getId())
+                        .header("Authorization", "Bearer " + tokenAdmin))
+                .andExpect(status().isForbidden());
+
+        TransactionEntity afterAdminAttempts = transactionRepository.findById(tx.getId()).orElseThrow();
+        assertEquals(StatutBail.NON_SIGNE, afterAdminAttempts.getStatutBail());
+        assertEquals(StatutSequestre.BLOQUE, afterAdminAttempts.getStatutSequestre());
+        assertNull(afterAdminAttempts.getDateSignatureLocataire());
+        assertNull(afterAdminAttempts.getDateSignatureProprietaire());
+
+        // Locataire signe -> ADMIN ne peut toujours pas compléter à la place du propriétaire
         mockMvc.perform(post("/api/v1/transactions/{id}/bail/signer", tx.getId())
                         .header("Authorization", "Bearer " + tokenLocataire))
                 .andExpect(status().isOk())
@@ -298,9 +323,12 @@ class BailSignatureLifecycleIntegrationTest {
 
         mockMvc.perform(post("/api/v1/transactions/{id}/bail/signer", tx.getId())
                         .header("Authorization", "Bearer " + tokenAdmin))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.statutBail", is("SIGNE_COMPLET")))
-                .andExpect(jsonPath("$.statutSequestre", is("LIBERE")));
+                .andExpect(status().isForbidden());
+
+        TransactionEntity stillWaitingOwner = transactionRepository.findById(tx.getId()).orElseThrow();
+        assertEquals(StatutBail.SIGNE_LOCATAIRE, stillWaitingOwner.getStatutBail());
+        assertEquals(StatutSequestre.BLOQUE, stillWaitingOwner.getStatutSequestre());
+        assertNull(stillWaitingOwner.getDateSignatureProprietaire());
     }
 
     @Test

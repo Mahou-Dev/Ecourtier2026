@@ -8,12 +8,17 @@ import com.ecourtier.domain.annonce.repository.AnnonceRepository;
 import com.ecourtier.domain.annonce.service.AnnonceStatutStateMachine;
 import com.ecourtier.domain.rendezvous.repository.RendezVousRepository;
 import com.ecourtier.domain.transaction.client.WaveCheckoutResponse;
-import com.ecourtier.domain.transaction.client.WaveClient;
 import com.ecourtier.domain.transaction.client.WaveRefundResponse;
 import com.ecourtier.domain.transaction.dto.RemboursementRequestDTO;
 import com.ecourtier.domain.transaction.entity.StatutBail;
 import com.ecourtier.domain.transaction.entity.StatutSequestre;
 import com.ecourtier.domain.transaction.entity.TransactionEntity;
+import com.ecourtier.domain.transaction.gateway.PaymentGateway;
+import com.ecourtier.domain.transaction.gateway.PaymentGateway.ExternalPaymentState;
+import com.ecourtier.domain.transaction.gateway.PaymentGateway.PaymentInitRequest;
+import com.ecourtier.domain.transaction.gateway.PaymentGateway.PaymentInitResponse;
+import com.ecourtier.domain.transaction.gateway.PaymentGateway.PaymentRefundResult;
+import com.ecourtier.domain.transaction.gateway.PaymentGateway.PaymentStatusResult;
 import com.ecourtier.domain.transaction.mapper.TransactionMapper;
 import com.ecourtier.domain.transaction.repository.TransactionRepository;
 import com.ecourtier.domain.utilisateur.entity.Role;
@@ -67,7 +72,7 @@ class TransactionServiceTest {
     private AnnonceStatutStateMachine annonceStatutStateMachine = new AnnonceStatutStateMachine();
 
     @Mock
-    private WaveClient waveClient;
+    private PaymentGateway paymentGateway;
 
     @Mock
     private PdfBailGeneratorService pdfBailGeneratorService;
@@ -113,7 +118,7 @@ class TransactionServiceTest {
     }
 
     @Test
-    @DisplayName("ANO-01 : Un échec du prestataire Wave lors du paiement ne marque jamais la transaction comme BLOQUE")
+    @DisplayName("ANO-01 : Un échec du prestataire lors du paiement ne marque jamais la transaction comme BLOQUE")
     void testEchecPrestatairePaiementNeMarquePasTransactionPayee() {
         TransactionEntity tx = TransactionEntity.builder()
                 .id(txId)
@@ -128,8 +133,8 @@ class TransactionServiceTest {
                 .build();
 
         when(transactionRepository.findByIdForUpdate(txId)).thenReturn(Optional.of(tx));
-        when(waveClient.initiateEscrowCheckout(eq(txId), any(), any()))
-                .thenThrow(new RuntimeException("Wave API Timeout"));
+        when(paymentGateway.initiatePayment(any(PaymentInitRequest.class)))
+                .thenThrow(new RuntimeException("Gateway API Timeout"));
 
         ResponseStatusException ex = assertThrows(ResponseStatusException.class,
                 () -> transactionService.effectuerPaiementCaution(txId, "loc@ecourtier.sn"));
@@ -142,7 +147,7 @@ class TransactionServiceTest {
     }
 
     @Test
-    @DisplayName("ANO-01 : Une réponse Wave non confirmée (FAILED) refuse le paiement et conserve INITIALISE")
+    @DisplayName("ANO-01 : Une réponse prestataire non confirmée (FAILED) refuse le paiement et conserve INITIALISE")
     void testReponsePrestataireFailedNeMarquePasTransactionPayee() {
         TransactionEntity tx = TransactionEntity.builder()
                 .id(txId)
@@ -157,10 +162,11 @@ class TransactionServiceTest {
                 .build();
 
         when(transactionRepository.findByIdForUpdate(txId)).thenReturn(Optional.of(tx));
-        when(waveClient.initiateEscrowCheckout(eq(txId), any(), any()))
-                .thenReturn(WaveCheckoutResponse.builder()
-                        .waveReference("WAVE-FAILED-001")
-                        .status("FAILED")
+        when(paymentGateway.initiatePayment(any(PaymentInitRequest.class)))
+                .thenReturn(PaymentInitResponse.builder()
+                        .externalReference("SIM-FAILED-001")
+                        .state(ExternalPaymentState.FAILED)
+                        .simulated(true)
                         .build());
 
         ResponseStatusException ex = assertThrows(ResponseStatusException.class,
@@ -174,7 +180,7 @@ class TransactionServiceTest {
     }
 
     @Test
-    @DisplayName("ANO-01 : Deuxième tentative de paiement sur une transaction déjà BLOQUE refusée sans appeler WaveClient ni régénérer le PDF")
+    @DisplayName("ANO-01 : Deuxième tentative de paiement sur une transaction déjà BLOQUE refusée sans appeler PaymentGateway ni régénérer le PDF")
     void testDeuxiemePaiementRefuseSansAppelPrestataire() {
         TransactionEntity tx = TransactionEntity.builder()
                 .id(txId)
@@ -185,7 +191,7 @@ class TransactionServiceTest {
                 .montantPremierLoyer(BigDecimal.valueOf(250000))
                 .fraisDossier(BigDecimal.valueOf(5000))
                 .statutSequestre(StatutSequestre.BLOQUE)
-                .referenceWave("WAVE-SANDBOX-INITIAL1")
+                .referenceWave("SIM-LOCAL-INITIAL1")
                 .statutBail(StatutBail.NON_SIGNE)
                 .build();
 
@@ -195,14 +201,14 @@ class TransactionServiceTest {
                 () -> transactionService.effectuerPaiementCaution(txId, "loc@ecourtier.sn"));
 
         assertEquals(HttpStatus.CONFLICT, ex.getStatusCode());
-        assertEquals("WAVE-SANDBOX-INITIAL1", tx.getReferenceWave());
-        verify(waveClient, never()).initiateEscrowCheckout(any(), any(), any());
+        assertEquals("SIM-LOCAL-INITIAL1", tx.getReferenceWave());
+        verify(paymentGateway, never()).initiatePayment(any());
         verify(pdfBailGeneratorService, never()).generatePdfBail(any());
         verify(transactionRepository, never()).saveAndFlush(any());
     }
 
     @Test
-    @DisplayName("ANO-09 : Un échec du prestataire Wave lors du remboursement ne passe jamais la transaction à REMBOURSE")
+    @DisplayName("ANO-09 : Un échec du prestataire lors du remboursement ne passe jamais la transaction à REMBOURSE")
     void testEchecPrestataireRemboursementConserveStatutBloque() {
         TransactionEntity tx = TransactionEntity.builder()
                 .id(txId)
@@ -213,15 +219,16 @@ class TransactionServiceTest {
                 .montantPremierLoyer(BigDecimal.valueOf(250000))
                 .fraisDossier(BigDecimal.valueOf(5000))
                 .statutSequestre(StatutSequestre.BLOQUE)
-                .referenceWave("WAVE-SANDBOX-PAID123")
+                .referenceWave("SIM-LOCAL-PAID123")
                 .statutBail(StatutBail.NON_SIGNE)
                 .build();
 
         when(transactionRepository.findByIdForUpdate(txId)).thenReturn(Optional.of(tx));
-        when(waveClient.initiateEscrowRefund(eq(txId), eq("WAVE-SANDBOX-PAID123"), any()))
-                .thenReturn(WaveRefundResponse.builder()
-                        .refundReference("WAVE-REFUND-ERR")
+        when(paymentGateway.initiateRefund(eq(txId), eq("SIM-LOCAL-PAID123"), any()))
+                .thenReturn(PaymentRefundResult.builder()
+                        .refundReference("SIM-REFUND-ERR")
                         .status("FAILED")
+                        .simulated(true)
                         .build());
 
         ResponseStatusException ex = assertThrows(ResponseStatusException.class,
@@ -233,7 +240,7 @@ class TransactionServiceTest {
 
         assertEquals(HttpStatus.BAD_GATEWAY, ex.getStatusCode());
         assertEquals(StatutSequestre.BLOQUE, tx.getStatutSequestre());
-        assertEquals("WAVE-SANDBOX-PAID123", tx.getReferenceWave());
+        assertEquals("SIM-LOCAL-PAID123", tx.getReferenceWave());
         assertNull(tx.getReferenceRemboursementWave());
         assertNull(tx.getMontantRembourse());
         assertNull(tx.getDateRemboursement());
@@ -256,21 +263,31 @@ class TransactionServiceTest {
                 .build();
 
         when(transactionRepository.findByIdForUpdate(txId)).thenReturn(Optional.of(tx));
-        when(waveClient.initiateEscrowCheckout(eq(txId), any(), any()))
-                .thenReturn(WaveCheckoutResponse.builder()
+        when(paymentGateway.initiatePayment(any(PaymentInitRequest.class)))
+                .thenReturn(PaymentInitResponse.builder()
                         .transactionId(txId)
                         .amount(BigDecimal.valueOf(505000))
-                        .waveReference("WAVE-SANDBOX-OK001")
-                        .status("SUCCESS")
+                        .providerCode("MOCK_LOCAL")
+                        .externalReference("SIM-LOCAL-OK001")
+                        .state(ExternalPaymentState.CONFIRMED_SIMULATED)
+                        .simulated(true)
+                        .zeroDebitGuaranteed(true)
                         .build());
-        when(waveClient.verifyPaymentStatus("WAVE-SANDBOX-OK001", txId, BigDecimal.valueOf(505000))).thenReturn(true);
+        when(paymentGateway.checkPaymentStatus("SIM-LOCAL-OK001", txId, BigDecimal.valueOf(505000)))
+                .thenReturn(PaymentStatusResult.builder()
+                        .state(ExternalPaymentState.CONFIRMED_SIMULATED)
+                        .externalReference("SIM-LOCAL-OK001")
+                        .confirmedAmount(BigDecimal.valueOf(505000))
+                        .simulated(true)
+                        .build());
         when(pdfBailGeneratorService.generatePdfBail(tx)).thenReturn("uploads/baux/bail_" + txId + ".pdf");
         when(transactionRepository.saveAndFlush(any(TransactionEntity.class))).thenAnswer(inv -> inv.getArgument(0));
 
         var res = transactionService.effectuerPaiementCaution(txId, "loc@ecourtier.sn");
 
         assertEquals(StatutSequestre.LIBERE, res.getStatutSequestre());
-        assertEquals("WAVE-SANDBOX-OK001", res.getReferenceWave());
+        assertEquals("SIM-LOCAL-OK001", res.getReferenceWave());
+        assertEquals("TRANSFERT_SIMULE", res.getStatutTransfertProprietaire());
         assertNotNull(res.getDatePaiement());
         assertNotNull(res.getDateLiberation());
         assertEquals("uploads/baux/bail_" + txId + ".pdf", res.getPdfBailPath());
@@ -286,7 +303,7 @@ class TransactionServiceTest {
     }
 
     @Test
-    @DisplayName("ANO-09 : Remboursement refusé (502) si originalWaveReference ou refundedAmount ne correspond pas à la transaction")
+    @DisplayName("ANO-09 : Remboursement refusé (502) si originalReference ou refundedAmount ne correspond pas à la transaction")
     void testRemboursementRefuseSiReferenceInitialeOuMontantIncoherent() {
         TransactionEntity tx = TransactionEntity.builder()
                 .id(txId)
@@ -297,20 +314,21 @@ class TransactionServiceTest {
                 .montantPremierLoyer(BigDecimal.valueOf(250000))
                 .fraisDossier(BigDecimal.valueOf(5000))
                 .statutSequestre(StatutSequestre.BLOQUE)
-                .referenceWave("WAVE-SANDBOX-PAID123")
+                .referenceWave("SIM-LOCAL-PAID123")
                 .statutBail(StatutBail.NON_SIGNE)
                 .dossierActif(Boolean.TRUE)
                 .build();
 
         when(transactionRepository.findByIdForUpdate(txId)).thenReturn(Optional.of(tx));
 
-        // Cas 1 : originalWaveReference incohérente
-        when(waveClient.initiateEscrowRefund(eq(txId), eq("WAVE-SANDBOX-PAID123"), any()))
-                .thenReturn(WaveRefundResponse.builder()
-                        .refundReference("WAVE-REFUND-SANDBOX-001")
-                        .originalWaveReference("WAVE-SANDBOX-AUTRE999")
+        // Cas 1 : originalReference incohérente
+        when(paymentGateway.initiateRefund(eq(txId), eq("SIM-LOCAL-PAID123"), any()))
+                .thenReturn(PaymentRefundResult.builder()
+                        .refundReference("SIM-REFUND-001")
+                        .originalReference("SIM-LOCAL-AUTRE999")
                         .refundedAmount(BigDecimal.valueOf(505000))
                         .status("SUCCESS")
+                        .simulated(true)
                         .build());
 
         ResponseStatusException exRef = assertThrows(ResponseStatusException.class,
@@ -326,12 +344,13 @@ class TransactionServiceTest {
         assertNull(tx.getDateRemboursement());
 
         // Cas 2 : refundedAmount différent du montant attendu (partiel non autorisé)
-        when(waveClient.initiateEscrowRefund(eq(txId), eq("WAVE-SANDBOX-PAID123"), any()))
-                .thenReturn(WaveRefundResponse.builder()
-                        .refundReference("WAVE-REFUND-SANDBOX-002")
-                        .originalWaveReference("WAVE-SANDBOX-PAID123")
+        when(paymentGateway.initiateRefund(eq(txId), eq("SIM-LOCAL-PAID123"), any()))
+                .thenReturn(PaymentRefundResult.builder()
+                        .refundReference("SIM-REFUND-002")
+                        .originalReference("SIM-LOCAL-PAID123")
                         .refundedAmount(BigDecimal.valueOf(250000))
                         .status("SUCCESS")
+                        .simulated(true)
                         .build());
 
         ResponseStatusException exAmount = assertThrows(ResponseStatusException.class,
@@ -347,14 +366,15 @@ class TransactionServiceTest {
         assertNull(tx.getDateRemboursement());
 
         // Cas 3 : verifyRefundStatus (surcharge à 3 arguments) retourne false
-        when(waveClient.initiateEscrowRefund(eq(txId), eq("WAVE-SANDBOX-PAID123"), any()))
-                .thenReturn(WaveRefundResponse.builder()
-                        .refundReference("WAVE-REFUND-SANDBOX-003")
-                        .originalWaveReference("WAVE-SANDBOX-PAID123")
+        when(paymentGateway.initiateRefund(eq(txId), eq("SIM-LOCAL-PAID123"), any()))
+                .thenReturn(PaymentRefundResult.builder()
+                        .refundReference("SIM-REFUND-003")
+                        .originalReference("SIM-LOCAL-PAID123")
                         .refundedAmount(new BigDecimal("505000.00"))
                         .status("SUCCESS")
+                        .simulated(true)
                         .build());
-        when(waveClient.verifyRefundStatus("WAVE-REFUND-SANDBOX-003", "WAVE-SANDBOX-PAID123", BigDecimal.valueOf(505000)))
+        when(paymentGateway.verifyRefundStatus("SIM-REFUND-003", "SIM-LOCAL-PAID123", BigDecimal.valueOf(505000)))
                 .thenReturn(false);
 
         ResponseStatusException exVerify = assertThrows(ResponseStatusException.class,
@@ -372,7 +392,7 @@ class TransactionServiceTest {
     }
 
     @Test
-    @DisplayName("LOT 2 : Un dossier inactif (dossier_actif = false) refuse tout paiement, signature ou remboursement (409) sans aucun appel Wave")
+    @DisplayName("LOT 2 : Un dossier inactif (dossier_actif = false) refuse tout paiement, signature ou remboursement (409) sans aucun appel prestataire")
     void testDossierInactifRefusePaiementSignatureEtRemboursementSansAppelWave() {
         TransactionEntity txInactive = TransactionEntity.builder()
                 .id(txId)
@@ -413,9 +433,9 @@ class TransactionServiceTest {
         assertEquals(StatutSequestre.INITIALISE, txInactive.getStatutSequestre());
         assertNull(txInactive.getReferenceRemboursementWave());
 
-        // 4. Aucun appel au client Wave ni écriture en base
-        verify(waveClient, never()).initiateEscrowCheckout(any(), any(), any());
-        verify(waveClient, never()).initiateEscrowRefund(any(), any(), any());
+        // 4. Aucun appel au prestataire ni écriture en base
+        verify(paymentGateway, never()).initiatePayment(any());
+        verify(paymentGateway, never()).initiateRefund(any(), any(), any());
         verify(transactionRepository, never()).saveAndFlush(any());
     }
 
@@ -437,13 +457,14 @@ class TransactionServiceTest {
 
         when(transactionRepository.findByIdForUpdate(txId)).thenReturn(Optional.of(tx));
 
-        // Cas 1 : Réponse Wave associée à une autre transaction
-        when(waveClient.initiateEscrowCheckout(eq(txId), any(), any()))
-                .thenReturn(WaveCheckoutResponse.builder()
+        // Cas 1 : Réponse associée à une autre transaction
+        when(paymentGateway.initiatePayment(any(PaymentInitRequest.class)))
+                .thenReturn(PaymentInitResponse.builder()
                         .transactionId(UUID.randomUUID())
                         .amount(BigDecimal.valueOf(505000))
-                        .waveReference("WAVE-SANDBOX-OTHER-TX")
-                        .status("SUCCESS")
+                        .externalReference("SIM-LOCAL-OTHER-TX")
+                        .state(ExternalPaymentState.CONFIRMED_SIMULATED)
+                        .simulated(true)
                         .build());
 
         ResponseStatusException exOtherTx = assertThrows(ResponseStatusException.class,
@@ -452,13 +473,14 @@ class TransactionServiceTest {
         assertEquals(StatutSequestre.INITIALISE, tx.getStatutSequestre());
         assertNull(tx.getReferenceWave());
 
-        // Cas 2 : Réponse Wave avec un montant différent du montant attendu
-        when(waveClient.initiateEscrowCheckout(eq(txId), any(), any()))
-                .thenReturn(WaveCheckoutResponse.builder()
+        // Cas 2 : Réponse avec un montant différent du montant attendu
+        when(paymentGateway.initiatePayment(any(PaymentInitRequest.class)))
+                .thenReturn(PaymentInitResponse.builder()
                         .transactionId(txId)
                         .amount(BigDecimal.valueOf(100000))
-                        .waveReference("WAVE-SANDBOX-WRONG-AMT")
-                        .status("SUCCESS")
+                        .externalReference("SIM-LOCAL-WRONG-AMT")
+                        .state(ExternalPaymentState.CONFIRMED_SIMULATED)
+                        .simulated(true)
                         .build());
 
         ResponseStatusException exWrongAmt = assertThrows(ResponseStatusException.class,
@@ -467,16 +489,21 @@ class TransactionServiceTest {
         assertEquals(StatutSequestre.INITIALISE, tx.getStatutSequestre());
         assertNull(tx.getReferenceWave());
 
-        // Cas 3 : verifyPaymentStatus(ref, txId, expectedAmount) rejette la correspondance
-        when(waveClient.initiateEscrowCheckout(eq(txId), any(), any()))
-                .thenReturn(WaveCheckoutResponse.builder()
+        // Cas 3 : checkPaymentStatus rejette la correspondance
+        when(paymentGateway.initiatePayment(any(PaymentInitRequest.class)))
+                .thenReturn(PaymentInitResponse.builder()
                         .transactionId(txId)
                         .amount(BigDecimal.valueOf(505000))
-                        .waveReference("WAVE-SANDBOX-UNVERIFIED")
-                        .status("SUCCESS")
+                        .externalReference("SIM-LOCAL-UNVERIFIED")
+                        .state(ExternalPaymentState.CONFIRMED_SIMULATED)
+                        .simulated(true)
                         .build());
-        when(waveClient.verifyPaymentStatus("WAVE-SANDBOX-UNVERIFIED", txId, BigDecimal.valueOf(505000)))
-                .thenReturn(false);
+        when(paymentGateway.checkPaymentStatus("SIM-LOCAL-UNVERIFIED", txId, BigDecimal.valueOf(505000)))
+                .thenReturn(PaymentStatusResult.builder()
+                        .state(ExternalPaymentState.FAILED)
+                        .externalReference("SIM-LOCAL-UNVERIFIED")
+                        .simulated(true)
+                        .build());
 
         ResponseStatusException exUnverified = assertThrows(ResponseStatusException.class,
                 () -> transactionService.effectuerPaiementCaution(txId, "loc@ecourtier.sn"));
@@ -487,17 +514,18 @@ class TransactionServiceTest {
     }
 
     @Test
-    @DisplayName("WaveClientMock : Registre interne de paiements et remboursements simulés")
+    @DisplayName("MockPaymentGateway / WaveClientMock : Registre interne de paiements et remboursements simulés")
     void testWaveClientMockRegistreInterneEtRejets() {
         com.ecourtier.domain.transaction.client.WaveClientMock mock = new com.ecourtier.domain.transaction.client.WaveClientMock();
         UUID idTx = UUID.randomUUID();
         BigDecimal montant = new BigDecimal("505000.00");
 
-        // 1. Un paiement inconnu mais préfixé WAVE- est rejeté par verifyPaymentStatus
-        org.junit.jupiter.api.Assertions.assertFalse(mock.verifyPaymentStatus("WAVE-SANDBOX-INCONNU"));
+        // 1. Un paiement inconnu est rejeté par verifyPaymentStatus
+        org.junit.jupiter.api.Assertions.assertFalse(mock.verifyPaymentStatus("SIM-LOCAL-INCONNU"));
 
-        // 2. Initiation d'un paiement valide -> enregistré et confirmé
+        // 2. Initiation d'un paiement valide -> enregistré et confirmé avec préfixe SIM-LOCAL-
         WaveCheckoutResponse checkout = mock.initiateEscrowCheckout(idTx, montant, "+221771112233");
+        org.junit.jupiter.api.Assertions.assertTrue(checkout.getWaveReference().startsWith("SIM-LOCAL-"));
         org.junit.jupiter.api.Assertions.assertTrue(mock.verifyPaymentStatus(checkout.getWaveReference()));
         org.junit.jupiter.api.Assertions.assertTrue(mock.verifyPaymentStatus(checkout.getWaveReference(), idTx, new BigDecimal("505000")));
         org.junit.jupiter.api.Assertions.assertFalse(mock.verifyPaymentStatus(checkout.getWaveReference(), UUID.randomUUID(), montant));
@@ -505,20 +533,21 @@ class TransactionServiceTest {
 
         // 3. Remboursement sur référence de paiement inconnue -> rejeté
         assertThrows(IllegalStateException.class,
-                () -> mock.initiateEscrowRefund(idTx, "WAVE-SANDBOX-INCONNU", montant));
+                () -> mock.initiateEscrowRefund(idTx, "SIM-LOCAL-INCONNU", montant));
 
         // 4. Remboursement d'un montant supérieur au montant payé -> rejeté
         assertThrows(IllegalArgumentException.class,
                 () -> mock.initiateEscrowRefund(idTx, checkout.getWaveReference(), new BigDecimal("600000")));
 
-        // 5. Un remboursement non enregistré mais préfixé WAVE-REFUND- est rejeté par verifyRefundStatus
-        org.junit.jupiter.api.Assertions.assertFalse(mock.verifyRefundStatus("WAVE-REFUND-SANDBOX-FAUX"));
+        // 5. Un remboursement non enregistré est rejeté par verifyRefundStatus
+        org.junit.jupiter.api.Assertions.assertFalse(mock.verifyRefundStatus("SIM-REFUND-FAUX"));
 
-        // 6. Premier remboursement valide -> enregistré et confirmé
+        // 6. Premier remboursement valide -> enregistré et confirmé avec préfixe SIM-REFUND-
         WaveRefundResponse refund = mock.initiateEscrowRefund(idTx, checkout.getWaveReference(), montant);
+        org.junit.jupiter.api.Assertions.assertTrue(refund.getRefundReference().startsWith("SIM-REFUND-"));
         org.junit.jupiter.api.Assertions.assertTrue(mock.verifyRefundStatus(refund.getRefundReference()));
         org.junit.jupiter.api.Assertions.assertTrue(mock.verifyRefundStatus(refund.getRefundReference(), checkout.getWaveReference(), new BigDecimal("505000")));
-        org.junit.jupiter.api.Assertions.assertFalse(mock.verifyRefundStatus(refund.getRefundReference(), "WAVE-SANDBOX-AUTRE", new BigDecimal("505000")));
+        org.junit.jupiter.api.Assertions.assertFalse(mock.verifyRefundStatus(refund.getRefundReference(), "SIM-LOCAL-AUTRE", new BigDecimal("505000")));
         org.junit.jupiter.api.Assertions.assertFalse(mock.verifyRefundStatus(refund.getRefundReference(), checkout.getWaveReference(), new BigDecimal("250000")));
 
         // 7. Deuxième remboursement pour le même paiement initial -> rejeté

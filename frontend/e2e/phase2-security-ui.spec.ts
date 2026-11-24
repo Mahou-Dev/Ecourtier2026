@@ -100,7 +100,7 @@ test.describe('Phase 2 Frontend Security & Integrity UI (Mocked API)', () => {
     await openButtons.nth(0).click();
     const dialog = page.locator('div[role="dialog"]');
     await expect(dialog).toBeVisible();
-    await expect(dialog).toContainText('après confirmation du paiement du séquestre Wave');
+    await expect(dialog).toContainText('après confirmation authentifiée du paiement');
     await expect(dialog.getByRole('button', { name: /Signer le bail numérique/i })).toHaveCount(0);
 
     // Fermer via touche Escape
@@ -315,13 +315,13 @@ test.describe('Phase 2 Frontend Security & Integrity UI (Mocked API)', () => {
 
     const dialog = page.locator('div[role="dialog"]');
     await expect(dialog).toBeVisible();
-    await expect(dialog).toContainText('Séquestre : En attente de dépôt');
+    await expect(dialog).toContainText('Paiement : En attente');
 
     // 1. Payer la caution directement dans la modale ouverte
-    await dialog.getByRole('button', { name: /Payer .* via Wave/i }).click();
+    await dialog.getByRole('button', { name: /Initier le paiement .* via PayTech \/ Wave/i }).click();
 
     // Sans fermer ni rouvrir la modale, le statut passe à BLOQUE et le bouton de signature apparaît immédiatement
-    await expect(dialog).toContainText('Séquestre : Bloqué sur compte sécurisé');
+    await expect(dialog).toContainText(/Paiement confirmé/i);
     await expect(dialog).toContainText('WAVE-CA3003-OK');
     const signButton = dialog.getByRole('button', { name: /Signer le bail numérique/i });
     await expect(signButton).toBeVisible();

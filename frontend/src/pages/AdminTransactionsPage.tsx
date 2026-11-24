@@ -55,15 +55,18 @@ export const AdminTransactionsPage: React.FC = () => {
   };
 
   const renderSequestreBadge = (tx: TransactionResponseDTO) => {
+    if (tx.statutSequestre === 'INITIALISE' && tx.statutPaiementExterne === 'EN_ATTENTE_CONFIRMATION') {
+      return <Badge variant="warning">En attente IPN PayTech</Badge>;
+    }
     switch (tx.statutSequestre) {
       case 'INITIALISE':
-        return <Badge variant="warning">En attente dépôt</Badge>;
+        return <Badge variant="warning">En attente paiement</Badge>;
       case 'BLOQUE':
-        return <Badge variant="info">Séquestre bloqué</Badge>;
+        return <Badge variant="info">{tx.modeSimulationPaiement === false ? 'Confirmé (PayTech)' : 'Confirmé (Simulé)'}</Badge>;
       case 'LIBERE':
-        return <Badge variant="success">Fonds libérés</Badge>;
+        return <Badge variant="success">Libération logique</Badge>;
       case 'REMBOURSE':
-        return <Badge variant="neutral">Remboursé</Badge>;
+        return <Badge variant="neutral">{tx.modeSimulationPaiement === false ? 'Remboursé' : 'Remboursé (simulé)'}</Badge>;
       case 'ANNULE':
         return <Badge variant="neutral">Annulé</Badge>;
       case 'EXPIRE':
@@ -82,7 +85,7 @@ export const AdminTransactionsPage: React.FC = () => {
             Gestion des Séquestres & Remboursements
           </h1>
           <p className="text-xs sm:text-sm text-charcoal-600 mt-1">
-            Superviser les dépôts de garantie, baux numériques et exécuter les remboursements Wave.
+            Superviser les paiements PayTech (Wave Sandbox) / simulation locale, signatures contractuelles et remboursements simulés.
           </p>
         </div>
         <AdminNavTabs />
@@ -212,7 +215,7 @@ export const AdminTransactionsPage: React.FC = () => {
 
                   {tx.referenceWave && (
                     <div className="text-[11px] font-mono text-emerald-700 break-all">
-                      Réf Wave : {tx.referenceWave}
+                      Réf Paiement : {tx.referenceWave}
                     </div>
                   )}
 
@@ -244,7 +247,7 @@ export const AdminTransactionsPage: React.FC = () => {
                     <th className="py-3 px-4">Montant séquestre</th>
                     <th className="py-3 px-4">Statut Séquestre</th>
                     <th className="py-3 px-4">Bail / Vente</th>
-                    <th className="py-3 px-4">Réf Wave</th>
+                    <th className="py-3 px-4">Réf Paiement</th>
                     <th className="py-3 px-4 text-right">Action</th>
                   </tr>
                 </thead>

@@ -22,6 +22,21 @@ public interface PaiementWaveRepository extends JpaRepository<PaiementWaveEntity
 
     Optional<PaiementWaveEntity> findByReferenceExterne(String referenceExterne);
 
+    Optional<PaiementWaveEntity> findByRefCommand(String refCommand);
+
+    Optional<PaiementWaveEntity> findByTokenExterne(String tokenExterne);
+
+    @Query("SELECT p.transaction.id FROM PaiementWaveEntity p WHERE p.refCommand = :refCommand")
+    Optional<UUID> findTransactionIdByRefCommand(@Param("refCommand") String refCommand);
+
+    @Query("SELECT p.transaction.id FROM PaiementWaveEntity p WHERE p.tokenExterne = :token OR p.referenceExterne = :token")
+    Optional<UUID> findTransactionIdByTokenOrReference(@Param("token") String token);
+
+    Optional<PaiementWaveEntity> findTopByTransactionIdAndTypeOperationOrderByDateCreationDesc(
+            UUID transactionId,
+            TypeOperationWave typeOperation
+    );
+
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("SELECT p FROM PaiementWaveEntity p WHERE p.id = :id")
     Optional<PaiementWaveEntity> findByIdForUpdate(@Param("id") UUID id);

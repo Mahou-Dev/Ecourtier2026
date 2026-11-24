@@ -309,6 +309,47 @@ export async function genererPdfBail(transactionId: string): Promise<Transaction
   });
 }
 
+export async function verifierStatutPaiement(transactionId: string): Promise<TransactionResponseDTO> {
+  return apiFetch<TransactionResponseDTO>(`/api/v1/transactions/${transactionId}/paiement/statut`, {
+    method: 'GET',
+  });
+}
+
+export async function downloadApercuPdfBail(transactionId: string): Promise<void> {
+  const { accessToken } = useAuthStore.getState();
+  const response = await fetch(`${API_BASE_URL}/api/v1/transactions/${transactionId}/bail/apercu-pdf`, {
+    headers: accessToken
+      ? {
+          Authorization: `Bearer ${accessToken}`,
+        }
+      : {},
+  });
+
+  if (!response.ok) {
+    let msg = "Impossible de télécharger l'aperçu pré-signature du contrat PDF";
+    try {
+      const err = await response.json();
+      if (err.error) msg = err.error;
+      else if (err.message) msg = err.message;
+    } catch {
+      /* Corps JSON indisponible */
+    }
+    const error = new Error(msg) as Error & { status?: number };
+    error.status = response.status;
+    throw error;
+  }
+
+  const blob = await response.blob();
+  const url = window.URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `Apercu_Contrat_Ecourtier_${transactionId.slice(0, 8)}.pdf`;
+  document.body.appendChild(a);
+  a.click();
+  window.URL.revokeObjectURL(url);
+  document.body.removeChild(a);
+}
+
 export async function downloadPdfBail(transactionId: string, customFilename?: string): Promise<void> {
   const { accessToken } = useAuthStore.getState();
   const response = await fetch(`${API_BASE_URL}/api/v1/transactions/${transactionId}/bail/pdf`, {

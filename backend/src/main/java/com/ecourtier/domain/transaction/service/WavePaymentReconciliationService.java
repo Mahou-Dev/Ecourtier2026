@@ -1,11 +1,14 @@
 package com.ecourtier.domain.transaction.service;
 
-import com.ecourtier.domain.transaction.client.WaveClient;
-import com.ecourtier.domain.transaction.client.WaveRefundResponse;
+import com.ecourtier.common.scheduler.SchedulerLockService;
 import com.ecourtier.domain.transaction.entity.PaiementWaveEntity;
 import com.ecourtier.domain.transaction.entity.StatutPaiementWave;
 import com.ecourtier.domain.transaction.entity.TransactionEntity;
 import com.ecourtier.domain.transaction.entity.TypeOperationWave;
+import com.ecourtier.domain.transaction.gateway.PaymentGateway;
+import com.ecourtier.domain.transaction.gateway.PaymentGateway.ExternalPaymentState;
+import com.ecourtier.domain.transaction.gateway.PaymentGateway.PaymentRefundResult;
+import com.ecourtier.domain.transaction.gateway.PaymentGateway.PaymentStatusResult;
 import com.ecourtier.domain.transaction.repository.PaiementWaveRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -33,13 +36,19 @@ public class WavePaymentReconciliationService {
 
     private final PaiementWaveRepository paiementWaveRepository;
     private final TransactionService transactionService;
-    private final WaveClient waveClient;
+    private final PaymentGateway paymentGateway;
 
     @Value("${ecourtier.wave.stale-timeout:PT2M}")
     private Duration staleTimeout = Duration.ofMinutes(2);
 
     private Clock clock = Clock.system(DAKAR_ZONE);
     private TransactionTemplate transactionTemplate;
+    private SchedulerLockService schedulerLockService;
+
+    @Autowired(required = false)
+    void setSchedulerLockService(SchedulerLockService schedulerLockService) {
+        this.schedulerLockService = schedulerLockService;
+    }
 
     @Autowired(required = false)
     void setClock(Clock clock) {
@@ -56,12 +65,28 @@ public class WavePaymentReconciliationService {
     @Scheduled(fixedDelayString = "${ecourtier.wave.reconciliation-delay-ms:300000}")
     public void scheduledReconcile() {
         try {
-            int processed = reconcilierPaiementsEnAttente();
-            if (processed > 0) {
-                log.info("[RÉCONCILIATION WAVE] {} opération(s) réconciliée(s)", processed);
+            Runnable job = () -> {
+                int processed = reconcilierPaiementsEnAttente();
+                if (processed > 0) {
+                    log.info("[RÉCONCILIATION PAIEMENT] {} opération(s) réconciliée(s)", processed);
+                }
+            };
+            // AUDIT-PT-008 : Verrou distribué inter-instances via SchedulerLockService
+            if (schedulerLockService != null) {
+                boolean executed = schedulerLockService.tryExecuteWithLock(
+                        "payment-reconciliation",
+                        Duration.ofMinutes(4),
+                        Duration.ofSeconds(10),
+                        job
+                );
+                if (!executed) {
+                    log.debug("[RÉCONCILIATION PAIEMENT] Verrou 'payment-reconciliation' déjà détenu par une autre instance.");
+                }
+            } else {
+                job.run();
             }
         } catch (Exception e) {
-            log.error("[RÉCONCILIATION WAVE] Erreur lors du cycle planifié", e);
+            log.error("[RÉCONCILIATION PAIEMENT] Erreur lors du cycle planifié", e);
         }
     }
 
@@ -74,6 +99,7 @@ public class WavePaymentReconciliationService {
                 .findByStatutInOrderByDateCreationAsc(List.of(
                         StatutPaiementWave.A_RECONCILIER,
                         StatutPaiementWave.EN_COURS,
+                        StatutPaiementWave.EN_ATTENTE_CONFIRMATION,
                         StatutPaiementWave.TARDIF_A_REMBOURSER
                 ))
                 .stream()
@@ -85,6 +111,9 @@ public class WavePaymentReconciliationService {
                             pw.getTypeOperation(),
                             pw.getStatut(),
                             pw.getReferenceExterne(),
+                            pw.getRefCommand(),
+                            pw.getPrestataire(),
+                            Boolean.TRUE.equals(pw.getModeSimulation()),
                             tx != null ? tx.getReferenceWave() : null,
                             pw.getMontant(),
                             pw.getDateModification()
@@ -109,7 +138,7 @@ public class WavePaymentReconciliationService {
                     processed++;
                 }
             } catch (Exception e) {
-                log.error("[RÉCONCILIATION WAVE] Échec traitement candidat paiementWave={} tx={}",
+                log.error("[RÉCONCILIATION PAIEMENT] Échec traitement candidat paiementId={} tx={}",
                         c.paiementWaveId(), c.transactionId(), e);
                 incrementerTentative(c.paiementWaveId(), e.getMessage());
             }
@@ -131,26 +160,60 @@ public class WavePaymentReconciliationService {
 
             if (c.referenceExterne() == null || c.referenceExterne().isBlank()) {
                 if (isStale) {
-                    marquerEchec(c.paiementWaveId(), "Abandon ou redémarrage avant obtention de référence Wave", referenceNow);
+                    marquerEchec(c.paiementWaveId(), "Abandon ou redémarrage avant obtention de référence prestataire", referenceNow);
                     return true;
                 }
                 return false;
             }
 
-            boolean paidAtWave = waveClient.verifyPaymentStatus(c.referenceExterne(), c.transactionId(), c.montant());
-            if (paidAtWave) {
-                transactionService.confirmWavePaymentFromExternal(
+            PaymentStatusResult statusResult = paymentGateway.checkPaymentStatus(
+                    c.referenceExterne(), c.transactionId(), c.montant());
+            ExternalPaymentState extState = statusResult != null ? statusResult.getState() : ExternalPaymentState.UNKNOWN;
+
+            if (extState == ExternalPaymentState.CONFIRMED || extState == ExternalPaymentState.CONFIRMED_SIMULATED) {
+                transactionService.confirmExternalPayment(
                         c.transactionId(),
                         c.paiementWaveId(),
                         c.referenceExterne(),
+                        c.refCommand(),
+                        c.prestataire() != null ? c.prestataire() : paymentGateway.getProviderCode(),
+                        extState == ExternalPaymentState.CONFIRMED_SIMULATED || c.modeSimulation(),
                         c.montant(),
                         null
                 );
                 return true;
+            } else if (extState == ExternalPaymentState.CANCELED) {
+                transactionService.markExternalPaymentCanceled(
+                        c.transactionId(),
+                        c.refCommand(),
+                        c.referenceExterne(),
+                        "Paiement annulé lors de la réconciliation prestataire",
+                        null
+                );
+                return true;
+            } else if (extState == ExternalPaymentState.PENDING) {
+                return false;
+            } else if (c.statut() == StatutPaiementWave.EN_ATTENTE_CONFIRMATION) {
+                // AUDIT-PT-008 : Ne pas faire échouer prématurément une session PayTech en attente après 2 min sur UNKNOWN ;
+                // synchroniser TransactionEntity.statutPaiementExterne uniquement si échec explicite FAILED.
+                if (extState == ExternalPaymentState.FAILED) {
+                    transactionService.markWebhookPaymentFailed(
+                            c.transactionId(),
+                            c.referenceExterne(),
+                            "Paiement échoué chez le prestataire lors de la réconciliation",
+                            null
+                    );
+                    return true;
+                }
+                return false;
             } else if (c.statut() == StatutPaiementWave.A_RECONCILIER || isStale) {
-                marquerEchec(c.paiementWaveId(), "Paiement non confirmé par Wave lors de la réconciliation", referenceNow);
+                marquerEchec(c.paiementWaveId(), "Paiement non confirmé par le prestataire lors de la réconciliation", referenceNow);
                 return true;
             }
+            return false;
+        }
+
+        if (c.typeOperation() == TypeOperationWave.TRANSFERT_PROPRIETAIRE) {
             return false;
         }
 
@@ -160,25 +223,25 @@ public class WavePaymentReconciliationService {
         }
         if (c.referenceExterne() == null || c.referenceExterne().isBlank()) {
             if (isStale) {
-                marquerEchec(c.paiementWaveId(), "Abandon ou redémarrage avant obtention de référence remboursement Wave", referenceNow);
+                marquerEchec(c.paiementWaveId(), "Abandon ou redémarrage avant obtention de référence remboursement", referenceNow);
                 return true;
             }
             return false;
         }
 
         String origRef = c.originalTxWaveRef();
-        boolean refundedAtWave = origRef != null && !origRef.isBlank()
-                && waveClient.verifyRefundStatus(c.referenceExterne(), origRef, c.montant());
-        if (refundedAtWave) {
+        boolean refundedAtProvider = origRef != null && !origRef.isBlank()
+                && paymentGateway.verifyRefundStatus(c.referenceExterne(), origRef, c.montant());
+        if (refundedAtProvider) {
             return transactionService.finalizeReconciledRefund(
                     c.transactionId(),
                     c.paiementWaveId(),
                     c.referenceExterne(),
                     c.montant(),
-                    "Remboursement finalisé par réconciliation Wave"
+                    "Remboursement finalisé par réconciliation"
             );
         } else if (c.statut() == StatutPaiementWave.A_RECONCILIER || isStale) {
-            marquerEchec(c.paiementWaveId(), "Remboursement non confirmé par Wave lors de la réconciliation", referenceNow);
+            marquerEchec(c.paiementWaveId(), "Remboursement non confirmé lors de la réconciliation", referenceNow);
             return true;
         }
         return false;
@@ -188,14 +251,14 @@ public class WavePaymentReconciliationService {
         if (c.referenceExterne() == null || c.referenceExterne().isBlank()) {
             return false;
         }
-        WaveRefundResponse refundResp = waveClient.initiateEscrowRefund(c.transactionId(), c.referenceExterne(), c.montant());
+        PaymentRefundResult refundResp = paymentGateway.initiateRefund(c.transactionId(), c.referenceExterne(), c.montant());
         if (refundResp == null
                 || !"SUCCESS".equalsIgnoreCase(refundResp.getStatus())
                 || refundResp.getRefundReference() == null
                 || refundResp.getRefundReference().isBlank()
                 || refundResp.getRefundedAmount() == null
                 || c.montant().compareTo(refundResp.getRefundedAmount()) != 0
-                || !waveClient.verifyRefundStatus(refundResp.getRefundReference().trim(), c.referenceExterne(), c.montant())) {
+                || !paymentGateway.verifyRefundStatus(refundResp.getRefundReference().trim(), c.referenceExterne(), c.montant())) {
             incrementerTentative(c.paiementWaveId(), "Échec remboursement automatique du paiement tardif");
             return false;
         }
@@ -205,7 +268,8 @@ public class WavePaymentReconciliationService {
                 pw.setStatut(StatutPaiementWave.RECONCILIE);
                 pw.setDateModification(referenceNow);
                 pw.setTentatives((pw.getTentatives() != null ? pw.getTentatives() : 0) + 1);
-                pw.setMessageErreur("Remboursement tardif exécuté et confirmé : " + refundResp.getRefundReference().trim());
+                pw.setMessageErreur("Remboursement tardif exécuté (simulé=" + refundResp.isSimulated() + ") : "
+                        + refundResp.getRefundReference().trim());
                 paiementWaveRepository.saveAndFlush(pw);
             });
             return null;
@@ -258,6 +322,9 @@ public class WavePaymentReconciliationService {
             TypeOperationWave typeOperation,
             StatutPaiementWave statut,
             String referenceExterne,
+            String refCommand,
+            String prestataire,
+            boolean modeSimulation,
             String originalTxWaveRef,
             BigDecimal montant,
             LocalDateTime dateModification

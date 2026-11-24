@@ -93,6 +93,7 @@ public class SecurityConfig {
                     "/api/v1/references/**",
                     "/api/v1/ia/**",
                     "/api/v1/webhooks/wave",
+                    "/api/v1/webhooks/paytech",
                     "/ws/**"
                 ).permitAll()
                 .requestMatchers("/api/v1/conversations/**").authenticated()

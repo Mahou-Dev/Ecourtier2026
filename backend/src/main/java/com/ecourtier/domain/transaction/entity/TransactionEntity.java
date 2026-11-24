@@ -70,6 +70,48 @@ public class TransactionEntity {
     @Column(name = "reference_wave", length = 100)
     private String referenceWave;
 
+    @Column(name = "prestataire_paiement", length = 30)
+    @Builder.Default
+    private String prestatairePaiement = "MOCK_LOCAL";
+
+    @Column(name = "moyen_paiement", length = 40)
+    @Builder.Default
+    private String moyenPaiement = "Wave";
+
+    @Column(name = "mode_simulation_paiement", nullable = false)
+    @Builder.Default
+    private Boolean modeSimulationPaiement = Boolean.TRUE;
+
+    @Column(name = "ref_command_paytech", length = 150)
+    private String refCommandPaytech;
+
+    @Column(name = "token_paiement_externe", length = 150)
+    private String tokenPaiementExterne;
+
+    @Column(name = "redirect_url_paiement", length = 1000)
+    private String redirectUrlPaiement;
+
+    @Column(name = "statut_paiement_externe", length = 40)
+    private String statutPaiementExterne;
+
+    @Column(name = "statut_transfert_proprietaire", length = 40)
+    private String statutTransfertProprietaire;
+
+    @Column(name = "reference_transfert_proprietaire", length = 150)
+    private String referenceTransfertProprietaire;
+
+    @Column(name = "date_transfert_proprietaire")
+    private LocalDateTime dateTransfertProprietaire;
+
+    @Column(name = "bail_document_sha256", length = 64)
+    private String bailDocumentSha256;
+
+    @Column(name = "signature_locataire_hash", length = 64)
+    private String signatureLocataireHash;
+
+    @Column(name = "signature_proprietaire_hash", length = 64)
+    private String signatureProprietaireHash;
+
     @Column(name = "date_paiement")
     private LocalDateTime datePaiement;
 
@@ -166,6 +208,15 @@ public class TransactionEntity {
         }
         if (version == null) {
             version = 0L;
+        }
+        if (prestatairePaiement == null || prestatairePaiement.isBlank()) {
+            prestatairePaiement = "MOCK_LOCAL";
+        }
+        if (moyenPaiement == null || moyenPaiement.isBlank()) {
+            moyenPaiement = "Wave";
+        }
+        if (modeSimulationPaiement == null) {
+            modeSimulationPaiement = Boolean.TRUE;
         }
     }
 

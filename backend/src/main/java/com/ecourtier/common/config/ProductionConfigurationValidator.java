@@ -69,6 +69,8 @@ public class ProductionConfigurationValidator implements ApplicationRunner {
 
     @Override
     public void run(ApplicationArguments args) {
+        validatePayTechSandboxConfiguration();
+
         if (!isProductionProfile()) {
             log.info("[MODE DÉVELOPPEMENT / TEST] Profils actifs : {}. Les contrôles stricts de production sont inactifs.",
                     Arrays.toString(environment.getActiveProfiles()));
@@ -83,6 +85,65 @@ public class ProductionConfigurationValidator implements ApplicationRunner {
         validateIaIntegrationConfiguration();
 
         log.info("[VÉRIFICATION PRODUCTION] Contrôles de sécurité validés avec succès.");
+    }
+
+    /**
+     * Garde-fou Sandbox-only PayTech (MISSION RENDER-PAYTECH-01) :
+     * Toute activation de PayTech hors environnement 'test' (ex: PAYTECH_ENV=prod) est strictement interdite.
+     */
+    private void validatePayTechSandboxConfiguration() {
+        String provider = resolveText("", "ecourtier.payment.provider");
+        if (provider.isBlank()) {
+            provider = resolveText("", "PAYMENT_PROVIDER");
+        }
+        String normalizedProvider = provider.isBlank() ? "mock" : provider.toLowerCase(Locale.ROOT);
+        if (!"paytech".equals(normalizedProvider)) {
+            return;
+        }
+
+        String rawPropEnv = environment.getProperty("ecourtier.payment.paytech.env");
+        String rawSysEnv = environment.getProperty("PAYTECH_ENV");
+        String effectiveEnv;
+        if (rawPropEnv != null) {
+            effectiveEnv = rawPropEnv.trim().toLowerCase(Locale.ROOT);
+        } else if (rawSysEnv != null) {
+            effectiveEnv = rawSysEnv.trim().toLowerCase(Locale.ROOT);
+        } else {
+            effectiveEnv = "test";
+        }
+        if (!"test".equals(effectiveEnv)) {
+            throw new IllegalStateException(
+                    "ÉCHEC DÉMARRAGE SÉCURITÉ PAIEMENT : PAYTECH_ENV='" + sanitizeProviderLabel(effectiveEnv)
+                            + "' est strictement interdit. Seul l'environnement Sandbox ('test') est autorisé."
+            );
+        }
+
+        // AUDIT-PT-001 : En profil production, interdire toute activation de zero-debit-guaranteed=true vers paytech.sn
+        Boolean zeroDebit = environment.getProperty("ecourtier.payment.paytech.zero-debit-guaranteed", Boolean.class);
+        if (zeroDebit == null) {
+            zeroDebit = environment.getProperty("PAYTECH_ZERO_DEBIT_GUARANTEED", Boolean.class);
+        }
+        String baseUrl = resolveText("", "ecourtier.payment.paytech.base-url");
+        if (baseUrl.isBlank()) {
+            baseUrl = resolveText("", "PAYTECH_BASE_URL");
+        }
+        if (isProductionProfile() && Boolean.TRUE.equals(zeroDebit)
+                && (baseUrl.isBlank() || baseUrl.toLowerCase(Locale.ROOT).contains("paytech.sn"))) {
+            throw new IllegalStateException(
+                    "ÉCHEC DÉMARRAGE SÉCURITÉ ZÉRO DÉBIT : ecourtier.payment.paytech.zero-debit-guaranteed=true est interdit contre paytech.sn en profil production (risque de débit réel 100-150 FCFA)."
+            );
+        }
+
+        boolean hasKey = !resolveText("", "ecourtier.payment.paytech.api-key").isBlank()
+                || !resolveText("", "PAYTECH_API_KEY").isBlank();
+        boolean hasSecret = !resolveText("", "ecourtier.payment.paytech.api-secret").isBlank()
+                || !resolveText("", "PAYTECH_API_SECRET").isBlank();
+        if (!hasKey || !hasSecret) {
+            log.warn("[VÉRIFICATION PAIEMENT SANDBOX] PAYMENT_PROVIDER=paytech actif en mode env=test mais identifiants Sandbox incomplets (apiKeyPresent={}, apiSecretPresent={}). Aucun appel externe ne sera autorisé tant que les variables ne sont pas renseignées.",
+                    hasKey, hasSecret);
+        } else {
+            log.info("[VÉRIFICATION PAIEMENT SANDBOX] Passerelle PayTech configurée en mode Sandbox strict (env=test, aucun débit de production autorisé).");
+        }
     }
 
     private void validateJwtSecret() {

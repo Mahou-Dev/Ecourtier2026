@@ -4,7 +4,13 @@ import { Modal } from '../ui/Modal';
 import { Button } from '../ui/Button';
 import { Badge } from '../ui/Badge';
 import { TransactionResponseDTO } from '../../types';
-import { apiFetch, downloadPdfBail, genererPdfBail } from '../../services/api';
+import {
+  apiFetch,
+  downloadApercuPdfBail,
+  downloadPdfBail,
+  genererPdfBail,
+  verifierStatutPaiement,
+} from '../../services/api';
 import { adminService } from '../../services/admin.service';
 import { toast } from 'sonner';
 import { getErrorMessage, getErrorStatus } from '../../lib/errors';
@@ -19,6 +25,8 @@ import {
   UserCheck,
   RotateCcw,
   RefreshCw,
+  ShieldAlert,
+  Eye,
 } from 'lucide-react';
 import { useAuthStore } from '../../store/useAuthStore';
 
@@ -28,6 +36,22 @@ interface TransactionDetailsModalProps {
   transaction: TransactionResponseDTO | null;
   onRefresh: () => void;
 }
+
+const isTrustedPayTechRedirectUrl = (rawUrl?: string): boolean => {
+  if (!rawUrl) return false;
+  try {
+    const parsed = new URL(rawUrl);
+    const host = parsed.hostname.toLowerCase();
+    return (
+      parsed.protocol === 'https:' &&
+      !parsed.username &&
+      !parsed.password &&
+      (host === 'paytech.sn' || host.endsWith('.paytech.sn'))
+    );
+  } catch {
+    return false;
+  }
+};
 
 export const TransactionDetailsModal: React.FC<TransactionDetailsModalProps> = ({
   isOpen,
@@ -40,9 +64,11 @@ export const TransactionDetailsModal: React.FC<TransactionDetailsModalProps> = (
   const [overrideTx, setOverrideTx] = useState<TransactionResponseDTO | null>(null);
 
   const [isPaying, setIsPaying] = useState(false);
+  const [isCheckingStatus, setIsCheckingStatus] = useState(false);
   const [isCancelling, setIsCancelling] = useState(false);
   const [isSigning, setIsSigning] = useState(false);
   const [isDownloadingPdf, setIsDownloadingPdf] = useState(false);
+  const [isDownloadingPreview, setIsDownloadingPreview] = useState(false);
   const [isRegeneratingPdf, setIsRegeneratingPdf] = useState(false);
   const [isRefunding, setIsRefunding] = useState(false);
   const [refundConfirmTxId, setRefundConfirmTxId] = useState<string | null>(null);
@@ -86,12 +112,23 @@ export const TransactionDetailsModal: React.FC<TransactionDetailsModalProps> = (
   };
 
   const isAnyActionPending =
-    isPaying || isCancelling || isSigning || isDownloadingPdf || isRegeneratingPdf || isRefunding;
+    isPaying ||
+    isCheckingStatus ||
+    isCancelling ||
+    isSigning ||
+    isDownloadingPdf ||
+    isDownloadingPreview ||
+    isRegeneratingPdf ||
+    isRefunding;
 
   const isVente = transaction.modeTransaction === 'VENTE';
   const isLocataire = utilisateur?.id === transaction.locataireId;
   const isProprietaire = utilisateur?.id === transaction.proprietaireId;
   const isAdmin = utilisateur?.role === 'ADMIN';
+  const isSimulatedMode = transaction.modeSimulationPaiement !== false;
+  const isPendingExternalPayment =
+    transaction.statutSequestre === 'INITIALISE' &&
+    transaction.statutPaiementExterne === 'EN_ATTENTE_CONFIRMATION';
   const isClosedTerminal =
     transaction.dossierActif === false ||
     transaction.statutSequestre === 'REMBOURSE' ||
@@ -107,18 +144,20 @@ export const TransactionDetailsModal: React.FC<TransactionDetailsModalProps> = (
     setIsRefunding(true);
     try {
       const res = await adminService.rembourserTransaction(transaction.id, motifRemboursementInput.trim());
-      toast.success(`Séquestre remboursé avec succès ! Réf Wave : ${res.referenceRemboursementWave || 'Enregistré'}`);
+      toast.success(
+        `Remboursement simulé enregistré (Réf : ${res.referenceRemboursementWave || 'Enregistré'} — aucun virement réel).`
+      );
       setShowRefundConfirm(false);
       setMotifRemboursementInput('');
       syncTransactionState({ ...transaction, ...res });
     } catch (err: unknown) {
-      toast.error(getErrorMessage(err, 'Échec du remboursement du séquestre.'));
+      toast.error(getErrorMessage(err, 'Échec du remboursement du dossier.'));
     } finally {
       setIsRefunding(false);
     }
   };
 
-  // Caution Payment handler
+  // Payment Initiation handler (ESCROW-FE-001: never falsely claims confirmed when pending)
   const handlePaiementCaution = async () => {
     if (isAnyActionPending) return;
     setIsPaying(true);
@@ -127,16 +166,59 @@ export const TransactionDetailsModal: React.FC<TransactionDetailsModalProps> = (
         `/api/v1/transactions/${transaction.id}/paiement-caution`,
         { method: 'POST' }
       );
-      toast.success(`Paiement du séquestre effectué ! Réf Wave: ${res.referenceWave}`);
       syncTransactionState({ ...transaction, ...res });
+
+      if (res.statutSequestre === 'INITIALISE' && res.statutPaiementExterne === 'EN_ATTENTE_CONFIRMATION') {
+        if (res.redirectUrlPaiement && res.zeroDebitGaranti === true && isTrustedPayTechRedirectUrl(res.redirectUrlPaiement)) {
+          toast.info('Redirection vers la page de paiement PayTech...');
+          window.location.assign(res.redirectUrlPaiement);
+        } else if (res.redirectUrlPaiement && res.zeroDebitGaranti === true) {
+          toast.error('URL de redirection prestataire refusée (domaine PayTech HTTPS requis).');
+        } else {
+          toast.info(
+            'Paiement PayTech Sandbox initialisé — en attente de confirmation authentifiée (redirection bloquée tant que le zéro débit réel n’est pas garanti).'
+          );
+        }
+      } else if (res.statutSequestre === 'BLOQUE' && res.modeSimulationPaiement === true) {
+        toast.success(
+          `Paiement simulé localement enregistré (Réf : ${res.referenceWave} — aucune transaction financière réelle).`
+        );
+      } else if (res.statutSequestre === 'BLOQUE') {
+        toast.success(`Paiement confirmé via PayTech (Réf : ${res.referenceWave}).`);
+      } else {
+        toast.info('Demande de paiement enregistrée. En attente de confirmation.');
+      }
     } catch (err: unknown) {
       if (getErrorStatus(err) === 403) {
-        toast.error("Vous n'êtes pas autorisé à payer la caution pour cette transaction.");
+        toast.error("Vous n'êtes pas autorisé à initier le paiement pour cette transaction.");
       } else {
-        toast.error(getErrorMessage(err, 'Échec du paiement de la caution'));
+        toast.error(getErrorMessage(err, "Échec de l'initialisation du paiement"));
       }
     } finally {
       setIsPaying(false);
+    }
+  };
+
+  // Check PayTech external payment status handler
+  const handleVerifierStatutPaiement = async () => {
+    if (isAnyActionPending) return;
+    setIsCheckingStatus(true);
+    try {
+      const res = await verifierStatutPaiement(transaction.id);
+      syncTransactionState({ ...transaction, ...res });
+      if (res.statutSequestre === 'BLOQUE') {
+        toast.success('Paiement confirmé par le prestataire !');
+      } else if (res.statutPaiementExterne === 'ANNULE') {
+        toast.warning('Le paiement a été annulé chez le prestataire.');
+      } else if (res.statutPaiementExterne === 'ECHOUE') {
+        toast.error('Le paiement a échoué chez le prestataire.');
+      } else {
+        toast.info('Paiement toujours en attente de confirmation par le prestataire.');
+      }
+    } catch (err: unknown) {
+      toast.error(getErrorMessage(err, 'Impossible de vérifier le statut du paiement.'));
+    } finally {
+      setIsCheckingStatus(false);
     }
   };
 
@@ -165,7 +247,7 @@ export const TransactionDetailsModal: React.FC<TransactionDetailsModalProps> = (
     }
   };
 
-  // Lease Sign handler
+  // Lease Sign handler (parties only)
   const handleSignerBail = async () => {
     if (isAnyActionPending) return;
     setIsSigning(true);
@@ -174,16 +256,30 @@ export const TransactionDetailsModal: React.FC<TransactionDetailsModalProps> = (
         `/api/v1/transactions/${transaction.id}/bail/signer`,
         { method: 'POST' }
       );
-      toast.success('Félicitations, votre signature électronique a été enregistrée !');
+      toast.success('Votre signature applicative horodatée (SHA-256) a été enregistrée.');
       syncTransactionState({ ...transaction, ...res });
     } catch (err: unknown) {
       if (getErrorStatus(err) === 403) {
-        toast.error("Accès refusé : vous ne faites pas partie des signataires de ce contrat.");
+        toast.error("Accès refusé : seules les parties contractantes peuvent signer ce contrat.");
       } else {
         toast.error(getErrorMessage(err, 'Échec de la signature'));
       }
     } finally {
       setIsSigning(false);
+    }
+  };
+
+  // Pre-signature PDF Preview handler (ESCROW-SIGN-002)
+  const handleDownloadPreviewPdf = async () => {
+    if (isAnyActionPending) return;
+    setIsDownloadingPreview(true);
+    try {
+      await downloadApercuPdfBail(transaction.id);
+      toast.success("Téléchargement de l'aperçu pré-signature démarré.");
+    } catch (err: unknown) {
+      toast.error(getErrorMessage(err, "Impossible de télécharger l'aperçu pré-signature."));
+    } finally {
+      setIsDownloadingPreview(false);
     }
   };
 
@@ -193,7 +289,11 @@ export const TransactionDetailsModal: React.FC<TransactionDetailsModalProps> = (
     setIsDownloadingPdf(true);
     try {
       await downloadPdfBail(transaction.id);
-      toast.success(isVente ? 'Téléchargement du récapitulatif de réservation démarré !' : 'Téléchargement du contrat de bail démarré !');
+      toast.success(
+        isVente
+          ? 'Téléchargement du récapitulatif de réservation démarré !'
+          : 'Téléchargement du contrat de bail démarré !'
+      );
     } catch (err: unknown) {
       if (getErrorStatus(err) === 503) {
         setOverrideTx(null);
@@ -226,17 +326,24 @@ export const TransactionDetailsModal: React.FC<TransactionDetailsModalProps> = (
     }
   };
 
-  // Badge helpers
+  // Honest Badge helpers (ESCROW-ARCH-001)
   const renderSequestreBadge = () => {
+    if (isPendingExternalPayment) {
+      return <Badge variant="warning">Paiement PayTech : En attente de confirmation</Badge>;
+    }
     switch (transaction.statutSequestre) {
       case 'INITIALISE':
-        return <Badge variant="warning">Séquestre : En attente de dépôt</Badge>;
+        return <Badge variant="warning">Paiement : En attente</Badge>;
       case 'BLOQUE':
-        return <Badge variant="info">Séquestre : Bloqué sur compte sécurisé</Badge>;
+        return (
+          <Badge variant="info">
+            {isSimulatedMode ? 'Paiement confirmé (simulation locale)' : 'Paiement confirmé via PayTech'}
+          </Badge>
+        );
       case 'LIBERE':
-        return <Badge variant="success">Séquestre : Fonds libérés</Badge>;
+        return <Badge variant="success">Libération logique effectuée</Badge>;
       case 'REMBOURSE':
-        return <Badge variant="neutral">Séquestre : Remboursé</Badge>;
+        return <Badge variant="neutral">{isSimulatedMode ? 'Remboursement simulé' : 'Remboursé'}</Badge>;
       case 'ANNULE':
         return <Badge variant="neutral">Transaction : Annulée</Badge>;
       case 'EXPIRE':
@@ -252,7 +359,7 @@ export const TransactionDetailsModal: React.FC<TransactionDetailsModalProps> = (
       case 'NON_SIGNE':
         return <Badge variant="neutral">{labelPrefix} : Non signé</Badge>;
       case 'SIGNE_LOCATAIRE':
-        return <Badge variant="info">{labelPrefix} : Signé par l'{isVente ? 'acheteur' : 'locataire'}</Badge>;
+        return <Badge variant="info">{labelPrefix} : Signé par l&apos;{isVente ? 'acheteur' : 'locataire'}</Badge>;
       case 'SIGNE_PROPRIETAIRE':
         return <Badge variant="info">{labelPrefix} : Signé par le {isVente ? 'vendeur' : 'propriétaire'}</Badge>;
       case 'SIGNE_COMPLET':
@@ -262,10 +369,13 @@ export const TransactionDetailsModal: React.FC<TransactionDetailsModalProps> = (
     }
   };
 
+  const totalAmount =
+    transaction.montantTotalSequestre ??
+    transaction.montantCaution + (transaction.montantPremierLoyer || 0) + transaction.fraisDossier;
+
   return (
     <Modal isOpen={isOpen} onClose={handleModalClose} title={`Dossier de Transaction #${transaction.id.slice(0, 8)}`} size="lg">
       <div className="space-y-6">
-        
         {/* Header Summary */}
         <div className="p-3.5 sm:p-4 rounded-2xl bg-sand-50 border border-sand-200 flex flex-col md:flex-row md:items-center justify-between gap-3 sm:gap-4">
           <div className="min-w-0">
@@ -275,9 +385,15 @@ export const TransactionDetailsModal: React.FC<TransactionDetailsModalProps> = (
             </div>
             <p className="text-xs text-sahel-600 break-words">
               {isVente ? (
-                <>Acheteur : <span className="font-semibold text-sahel-900">{transaction.locataireNomComplet}</span> | Vendeur : <span className="font-semibold text-sahel-900">{transaction.proprietaireNomComplet || 'Agent'}</span></>
+                <>
+                  Acheteur : <span className="font-semibold text-sahel-900">{transaction.locataireNomComplet}</span> | Vendeur :{' '}
+                  <span className="font-semibold text-sahel-900">{transaction.proprietaireNomComplet || 'Agent'}</span>
+                </>
               ) : (
-                <>Locataire : <span className="font-semibold text-sahel-900">{transaction.locataireNomComplet}</span> | Propriétaire : <span className="font-semibold text-sahel-900">{transaction.proprietaireNomComplet || 'Agent'}</span></>
+                <>
+                  Locataire : <span className="font-semibold text-sahel-900">{transaction.locataireNomComplet}</span> | Propriétaire :{' '}
+                  <span className="font-semibold text-sahel-900">{transaction.proprietaireNomComplet || 'Agent'}</span>
+                </>
               )}
             </p>
           </div>
@@ -287,23 +403,34 @@ export const TransactionDetailsModal: React.FC<TransactionDetailsModalProps> = (
           </div>
         </div>
 
-        {/* Step 1: Escrow Payment */}
+        {/* Step 1: Payment via PayTech / Local Simulation */}
         <div className="p-4 sm:p-5 rounded-2xl border border-sand-300 bg-white space-y-4">
           <div className="flex flex-wrap items-center justify-between gap-2">
             <h4 className="font-display font-bold text-sm text-sahel-900 flex items-center gap-2">
               <CreditCard className="w-4 h-4 text-terracotta-500 shrink-0" />
-              <span>{isVente ? '1. Séquestre Bancaire — Acompte de réservation (10 % du prix)' : '1. Séquestre Bancaire (Caution + 1er Loyer)'}</span>
+              <span>
+                {isVente
+                  ? '1. Paiement via PayTech (Wave) — Acompte de réservation (10 % du prix)'
+                  : '1. Paiement via PayTech (Wave) — Caution + 1er Loyer'}
+              </span>
             </h4>
             {transaction.statutSequestre === 'BLOQUE' || transaction.statutSequestre === 'LIBERE' ? (
               <span className="text-xs font-bold text-emerald-700 flex items-center gap-1 shrink-0">
-                <CheckCircle2 className="w-4 h-4 text-emerald-600" /> Dépôt validé
+                <CheckCircle2 className="w-4 h-4 text-emerald-600" />{' '}
+                {isSimulatedMode ? 'Paiement simulé confirmé' : 'Paiement confirmé'}
+              </span>
+            ) : isPendingExternalPayment ? (
+              <span className="text-xs font-bold text-amber-700 flex items-center gap-1 shrink-0">
+                <Clock className="w-4 h-4 text-amber-600" /> En attente de confirmation PayTech
               </span>
             ) : transaction.statutSequestre === 'ANNULE' ? (
               <span className="text-xs font-bold text-sahel-600 shrink-0">Transaction annulée</span>
             ) : transaction.statutSequestre === 'EXPIRE' ? (
               <span className="text-xs font-bold text-rose-700 shrink-0">Délai expiré</span>
             ) : transaction.statutSequestre === 'REMBOURSE' ? (
-              <span className="text-xs font-bold text-sahel-600 shrink-0">Séquestre remboursé</span>
+              <span className="text-xs font-bold text-sahel-600 shrink-0">
+                {isSimulatedMode ? 'Remboursement simulé' : 'Remboursé'}
+              </span>
             ) : (
               <span className="text-xs font-bold text-amber-700 flex items-center gap-1 shrink-0">
                 <Clock className="w-4 h-4 text-amber-600" /> En attente de paiement
@@ -322,9 +449,9 @@ export const TransactionDetailsModal: React.FC<TransactionDetailsModalProps> = (
                 <p className="font-display font-bold text-sm text-sahel-900">{transaction.fraisDossier.toLocaleString('fr-FR')} FCFA</p>
               </div>
               <div className="p-3 rounded-xl bg-terracotta-50/50 border border-terracotta-200">
-                <p className="text-terracotta-800 font-semibold">Total consigné en séquestre</p>
+                <p className="text-terracotta-800 font-semibold">Total à régler</p>
                 <p className="font-display font-bold text-sm text-terracotta-700">
-                  {(transaction.montantTotalSequestre ?? (transaction.montantCaution + transaction.fraisDossier)).toLocaleString('fr-FR')} FCFA
+                  {(transaction.montantTotalSequestre ?? transaction.montantCaution + transaction.fraisDossier).toLocaleString('fr-FR')} FCFA
                 </p>
               </div>
             </div>
@@ -343,23 +470,69 @@ export const TransactionDetailsModal: React.FC<TransactionDetailsModalProps> = (
                 <p className="font-display font-bold text-sm text-sahel-900">{transaction.fraisDossier.toLocaleString('fr-FR')} FCFA</p>
               </div>
               <div className="p-3 rounded-xl bg-terracotta-50/50 border border-terracotta-200">
-                <p className="text-terracotta-800 font-semibold">Total consigné</p>
-                <p className="font-display font-bold text-sm text-terracotta-700">
-                  {(transaction.montantTotalSequestre ?? (transaction.montantCaution + (transaction.montantPremierLoyer || 0) + transaction.fraisDossier)).toLocaleString('fr-FR')} FCFA
-                </p>
+                <p className="text-terracotta-800 font-semibold">Total du dossier</p>
+                <p className="font-display font-bold text-sm text-terracotta-700">{totalAmount.toLocaleString('fr-FR')} FCFA</p>
+              </div>
+            </div>
+          )}
+
+          {/* Pending PayTech Sandbox Warning & Polling Controls (ESCROW-FE-001) */}
+          {isPendingExternalPayment && (
+            <div
+              data-testid="paytech-pending-panel"
+              className="p-3.5 rounded-xl bg-amber-50 border border-amber-300 text-xs text-amber-950 space-y-2.5"
+            >
+              <div className="flex items-start gap-2">
+                <ShieldAlert className="w-4 h-4 text-amber-700 shrink-0 mt-0.5" />
+                <div className="space-y-1">
+                  <p className="font-bold">Paiement PayTech (Wave Sandbox) en attente de confirmation</p>
+                  <p>
+                    La session PayTech a été initialisée mais <strong>le paiement n&apos;est pas encore confirmé</strong>. Le dossier ne sera
+                    débloqué qu&apos;après réception d&apos;une notification IPN authentifiée par le backend.
+                  </p>
+                  {transaction.refCommandPaytech && (
+                    <p className="font-mono text-[11px] break-all">
+                      Référence commande PayTech : <strong>{transaction.refCommandPaytech}</strong>
+                    </p>
+                  )}
+                  {transaction.zeroDebitGaranti !== true && (
+                    <p className="text-[11px] text-amber-800 font-medium">
+                      Avertissement sécurité Sandbox : la documentation PayTech indique qu&apos;un paiement en mode test (env=test) peut
+                      débiter 100 à 150 FCFA réels. La redirection automatique est désactivée par précaution.
+                    </p>
+                  )}
+                </div>
+              </div>
+              <div className="flex flex-wrap gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="border-amber-500 text-amber-900 hover:bg-amber-100"
+                  isLoading={isCheckingStatus}
+                  disabled={isAnyActionPending && !isCheckingStatus}
+                  onClick={handleVerifierStatutPaiement}
+                >
+                  <RefreshCw className="w-3.5 h-3.5 mr-1.5" />
+                  Vérifier le statut du paiement
+                </Button>
               </div>
             </div>
           )}
 
           {transaction.referenceWave && (
             <div className="p-3 rounded-xl bg-emerald-50 border border-emerald-200 text-xs text-emerald-900 flex flex-wrap items-center justify-between gap-2">
-              <span className="break-all">Référence Wave Sandbox : <strong>{transaction.referenceWave}</strong></span>
+              <span className="break-all">
+                {isSimulatedMode ? 'Référence de simulation locale : ' : 'Référence paiement PayTech (Wave) : '}
+                <strong>{transaction.referenceWave}</strong>
+              </span>
               {transaction.statutSequestre === 'BLOQUE' ? (
-                <Badge variant="success">Séquestre bloqué</Badge>
+                <Badge variant="success">
+                  {isSimulatedMode ? 'Paiement simulé (zéro débit)' : 'Paiement confirmé'}
+                </Badge>
               ) : transaction.statutSequestre === 'LIBERE' ? (
-                <Badge variant="info">Fonds libérés</Badge>
+                <Badge variant="info">Libération logique</Badge>
               ) : transaction.statutSequestre === 'REMBOURSE' ? (
-                <Badge variant="neutral">Remboursé</Badge>
+                <Badge variant="neutral">{isSimulatedMode ? 'Remboursement simulé' : 'Remboursé'}</Badge>
               ) : transaction.statutSequestre === 'EXPIRE' ? (
                 <Badge variant="rose">Expiré</Badge>
               ) : (
@@ -369,21 +542,40 @@ export const TransactionDetailsModal: React.FC<TransactionDetailsModalProps> = (
           )}
 
           {transaction.statutSequestre === 'LIBERE' && (
-            <div className="p-3.5 rounded-xl bg-emerald-50 border border-emerald-200 text-xs text-emerald-900 space-y-1">
+            <div className="p-3.5 rounded-xl bg-emerald-50 border border-emerald-200 text-xs text-emerald-900 space-y-1.5">
               <div className="flex items-center gap-1.5 font-bold">
                 <CheckCircle2 className="w-4 h-4 text-emerald-600" />
-                <span>Fonds libérés avec succès</span>
+                <span>Libération logique du dossier effectuée</span>
               </div>
               <p>
                 {isVente ? (
-                  <>Montant versé au vendeur ({transaction.proprietaireNomComplet || 'Vendeur'}) : <strong>{(transaction.montantVerseProprietaire ?? transaction.montantCaution).toLocaleString('fr-FR')} FCFA</strong> (acompte de réservation de {transaction.acomptePourcentage || 10} %).</>
+                  <>
+                    Part destinée au vendeur ({transaction.proprietaireNomComplet || 'Vendeur'}) :{' '}
+                    <strong>{(transaction.montantVerseProprietaire ?? transaction.montantCaution).toLocaleString('fr-FR')} FCFA</strong>{' '}
+                    (acompte de réservation de {transaction.acomptePourcentage || 10} %).
+                  </>
                 ) : (
-                  <>Montant versé au propriétaire ({transaction.proprietaireNomComplet || 'Bailleur'}) : <strong>{(transaction.montantVerseProprietaire ?? (transaction.montantCaution + (transaction.montantPremierLoyer || 0))).toLocaleString('fr-FR')} FCFA</strong> (caution + premier loyer).</>
+                  <>
+                    Part destinée au propriétaire ({transaction.proprietaireNomComplet || 'Bailleur'}) :{' '}
+                    <strong>
+                      {(transaction.montantVerseProprietaire ?? transaction.montantCaution + (transaction.montantPremierLoyer || 0)).toLocaleString(
+                        'fr-FR'
+                      )}{' '}
+                      FCFA
+                    </strong>{' '}
+                    (caution + premier loyer).
+                  </>
                 )}
               </p>
               <p className="text-emerald-700">
-                Frais de plateforme conservés : <strong>{transaction.fraisDossier.toLocaleString('fr-FR')} FCFA</strong>.
+                Frais de dossier plateforme : <strong>{transaction.fraisDossier.toLocaleString('fr-FR')} FCFA</strong>.
               </p>
+              {transaction.referenceTransfertProprietaire && (
+                <p className="text-[11px] font-mono text-emerald-800 bg-white/70 px-2.5 py-1.5 rounded-lg border border-emerald-200">
+                  Transfert propriétaire : <strong>{transaction.statutTransfertProprietaire || 'TRANSFERT_SIMULE'}</strong> — Réf :{' '}
+                  <strong>{transaction.referenceTransfertProprietaire}</strong> (simulation locale sans virement réel)
+                </p>
+              )}
             </div>
           )}
 
@@ -396,20 +588,22 @@ export const TransactionDetailsModal: React.FC<TransactionDetailsModalProps> = (
               )}
               {isLocataire ? (
                 <div className="flex flex-col sm:flex-row gap-2">
-                  <Button
-                    variant="primary"
-                    className="w-full"
-                    isLoading={isPaying}
-                    disabled={isCancelling}
-                    onClick={handlePaiementCaution}
-                  >
-                    Payer {(transaction.montantTotalSequestre ?? (transaction.montantCaution + (transaction.montantPremierLoyer || 0) + transaction.fraisDossier)).toLocaleString('fr-FR')} FCFA via Wave (Sandbox)
-                  </Button>
+                  {!isPendingExternalPayment && (
+                    <Button
+                      variant="primary"
+                      className="w-full"
+                      isLoading={isPaying}
+                      disabled={isCancelling || isCheckingStatus}
+                      onClick={handlePaiementCaution}
+                    >
+                      Initier le paiement ({totalAmount.toLocaleString('fr-FR')} FCFA via PayTech / Wave)
+                    </Button>
+                  )}
                   <Button
                     variant="outline"
                     className="sm:w-auto shrink-0 border-sand-400 text-sahel-700 hover:bg-sand-100"
                     isLoading={isCancelling}
-                    disabled={isPaying}
+                    disabled={isPaying || isCheckingStatus}
                     onClick={handleAnnulerTransaction}
                   >
                     Annuler la transaction
@@ -418,7 +612,7 @@ export const TransactionDetailsModal: React.FC<TransactionDetailsModalProps> = (
               ) : (
                 <div className="space-y-2">
                   <p className="text-xs text-sahel-600 italic">
-                    En attente du paiement du séquestre par {isVente ? "l'acheteur" : "le locataire"} ({transaction.locataireNomComplet}).
+                    En attente du règlement par {isVente ? "l'acheteur" : 'le locataire'} ({transaction.locataireNomComplet}).
                   </p>
                   {isAdmin && (
                     <Button
@@ -437,21 +631,19 @@ export const TransactionDetailsModal: React.FC<TransactionDetailsModalProps> = (
           )}
 
           {(transaction.statutSequestre === 'ANNULE' || transaction.statutSequestre === 'EXPIRE') && (
-            <div className={`p-3.5 rounded-xl border text-xs space-y-1 ${
-              transaction.statutSequestre === 'EXPIRE'
-                ? 'bg-rose-50 border-rose-200 text-rose-900'
-                : 'bg-sand-100 border-sand-300 text-sahel-900'
-            }`}>
+            <div
+              className={`p-3.5 rounded-xl border text-xs space-y-1 ${
+                transaction.statutSequestre === 'EXPIRE'
+                  ? 'bg-rose-50 border-rose-200 text-rose-900'
+                  : 'bg-sand-100 border-sand-300 text-sahel-900'
+              }`}
+            >
               <div className="flex items-center gap-1.5 font-bold">
                 <AlertCircle className={`w-4 h-4 ${transaction.statutSequestre === 'EXPIRE' ? 'text-rose-600' : 'text-sahel-600'}`} />
                 <span>{transaction.statutSequestre === 'EXPIRE' ? 'Transaction expirée' : 'Transaction annulée'}</span>
               </div>
-              {transaction.dateCloture && (
-                <p>Date de clôture : {new Date(transaction.dateCloture).toLocaleString('fr-FR')}</p>
-              )}
-              {transaction.motifCloture && (
-                <p className="italic">Motif : {transaction.motifCloture}</p>
-              )}
+              {transaction.dateCloture && <p>Date de clôture : {new Date(transaction.dateCloture).toLocaleString('fr-FR')}</p>}
+              {transaction.motifCloture && <p className="italic">Motif : {transaction.motifCloture}</p>}
             </div>
           )}
 
@@ -459,12 +651,17 @@ export const TransactionDetailsModal: React.FC<TransactionDetailsModalProps> = (
             <div className="p-3.5 rounded-xl bg-sand-100 border border-sand-300 text-xs text-sahel-900 space-y-1.5">
               <div className="flex items-center gap-1.5 font-bold text-sahel-900">
                 <RotateCcw className="w-4 h-4 text-terracotta-600" />
-                <span>Séquestre Remboursé</span>
+                <span>{isSimulatedMode ? 'Remboursement simulé' : 'Paiement remboursé'}</span>
               </div>
               {transaction.referenceRemboursementWave ? (
                 <div className="space-y-1">
-                  <p>Référence Wave de remboursement : <strong>{transaction.referenceRemboursementWave}</strong></p>
-                  <p>Montant remboursé : <strong>{(transaction.montantRembourse || transaction.montantTotalSequestre).toLocaleString('fr-FR')} FCFA</strong></p>
+                  <p>
+                    Référence de remboursement : <strong>{transaction.referenceRemboursementWave}</strong>
+                  </p>
+                  <p>
+                    Montant remboursé :{' '}
+                    <strong>{(transaction.montantRembourse || transaction.montantTotalSequestre).toLocaleString('fr-FR')} FCFA</strong>
+                  </p>
                   {transaction.dateRemboursement && (
                     <p className="text-sahel-600">Date : {new Date(transaction.dateRemboursement).toLocaleString('fr-FR')}</p>
                   )}
@@ -475,9 +672,7 @@ export const TransactionDetailsModal: React.FC<TransactionDetailsModalProps> = (
               ) : (
                 <div className="space-y-1 text-sahel-700">
                   <p className="font-semibold">Clôture administrative / régularisation</p>
-                  {transaction.motifRemboursement && (
-                    <p className="italic">{transaction.motifRemboursement}</p>
-                  )}
+                  {transaction.motifRemboursement && <p className="italic">{transaction.motifRemboursement}</p>}
                 </div>
               )}
             </div>
@@ -488,7 +683,7 @@ export const TransactionDetailsModal: React.FC<TransactionDetailsModalProps> = (
             <div className="p-4 rounded-xl border border-terracotta-200 bg-terracotta-50/40 space-y-3">
               <div className="flex items-center justify-between">
                 <span className="text-xs font-bold text-terracotta-800 flex items-center gap-1.5">
-                  <RotateCcw className="w-3.5 h-3.5 text-terracotta-600" /> Action Administrateur : Rembourser le séquestre
+                  <RotateCcw className="w-3.5 h-3.5 text-terracotta-600" /> Action Administrateur : Remboursement simulé
                 </span>
                 {!showRefundConfirm && (
                   <Button
@@ -496,7 +691,7 @@ export const TransactionDetailsModal: React.FC<TransactionDetailsModalProps> = (
                     size="sm"
                     className="border-terracotta-400 text-terracotta-700 hover:bg-terracotta-100 text-xs"
                     onClick={() => {
-                      setMotifRemboursementInput('Annulation du dossier et restitution intégrale des fonds');
+                      setMotifRemboursementInput('Annulation du dossier et restitution intégrale simulée');
                       setShowRefundConfirm(true);
                     }}
                   >
@@ -507,9 +702,7 @@ export const TransactionDetailsModal: React.FC<TransactionDetailsModalProps> = (
 
               {showRefundConfirm && (
                 <div className="space-y-2 pt-2 border-t border-terracotta-200">
-                  <label className="text-[11px] font-semibold text-sahel-800">
-                    Motif obligatoire du remboursement :
-                  </label>
+                  <label className="text-[11px] font-semibold text-sahel-800">Motif obligatoire du remboursement :</label>
                   <input
                     type="text"
                     value={motifRemboursementInput}
@@ -520,12 +713,7 @@ export const TransactionDetailsModal: React.FC<TransactionDetailsModalProps> = (
                     disabled={isRefunding}
                   />
                   <div className="flex items-center justify-end gap-2 pt-1">
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => setShowRefundConfirm(false)}
-                      disabled={isRefunding}
-                    >
+                    <Button variant="ghost" size="sm" onClick={() => setShowRefundConfirm(false)} disabled={isRefunding}>
                       Annuler
                     </Button>
                     <Button
@@ -535,13 +723,19 @@ export const TransactionDetailsModal: React.FC<TransactionDetailsModalProps> = (
                       isLoading={isRefunding}
                       onClick={handleRembourser}
                     >
-                      Confirmer le remboursement Wave ({(transaction.montantTotalSequestre || 0).toLocaleString('fr-FR')} FCFA)
+                      Confirmer le remboursement simulé ({(transaction.montantTotalSequestre || 0).toLocaleString('fr-FR')} FCFA)
                     </Button>
                   </div>
                 </div>
               )}
             </div>
           )}
+
+          {/* Honest regulatory notice (ESCROW-ARCH-001) */}
+          <p className="text-[11px] text-sahel-500 italic pt-1 border-t border-sand-100">
+            Information : E-Courtier n&apos;est pas un établissement de séquestre bancaire réglementé. Le règlement transite via PayTech
+            (Wave) en environnement de test ou par simulation locale sans débit réel.
+          </p>
         </div>
 
         {/* Step 2: Lease or Sale Reservation Signature */}
@@ -549,7 +743,11 @@ export const TransactionDetailsModal: React.FC<TransactionDetailsModalProps> = (
           <div className="flex flex-wrap items-center justify-between gap-2">
             <h4 className="font-display font-bold text-sm text-sahel-900 flex items-center gap-2">
               <FileCheck className="w-4 h-4 text-terracotta-500 shrink-0" />
-              <span>{isVente ? "2. Signature Numérique du Récapitulatif de Réservation d'Achat" : "2. Signature Numérique du Contrat de Bail"}</span>
+              <span>
+                {isVente
+                  ? "2. Validation & Signature du Récapitulatif de Réservation d'Achat"
+                  : '2. Validation & Signature du Contrat de Bail'}
+              </span>
             </h4>
             {transaction.statutBail === 'SIGNE_COMPLET' ? (
               <span className="text-xs font-bold text-emerald-700 flex items-center gap-1 shrink-0">
@@ -563,9 +761,13 @@ export const TransactionDetailsModal: React.FC<TransactionDetailsModalProps> = (
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-3 sm:gap-4 text-xs">
-            <div className={`p-3.5 rounded-xl border flex flex-wrap items-center justify-between gap-2 ${
-              transaction.dateSignatureLocataire ? 'bg-emerald-50 border-emerald-200 text-emerald-900' : 'bg-sand-50 border-sand-200 text-sahel-700'
-            }`}>
+            <div
+              className={`p-3.5 rounded-xl border flex flex-wrap items-center justify-between gap-2 ${
+                transaction.dateSignatureLocataire
+                  ? 'bg-emerald-50 border-emerald-200 text-emerald-900'
+                  : 'bg-sand-50 border-sand-200 text-sahel-700'
+              }`}
+            >
               <div className="flex items-center gap-2 min-w-0">
                 <UserCheck className={`w-4 h-4 shrink-0 ${transaction.dateSignatureLocataire ? 'text-emerald-600' : 'text-sahel-500'}`} />
                 <div className="min-w-0">
@@ -582,11 +784,17 @@ export const TransactionDetailsModal: React.FC<TransactionDetailsModalProps> = (
               )}
             </div>
 
-            <div className={`p-3.5 rounded-xl border flex flex-wrap items-center justify-between gap-2 ${
-              transaction.dateSignatureProprietaire ? 'bg-emerald-50 border-emerald-200 text-emerald-900' : 'bg-sand-50 border-sand-200 text-sahel-700'
-            }`}>
+            <div
+              className={`p-3.5 rounded-xl border flex flex-wrap items-center justify-between gap-2 ${
+                transaction.dateSignatureProprietaire
+                  ? 'bg-emerald-50 border-emerald-200 text-emerald-900'
+                  : 'bg-sand-50 border-sand-200 text-sahel-700'
+              }`}
+            >
               <div className="flex items-center gap-2 min-w-0">
-                <UserCheck className={`w-4 h-4 shrink-0 ${transaction.dateSignatureProprietaire ? 'text-emerald-600' : 'text-sahel-500'}`} />
+                <UserCheck
+                  className={`w-4 h-4 shrink-0 ${transaction.dateSignatureProprietaire ? 'text-emerald-600' : 'text-sahel-500'}`}
+                />
                 <div className="min-w-0">
                   <p className="font-bold">{isVente ? 'Signature Vendeur' : 'Signature Propriétaire'}</p>
                   <p className="text-[11px] truncate">{transaction.proprietaireNomComplet || (isVente ? 'Vendeur' : 'Propriétaire')}</p>
@@ -602,29 +810,58 @@ export const TransactionDetailsModal: React.FC<TransactionDetailsModalProps> = (
             </div>
           </div>
 
-          {/* Action to Sign */}
+          {/* Integrity SHA-256 display & pre-signature preview (ESCROW-SIGN-002) */}
+          {transaction.bailDocumentSha256 && (
+            <div className="p-2.5 rounded-xl bg-sand-50 border border-sand-200 text-[11px] text-sahel-700 space-y-1">
+              <p className="font-mono break-all">
+                Empreinte SHA-256 des termes : <strong>{transaction.bailDocumentSha256}</strong>
+              </p>
+              <p className="italic text-sahel-500">
+                Horodatage et empreinte SHA-256 applicatifs internes (ne constituent pas une signature électronique qualifiée certifiée).
+              </p>
+            </div>
+          )}
+
+          {transaction.statutSequestre === 'BLOQUE' && (
+            <div className="flex justify-start">
+              <Button
+                variant="outline"
+                size="sm"
+                className="text-xs border-sand-400 text-sahel-800 hover:bg-sand-100"
+                isLoading={isDownloadingPreview}
+                disabled={isAnyActionPending && !isDownloadingPreview}
+                onClick={handleDownloadPreviewPdf}
+              >
+                <Eye className="w-3.5 h-3.5 mr-1.5" />
+                Consulter l&apos;aperçu PDF pré-signature
+              </Button>
+            </div>
+          )}
+
+          {/* Action to Sign (ESCROW-SIGN-001: parties only, never ADMIN) */}
           {!isClosedTerminal && transaction.statutBail !== 'SIGNE_COMPLET' && (
             <div>
               {transaction.statutSequestre !== 'BLOQUE' ? (
                 <div className="p-3 rounded-xl bg-amber-50 border border-amber-200 text-xs text-amber-900 flex items-center gap-2">
                   <Clock className="w-4 h-4 text-amber-600 shrink-0" />
                   <span>
-                    La signature numérique du {isVente ? "récapitulatif de réservation" : "contrat de bail"} est débloquée uniquement après confirmation du paiement du séquestre Wave (statut <strong>BLOQUE</strong>).
+                    La signature du {isVente ? 'récapitulatif de réservation' : 'contrat de bail'} est débloquée uniquement après
+                    confirmation authentifiée du paiement.
                   </span>
                 </div>
-              ) : ((isLocataire && !transaction.dateSignatureLocataire) || (isProprietaire && !transaction.dateSignatureProprietaire)) ? (
-                <Button
-                  variant="primary"
-                  className="w-full"
-                  isLoading={isSigning}
-                  onClick={handleSignerBail}
-                >
-                  {isVente ? "Signer le récapitulatif de réservation" : "Signer le bail numérique"}
+              ) : (isLocataire && !transaction.dateSignatureLocataire) || (isProprietaire && !transaction.dateSignatureProprietaire) ? (
+                <Button variant="primary" className="w-full" isLoading={isSigning} onClick={handleSignerBail}>
+                  {isVente ? 'Signer le récapitulatif de réservation' : 'Signer le bail numérique'}
                 </Button>
-              ) : (isLocataire || isProprietaire) ? (
+              ) : isLocataire || isProprietaire ? (
                 <div className="p-3 rounded-xl bg-amber-50 border border-amber-200 text-xs text-amber-900 flex items-center gap-2">
                   <AlertCircle className="w-4 h-4 text-amber-600 shrink-0" />
                   <span>Votre signature est déjà enregistrée. En attente de la deuxième partie.</span>
+                </div>
+              ) : isAdmin ? (
+                <div className="p-3 rounded-xl bg-sand-100 border border-sand-300 text-xs text-sahel-800 flex items-center gap-2">
+                  <ShieldAlert className="w-4 h-4 text-sahel-600 shrink-0" />
+                  <span>Contrôle sécurité : un administrateur ne peut jamais signer le contrat à la place des parties.</span>
                 </div>
               ) : null}
             </div>
@@ -634,21 +871,14 @@ export const TransactionDetailsModal: React.FC<TransactionDetailsModalProps> = (
           {transaction.statutBail === 'SIGNE_COMPLET' && (
             <div className="pt-2 space-y-3">
               {transaction.statutDocumentBail === 'ECHEC' && (
-                <div
-                  role="alert"
-                  className="p-3 rounded-xl bg-rose-50 border border-rose-200 text-xs text-rose-900 space-y-1"
-                >
+                <div role="alert" className="p-3 rounded-xl bg-rose-50 border border-rose-200 text-xs text-rose-900 space-y-1">
                   <div className="flex items-center gap-1.5 font-bold">
                     <AlertCircle className="w-4 h-4 text-rose-600 shrink-0" />
                     <span>Génération du document PDF en échec</span>
                   </div>
-                  {transaction.pdfBailErreur && (
-                    <p className="text-[11px] text-rose-800">{transaction.pdfBailErreur}</p>
-                  )}
+                  {transaction.pdfBailErreur && <p className="text-[11px] text-rose-800">{transaction.pdfBailErreur}</p>}
                   {typeof transaction.pdfBailTentatives === 'number' && transaction.pdfBailTentatives > 0 && (
-                    <p className="text-[11px] text-rose-700">
-                      Tentatives effectuées : {transaction.pdfBailTentatives}
-                    </p>
+                    <p className="text-[11px] text-rose-700">Tentatives effectuées : {transaction.pdfBailTentatives}</p>
                   )}
                 </div>
               )}
@@ -679,7 +909,7 @@ export const TransactionDetailsModal: React.FC<TransactionDetailsModalProps> = (
                   <span>
                     {isVente
                       ? "Télécharger le récapitulatif de réservation d'achat (PDF horodaté)"
-                      : "Télécharger le contrat de bail PDF (Horodaté & Numéroté)"}
+                      : 'Télécharger le contrat de bail PDF (Horodaté & Numéroté)'}
                   </span>
                 </Button>
 
@@ -708,7 +938,6 @@ export const TransactionDetailsModal: React.FC<TransactionDetailsModalProps> = (
             Fermer
           </Button>
         </div>
-
       </div>
     </Modal>
   );

@@ -253,6 +253,66 @@ class ProductionConfigurationValidatorTest {
         assertDoesNotThrow(() -> runValidatorWithProdYaml(false));
     }
 
+    @Test
+    @DisplayName("RENDER-PAYTECH-01 : PAYTECH_ENV=prod est strictement bloqué au démarrage (même hors profil prod)")
+    void testPayTechProdEnvBlockedAtStartup() {
+        org.springframework.mock.env.MockEnvironment env = new org.springframework.mock.env.MockEnvironment();
+        env.setActiveProfiles("dev");
+        env.setProperty("ecourtier.payment.provider", "paytech");
+        env.setProperty("ecourtier.payment.paytech.env", "prod");
+
+        ProductionConfigurationValidator validator = new ProductionConfigurationValidator(env);
+        IllegalStateException ex = assertThrows(IllegalStateException.class,
+                () -> validator.run(new DefaultApplicationArguments(new String[0])));
+        assertTrue(ex.getMessage().contains("PAYTECH_ENV"));
+        assertTrue(ex.getMessage().contains("Sandbox"));
+    }
+
+    @Test
+    @DisplayName("RENDER-PAYTECH-01 : PAYTECH_ENV=test démarre proprement en Sandbox sans bloquer si mock ou clés test")
+    void testPayTechSandboxEnvAllowedAtStartup() {
+        org.springframework.mock.env.MockEnvironment env = new org.springframework.mock.env.MockEnvironment();
+        env.setActiveProfiles("dev");
+        env.setProperty("ecourtier.payment.provider", "paytech");
+        env.setProperty("ecourtier.payment.paytech.env", "test");
+
+        ProductionConfigurationValidator validator = new ProductionConfigurationValidator(env);
+        assertDoesNotThrow(() -> validator.run(new DefaultApplicationArguments(new String[0])));
+    }
+
+    @Test
+    @DisplayName("AUDIT-PT-011 : PAYTECH_ENV vide explicite est rejeté au démarrage lorsque PAYMENT_PROVIDER=paytech")
+    void testPayTechBlankEnvBlockedAtStartup() {
+        org.springframework.mock.env.MockEnvironment env = new org.springframework.mock.env.MockEnvironment();
+        env.setActiveProfiles("dev");
+        env.setProperty("ecourtier.payment.provider", "paytech");
+        env.setProperty("ecourtier.payment.paytech.env", "");
+
+        ProductionConfigurationValidator validator = new ProductionConfigurationValidator(env);
+        IllegalStateException ex = assertThrows(IllegalStateException.class,
+                () -> validator.run(new DefaultApplicationArguments(new String[0])));
+        assertTrue(ex.getMessage().contains("PAYTECH_ENV"));
+    }
+
+    @Test
+    @DisplayName("AUDIT-PT-001 : En profil production, zero-debit-guaranteed=true vers paytech.sn est bloqué au démarrage")
+    void testPayTechZeroDebitTrueAgainstPaytechSnBlockedInProd() {
+        org.springframework.mock.env.MockEnvironment env = new org.springframework.mock.env.MockEnvironment();
+        env.setActiveProfiles("prod");
+        env.setProperty("ecourtier.jwt.secret", "aVeryStrongAndSecretProductionKeyWithEnoughEntropy2026!!");
+        env.setProperty("spring.datasource.password", "ultra_secure_postgres_pass_2026");
+        env.setProperty("ecourtier.cors.allowed-origins", "https://ecourtier-frontend.onrender.com");
+        env.setProperty("ecourtier.payment.provider", "paytech");
+        env.setProperty("ecourtier.payment.paytech.env", "test");
+        env.setProperty("ecourtier.payment.paytech.base-url", "https://paytech.sn/api");
+        env.setProperty("ecourtier.payment.paytech.zero-debit-guaranteed", "true");
+
+        ProductionConfigurationValidator validator = new ProductionConfigurationValidator(env);
+        IllegalStateException ex = assertThrows(IllegalStateException.class,
+                () -> validator.run(new DefaultApplicationArguments(new String[0])));
+        assertTrue(ex.getMessage().contains("zero-debit-guaranteed"));
+    }
+
     private void runValidatorWithProdYaml(boolean includeGeminiKey) throws Exception {
         org.springframework.boot.env.YamlPropertySourceLoader loader = new org.springframework.boot.env.YamlPropertySourceLoader();
         java.util.List<org.springframework.core.env.PropertySource<?>> baseSources =

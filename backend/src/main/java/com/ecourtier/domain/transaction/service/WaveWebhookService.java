@@ -2,11 +2,14 @@ package com.ecourtier.domain.transaction.service;
 
 import com.ecourtier.domain.transaction.dto.WaveWebhookPayloadDTO;
 import com.ecourtier.domain.transaction.dto.WaveWebhookResponseDTO;
+import com.ecourtier.domain.transaction.gateway.PayTechPaymentGateway;
+import com.ecourtier.domain.transaction.gateway.PaymentGateway;
 import com.ecourtier.domain.transaction.service.TransactionService.PaymentConfirmationResult;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
@@ -14,6 +17,7 @@ import org.springframework.web.server.ResponseStatusException;
 
 import javax.crypto.Mac;
 import javax.crypto.spec.SecretKeySpec;
+import java.math.BigDecimal;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.util.HexFormat;
@@ -32,6 +36,13 @@ public class WaveWebhookService {
     private final TransactionService transactionService;
     private final ObjectMapper objectMapper;
 
+    private PaymentGateway paymentGateway;
+
+    @Autowired(required = false)
+    void setPaymentGateway(PaymentGateway paymentGateway) {
+        this.paymentGateway = paymentGateway;
+    }
+
     @Value("${ecourtier.wave.webhook-secret:}")
     private String webhookSecret = "";
 
@@ -40,6 +51,15 @@ public class WaveWebhookService {
     }
 
     public WaveWebhookResponseDTO traiterWebhook(String rawPayload, String signatureHeader) {
+        // AUDIT-PT-009 : Désactiver le webhook interne hérité Wave lorsque la passerelle active est PayTech
+        if (paymentGateway != null && PayTechPaymentGateway.PROVIDER_CODE.equalsIgnoreCase(paymentGateway.getProviderCode())) {
+            log.warn("[WEBHOOK WAVE REFUSÉ] Endpoint hérité /webhooks/wave désactivé lorsque PAYMENT_PROVIDER=paytech");
+            throw new ResponseStatusException(
+                    HttpStatus.FORBIDDEN,
+                    "Webhook Wave hérité désactivé : utilisez l'endpoint IPN PayTech (/api/v1/webhooks/paytech)."
+            );
+        }
+
         verifierSignatureHmac(rawPayload, signatureHeader);
 
         WaveWebhookPayloadDTO payload;
@@ -74,6 +94,9 @@ public class WaveWebhookService {
 
         if (payload.getWaveReference() == null || payload.getWaveReference().isBlank()) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "waveReference obligatoire pour confirmation webhook");
+        }
+        if (payload.getAmount() == null || payload.getAmount().compareTo(BigDecimal.ZERO) <= 0) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "amount obligatoire et strictement positif pour confirmation webhook");
         }
 
         PaymentConfirmationResult result = transactionService.confirmWavePaymentFromExternal(

@@ -25,7 +25,15 @@ test.describe('PHASE 9H — G-01 : Contrat et Workflow Administrateur de Rembour
       refreshToken: 'mock-refresh-token',
     };
 
-    // 2. Mock des endpoints transactions
+    // 2. Mock des endpoints API (catch-all d'abord en LIFO pour isoler contre un backend réel)
+    await page.route('**/api/v1/**', async (route) => {
+      const url = route.request().url();
+      if (url.includes('/notifications/non-lues/compteur')) {
+        return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ count: 0 }) });
+      }
+      return route.fulfill({ status: 200, contentType: 'application/json', body: '[]' });
+    });
+
     await page.route('**/api/v1/admin/transactions*', async (route) => {
       const mockResponse = {
         content: [
@@ -81,12 +89,12 @@ test.describe('PHASE 9H — G-01 : Contrat et Workflow Administrateur de Rembour
     await expect(page.locator('tbody tr')).toContainText('1 705 000 FCFA');
     await expect(page.locator('tbody tr')).toContainText('WAVE-REFUND-SANDBOX-999');
 
-    // 5. Cliquer sur le bouton Détails
-    await page.locator('button:has-text("Détails")').click();
+    // 5. Cliquer sur le bouton Détails (table desktop)
+    await page.locator('tbody button:has-text("Détails")').click();
 
-    // 6. Vérifier l'affichage du modal avec les informations de remboursement Wave
+    // 6. Vérifier l'affichage du modal avec les informations de remboursement simulé
     await expect(page.locator('div[role="dialog"]')).toBeVisible();
-    await expect(page.locator('div[role="dialog"]')).toContainText('Séquestre Remboursé');
+    await expect(page.locator('div[role="dialog"]')).toContainText('Remboursement simulé');
     await expect(page.locator('div[role="dialog"]')).toContainText('WAVE-REFUND-SANDBOX-999');
     await expect(page.locator('div[role="dialog"]')).toContainText("Désistement suite à accord amiable");
   });
@@ -107,6 +115,14 @@ test.describe('PHASE 9H — G-01 : Contrat et Workflow Administrateur de Rembour
 
     let txStatus = 'BLOQUE';
     let refundRef = '';
+
+    await page.route('**/api/v1/**', async (route) => {
+      const url = route.request().url();
+      if (url.includes('/notifications/non-lues/compteur')) {
+        return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ count: 0 }) });
+      }
+      return route.fulfill({ status: 200, contentType: 'application/json', body: '[]' });
+    });
 
     await page.route('**/api/v1/admin/transactions*', async (route) => {
       const mockResponse = {
@@ -171,12 +187,12 @@ test.describe('PHASE 9H — G-01 : Contrat et Workflow Administrateur de Rembour
 
     await page.goto(`${BASE_URL}/admin/transactions`);
 
-    // Ouvrir le modal
-    await page.locator('button:has-text("Rembourser / Gérer")').click();
+    // Ouvrir le modal (table desktop)
+    await page.locator('tbody button:has-text("Rembourser / Gérer")').click();
     await expect(page.locator('div[role="dialog"]')).toBeVisible();
 
     // Vérifier la présence du bloc Admin de remboursement
-    await expect(page.locator('div[role="dialog"]')).toContainText('Action Administrateur : Rembourser le séquestre');
+    await expect(page.locator('div[role="dialog"]')).toContainText('Action Administrateur : Remboursement simulé');
 
     // Cliquer sur "Initier le remboursement"
     await page.locator('button:has-text("Initier le remboursement")').click();
@@ -187,9 +203,9 @@ test.describe('PHASE 9H — G-01 : Contrat et Workflow Administrateur de Rembour
     await motifInput.fill('Annulation demandée par le locataire');
 
     // Cliquer sur le bouton de confirmation
-    await page.locator('button:has-text("Confirmer le remboursement Wave")').click();
+    await page.locator('button:has-text("Confirmer le remboursement simulé")').click();
 
     // Vérifier la transition et le badge de succès
-    await expect(page.locator('div[role="dialog"]')).toContainText('Séquestre Remboursé');
+    await expect(page.locator('div[role="dialog"]')).toContainText('Remboursement simulé');
   });
 });
