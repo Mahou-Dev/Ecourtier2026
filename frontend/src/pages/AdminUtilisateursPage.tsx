@@ -102,6 +102,7 @@ export const AdminUtilisateursPage: React.FC = () => {
       toast.success(`Compte ${res.utilisateur.role} créé pour ${res.utilisateur.email}`);
       queryClient.invalidateQueries({ queryKey: ['admin-utilisateurs'] });
       queryClient.invalidateQueries({ queryKey: ['admin-statistiques-kpi'] });
+      queryClient.invalidateQueries({ queryKey: ['admin-statistiques'] });
       setNom('');
       setPrenom('');
       setEmail('');
@@ -121,6 +122,7 @@ export const AdminUtilisateursPage: React.FC = () => {
       toast.success(`Rôle de ${updated.prenom} ${updated.nom} changé en ${updated.role}`);
       queryClient.invalidateQueries({ queryKey: ['admin-utilisateurs'] });
       queryClient.invalidateQueries({ queryKey: ['admin-statistiques-kpi'] });
+      queryClient.invalidateQueries({ queryKey: ['admin-statistiques'] });
       setRoleTarget(null);
     },
     onError: (err: unknown) => {
@@ -139,6 +141,7 @@ export const AdminUtilisateursPage: React.FC = () => {
       );
       queryClient.invalidateQueries({ queryKey: ['admin-utilisateurs'] });
       queryClient.invalidateQueries({ queryKey: ['admin-statistiques-kpi'] });
+      queryClient.invalidateQueries({ queryKey: ['admin-statistiques'] });
       setDeactivateTarget(null);
     },
     onError: (err: unknown) => {
@@ -186,12 +189,14 @@ export const AdminUtilisateursPage: React.FC = () => {
     }
   };
 
-  // KPI Calculations from real data
-  const totalUsersCount = data?.totalElements ?? (users.length > 0 ? users.length : 0);
+  // KPI Calculations from real data (uncorrupted by search/filters)
   const totalParRole = statsData?.utilisateurs?.totalParRole;
-  const agentsCount = totalParRole?.['AGENT'] ?? users.filter((u) => u.role === 'AGENT').length;
-  const proprietairesCount = totalParRole?.['PROPRIETAIRE'] ?? users.filter((u) => u.role === 'PROPRIETAIRE').length;
-  const locatairesCount = totalParRole?.['LOCATAIRE'] ?? users.filter((u) => u.role === 'LOCATAIRE').length;
+  const totalUsersCount = totalParRole
+    ? Object.values(totalParRole).reduce((acc, count) => acc + count, 0)
+    : (data?.totalElements ?? (users.length > 0 ? users.length : 0));
+  const agentsCount = totalParRole?.['AGENT'] ?? (roleFilter === 'AGENT' ? (data?.totalElements ?? 0) : 0);
+  const proprietairesCount = totalParRole?.['PROPRIETAIRE'] ?? (roleFilter === 'PROPRIETAIRE' ? (data?.totalElements ?? 0) : 0);
+  const locatairesCount = totalParRole?.['LOCATAIRE'] ?? (roleFilter === 'LOCATAIRE' ? (data?.totalElements ?? 0) : 0);
 
   return (
     <div className="min-h-screen bg-sand-100/60 pb-16 pt-6 sm:pt-8 px-3 sm:px-6 lg:px-8 max-w-7xl mx-auto space-y-6">

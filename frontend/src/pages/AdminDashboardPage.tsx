@@ -278,24 +278,30 @@ export const AdminDashboardPage: React.FC = () => {
                 </div>
               </div>
               <div className="h-64 w-full min-w-0">
-                <ResponsiveContainer width="100%" height="100%">
-                  <AreaChart data={inscriptionData} margin={{ top: 10, right: 12, left: -12, bottom: 0 }}>
-                    <defs>
-                      <linearGradient id="gradientTerracotta" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="5%" stopColor={PALETTE.terracotta} stopOpacity={0.4} />
-                        <stop offset="95%" stopColor={PALETTE.terracotta} stopOpacity={0.0} />
-                      </linearGradient>
-                    </defs>
-                    <CartesianGrid strokeDasharray="3 3" stroke="#f0ebe1" />
-                    <XAxis dataKey="date" tick={{ fontSize: 10, fill: '#6e675f' }} />
-                    <YAxis allowDecimals={false} tick={{ fontSize: 10, fill: '#6e675f' }} width={36} />
-                    <Tooltip
-                      contentStyle={{ backgroundColor: '#ffffff', borderRadius: '12px', border: '1px solid #e0d8c8', fontSize: '12px' }}
-                      formatter={(value) => [`${value ?? 0} utilisateur(s)`, 'Inscriptions']}
-                    />
-                    <Area type="monotone" dataKey="valeur" stroke={PALETTE.terracotta} strokeWidth={2.5} fillOpacity={1} fill="url(#gradientTerracotta)" />
-                  </AreaChart>
-                </ResponsiveContainer>
+                {inscriptionData.length === 0 ? (
+                  <div className="h-full flex items-center justify-center text-xs text-charcoal-500 italic">
+                    Aucune donnée d'inscription sur cette période.
+                  </div>
+                ) : (
+                  <ResponsiveContainer width="100%" height="100%">
+                    <AreaChart data={inscriptionData} margin={{ top: 10, right: 12, left: -12, bottom: 0 }}>
+                      <defs>
+                        <linearGradient id="gradientTerracotta" x1="0" y1="0" x2="0" y2="1">
+                          <stop offset="5%" stopColor={PALETTE.terracotta} stopOpacity={0.4} />
+                          <stop offset="95%" stopColor={PALETTE.terracotta} stopOpacity={0.0} />
+                        </linearGradient>
+                      </defs>
+                      <CartesianGrid strokeDasharray="3 3" stroke="#f0ebe1" />
+                      <XAxis dataKey="date" tick={{ fontSize: 10, fill: '#6e675f' }} />
+                      <YAxis allowDecimals={false} tick={{ fontSize: 10, fill: '#6e675f' }} width={36} />
+                      <Tooltip
+                        contentStyle={{ backgroundColor: '#ffffff', borderRadius: '12px', border: '1px solid #e0d8c8', fontSize: '12px' }}
+                        formatter={(value) => [`${value ?? 0} utilisateur(s)`, 'Inscriptions']}
+                      />
+                      <Area type="monotone" dataKey="valeur" stroke={PALETTE.terracotta} strokeWidth={2.5} fillOpacity={1} fill="url(#gradientTerracotta)" />
+                    </AreaChart>
+                  </ResponsiveContainer>
+                )}
               </div>
             </Card>
 
@@ -311,22 +317,28 @@ export const AdminDashboardPage: React.FC = () => {
                 </div>
               </div>
               <div className="h-64 w-full min-w-0">
-                <ResponsiveContainer width="100%" height="100%">
-                  <BarChart data={conversionFunnelData} layout="vertical" margin={{ top: 10, right: 16, left: 4, bottom: 0 }}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="#f0ebe1" />
-                    <XAxis type="number" allowDecimals={false} tick={{ fontSize: 10, fill: '#6e675f' }} />
-                    <YAxis type="category" dataKey="etape" tick={{ fontSize: 10, fill: '#262322', fontWeight: 600 }} width={92} />
-                    <Tooltip
-                      contentStyle={{ backgroundColor: '#ffffff', borderRadius: '12px', border: '1px solid #e0d8c8', fontSize: '12px' }}
-                      formatter={(valeur) => [`${valeur ?? 0}`, 'Volume']}
-                    />
-                    <Bar dataKey="valeur" radius={[0, 8, 8, 0]}>
-                      {conversionFunnelData.map((entry, index) => (
-                        <Cell key={`cell-${index}`} fill={entry.color} />
-                      ))}
-                    </Bar>
-                  </BarChart>
-                </ResponsiveContainer>
+                {conversionFunnelData.every(d => d.valeur === 0) ? (
+                  <div className="h-full flex items-center justify-center text-xs text-charcoal-500 italic">
+                    Aucune activité commerciale enregistrée sur cette période.
+                  </div>
+                ) : (
+                  <ResponsiveContainer width="100%" height="100%">
+                    <BarChart data={conversionFunnelData} layout="vertical" margin={{ top: 10, right: 16, left: 4, bottom: 0 }}>
+                      <CartesianGrid strokeDasharray="3 3" stroke="#f0ebe1" />
+                      <XAxis type="number" allowDecimals={false} tick={{ fontSize: 10, fill: '#6e675f' }} />
+                      <YAxis type="category" dataKey="etape" tick={{ fontSize: 10, fill: '#262322', fontWeight: 600 }} width={92} />
+                      <Tooltip
+                        contentStyle={{ backgroundColor: '#ffffff', borderRadius: '12px', border: '1px solid #e0d8c8', fontSize: '12px' }}
+                        formatter={(valeur) => [`${valeur ?? 0}`, 'Volume']}
+                      />
+                      <Bar dataKey="valeur" radius={[0, 8, 8, 0]}>
+                        {conversionFunnelData.map((entry, index) => (
+                          <Cell key={`cell-${index}`} fill={entry.color} />
+                        ))}
+                      </Bar>
+                    </BarChart>
+                  </ResponsiveContainer>
+                )}
               </div>
             </Card>
           </div>
@@ -346,17 +358,23 @@ export const AdminDashboardPage: React.FC = () => {
                 </div>
               </div>
               <div className="h-64 w-full min-w-0">
-                <ResponsiveContainer width="100%" height="100%">
-                  <BarChart data={publicationStatusData} margin={{ top: 10, right: 12, left: -12, bottom: 0 }}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="#f0ebe1" />
-                    <XAxis dataKey="statut" tick={{ fontSize: 10, fill: '#6e675f' }} />
-                    <YAxis allowDecimals={false} tick={{ fontSize: 10, fill: '#6e675f' }} width={36} />
-                    <Tooltip
-                      contentStyle={{ backgroundColor: '#ffffff', borderRadius: '12px', border: '1px solid #e0d8c8', fontSize: '12px' }}
-                    />
-                    <Bar dataKey="total" fill={PALETTE.sahel} radius={[8, 8, 0, 0]} />
-                  </BarChart>
-                </ResponsiveContainer>
+                {publicationStatusData.length === 0 || publicationStatusData.every(d => d.total === 0) ? (
+                  <div className="h-full flex items-center justify-center text-xs text-charcoal-500 italic">
+                    Aucune annonce enregistrée sur cette période.
+                  </div>
+                ) : (
+                  <ResponsiveContainer width="100%" height="100%">
+                    <BarChart data={publicationStatusData} margin={{ top: 10, right: 12, left: -12, bottom: 0 }}>
+                      <CartesianGrid strokeDasharray="3 3" stroke="#f0ebe1" />
+                      <XAxis dataKey="statut" tick={{ fontSize: 10, fill: '#6e675f' }} />
+                      <YAxis allowDecimals={false} tick={{ fontSize: 10, fill: '#6e675f' }} width={36} />
+                      <Tooltip
+                        contentStyle={{ backgroundColor: '#ffffff', borderRadius: '12px', border: '1px solid #e0d8c8', fontSize: '12px' }}
+                      />
+                      <Bar dataKey="total" fill={PALETTE.sahel} radius={[8, 8, 0, 0]} />
+                    </BarChart>
+                  </ResponsiveContainer>
+                )}
               </div>
             </Card>
 

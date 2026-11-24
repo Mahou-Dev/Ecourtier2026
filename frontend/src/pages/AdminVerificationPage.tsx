@@ -45,6 +45,7 @@ export const AdminVerificationPage: React.FC = () => {
   const { data: references } = useReferences();
 
   const [viewMode, setViewMode] = useState<'EN_ATTENTE' | 'TOUTES'>('EN_ATTENTE');
+  const [page, setPage] = useState<number>(0);
   const [rejectModalOpen, setRejectModalOpen] = useState(false);
   const [selectedAnnonceId, setSelectedAnnonceId] = useState<string | null>(null);
   const [motifRejet, setMotifRejet] = useState('');
@@ -85,20 +86,21 @@ export const AdminVerificationPage: React.FC = () => {
   };
 
   const { data, isLoading } = useQuery<PageResponse<AnnonceDTO>>({
-    queryKey: ['admin-pending-annonces'],
-    queryFn: () => apiFetch<PageResponse<AnnonceDTO>>('/api/v1/admin/annonces/en-attente-verification?page=0&size=20'),
+    queryKey: ['admin-pending-annonces', page],
+    queryFn: () => apiFetch<PageResponse<AnnonceDTO>>(`/api/v1/admin/annonces/en-attente-verification?page=${page}&size=15`),
     enabled: utilisateur?.role === 'ADMIN',
   });
 
   const { data: allAnnoncesData, isLoading: isLoadingAll } = useQuery<PageResponse<AnnonceDTO>>({
-    queryKey: ['admin-all-annonces'],
-    queryFn: () => apiFetch<PageResponse<AnnonceDTO>>('/api/v1/annonces?include_indisponibles=true&page=0&size=50'),
+    queryKey: ['admin-all-annonces', page],
+    queryFn: () => apiFetch<PageResponse<AnnonceDTO>>(`/api/v1/annonces?include_indisponibles=true&page=${page}&size=15`),
     enabled: utilisateur?.role === 'ADMIN' && viewMode === 'TOUTES',
   });
 
   const pendingAnnonces = data?.content || [];
   const allAnnonces = allAnnoncesData?.content || [];
   const displayedAnnonces = viewMode === 'TOUTES' ? allAnnonces : pendingAnnonces;
+  const displayedData = viewMode === 'TOUTES' ? allAnnoncesData : data;
   const isCurrentListLoading = viewMode === 'TOUTES' ? isLoadingAll : isLoading;
 
   const getDocLabel = (code: string): string => {
@@ -175,6 +177,8 @@ export const AdminVerificationPage: React.FC = () => {
       );
       queryClient.invalidateQueries({ queryKey: ['admin-pending-annonces'] });
       queryClient.invalidateQueries({ queryKey: ['admin-all-annonces'] });
+      queryClient.invalidateQueries({ queryKey: ['admin-statistiques'] });
+      queryClient.invalidateQueries({ queryKey: ['admin-statistiques-kpi'] });
       queryClient.invalidateQueries({ queryKey: ['annonces'] });
       queryClient.invalidateQueries({ queryKey: ['my-annonces'] });
       queryClient.invalidateQueries({ queryKey: ['annonce', variables.id] });
@@ -230,6 +234,8 @@ export const AdminVerificationPage: React.FC = () => {
         version: annonce.version,
       });
       updateAnnonceInLists(updated);
+      queryClient.invalidateQueries({ queryKey: ['admin-statistiques'] });
+      queryClient.invalidateQueries({ queryKey: ['admin-statistiques-kpi'] });
       setStatusTargetByAnnonce((prev) => ({
         ...prev,
         [annonce.id]: updated.statutPublication,
@@ -310,7 +316,7 @@ export const AdminVerificationPage: React.FC = () => {
           </div>
           <div className="relative z-10 shrink-0 flex flex-col sm:flex-row items-start md:items-end sm:items-center gap-2">
             <Badge variant="warning" size="lg" className="text-sm px-4 py-2">
-              {pendingAnnonces.length} bien(s) en attente
+              {data?.totalElements ?? 0} bien(s) en attente
             </Badge>
           </div>
         </div>
@@ -320,25 +326,31 @@ export const AdminVerificationPage: React.FC = () => {
           <div className="flex flex-wrap items-center gap-2">
             <button
               type="button"
-              onClick={() => setViewMode('EN_ATTENTE')}
+              onClick={() => {
+                setViewMode('EN_ATTENTE');
+                setPage(0);
+              }}
               className={`px-3 sm:px-4 py-2 rounded-xl text-xs font-bold transition-all ${
                 viewMode === 'EN_ATTENTE'
                   ? 'bg-terracotta-600 text-white shadow-xs'
                   : 'bg-sand-100 text-sahel-800 hover:bg-sand-200'
               }`}
             >
-              En attente de vérification ({pendingAnnonces.length})
+              En attente de vérification ({data?.totalElements ?? 0})
             </button>
             <button
               type="button"
-              onClick={() => setViewMode('TOUTES')}
+              onClick={() => {
+                setViewMode('TOUTES');
+                setPage(0);
+              }}
               className={`px-3 sm:px-4 py-2 rounded-xl text-xs font-bold transition-all ${
                 viewMode === 'TOUTES'
                   ? 'bg-terracotta-600 text-white shadow-xs'
                   : 'bg-sand-100 text-sahel-800 hover:bg-sand-200'
               }`}
             >
-              Toutes les annonces & Statuts de publication
+              Toutes les annonces ({allAnnoncesData?.totalElements ?? '...'})
             </button>
           </div>
           <span className="text-xs text-sahel-600">
@@ -648,6 +660,33 @@ export const AdminVerificationPage: React.FC = () => {
                 </Card>
               );
             })}
+          </div>
+        )}
+
+        {/* Pagination UI Controls */}
+        {displayedData && displayedData.totalPages > 1 && (
+          <div className="flex items-center justify-between pt-4 bg-white p-4 rounded-2xl border border-sand-300 shadow-xs">
+            <span className="text-xs text-charcoal-600 font-medium">
+              Page {displayedData.number + 1} sur {displayedData.totalPages} ({displayedData.totalElements} annonce{displayedData.totalElements > 1 ? 's' : ''})
+            </span>
+            <div className="flex items-center gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                disabled={displayedData.first}
+                onClick={() => setPage((p) => Math.max(0, p - 1))}
+              >
+                Précédent
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                disabled={displayedData.last}
+                onClick={() => setPage((p) => p + 1)}
+              >
+                Suivant
+              </Button>
+            </div>
           </div>
         )}
 

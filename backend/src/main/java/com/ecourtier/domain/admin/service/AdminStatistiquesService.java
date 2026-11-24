@@ -64,9 +64,9 @@ public class AdminStatistiquesService {
         LocalDateTime dateDebut = calculerDateDebut(normalizedPeriode);
 
         UtilisateursStatsDTO utilisateurs = construireUtilisateursStats(dateDebut, normalizedPeriode);
-        AnnoncesStatsDTO annonces = construireAnnoncesStats();
+        AnnoncesStatsDTO annonces = construireAnnoncesStats(dateDebut);
         ActiviteCommercialeStatsDTO activiteCommerciale = construireActiviteCommercialeStats(dateDebut);
-        ModerationStatsDTO moderation = construireModerationStats();
+        ModerationStatsDTO moderation = construireModerationStats(dateDebut);
         AssistantIAStatsDTO assistantIA = construireAssistantIAStats(dateDebut);
 
         return AdminStatistiquesDTO.builder()
@@ -119,6 +119,10 @@ public class AdminStatistiquesService {
             start = LocalDate.parse(rawDaily.get(0)[0].toString());
         }
 
+        if ("tout".equals(periode) && start.isBefore(end.minusYears(1))) {
+            start = end.minusYears(1);
+        }
+
         for (LocalDate d = start; !d.isAfter(end); d = d.plusDays(1)) {
             String dStr = d.format(DateTimeFormatter.ISO_LOCAL_DATE);
             long val = dailyMap.getOrDefault(dStr, 0L);
@@ -131,12 +135,12 @@ public class AdminStatistiquesService {
                 .build();
     }
 
-    private AnnoncesStatsDTO construireAnnoncesStats() {
+    private AnnoncesStatsDTO construireAnnoncesStats(LocalDateTime dateDebut) {
         Map<String, Long> totalParPub = new LinkedHashMap<>();
         for (StatutPublication sp : StatutPublication.values()) {
             totalParPub.put(sp.name(), 0L);
         }
-        for (Object[] row : repository.countAnnoncesByStatutPublication()) {
+        for (Object[] row : repository.countAnnoncesByStatutPublication(dateDebut)) {
             if (row[0] != null) {
                 totalParPub.put(((StatutPublication) row[0]).name(), (Long) row[1]);
             }
@@ -146,7 +150,7 @@ public class AdminStatistiquesService {
         for (StatutVerification sv : StatutVerification.values()) {
             totalParVerif.put(sv.name(), 0L);
         }
-        for (Object[] row : repository.countAnnoncesByStatutVerification()) {
+        for (Object[] row : repository.countAnnoncesByStatutVerification(dateDebut)) {
             if (row[0] != null) {
                 totalParVerif.put(((StatutVerification) row[0]).name(), (Long) row[1]);
             }
@@ -169,18 +173,22 @@ public class AdminStatistiquesService {
             }
         }
 
-        List<Object[]> verifTimes = repository.findVerificationDecisionTimes();
+        List<Object[]> verifTimes = repository.findVerificationDecisionTimes(dateDebut);
         Double tempsMoyenMinutes = 0.0;
         if (!verifTimes.isEmpty()) {
             long totalMinutes = 0;
+            int countValid = 0;
             for (Object[] row : verifTimes) {
                 LocalDateTime start = (LocalDateTime) row[0];
                 LocalDateTime end = (LocalDateTime) row[1];
                 if (start != null && end != null) {
                     totalMinutes += Math.abs(Duration.between(start, end).toMinutes());
+                    countValid++;
                 }
             }
-            tempsMoyenMinutes = Math.round((totalMinutes / (double) verifTimes.size()) * 10.0) / 10.0;
+            if (countValid > 0) {
+                tempsMoyenMinutes = Math.round((totalMinutes / (double) countValid) * 10.0) / 10.0;
+            }
         }
 
         return AnnoncesStatsDTO.builder()
@@ -207,8 +215,8 @@ public class AdminStatistiquesService {
         long countTxInitiated = repository.countTransactionsInitiated(dateDebut);
         long countBauxComplet = repository.countBauxSignesComplet(dateDebut);
 
-        Double rdvToTxRate = countRdvEffectue == 0 ? 0.0 : Math.round((countTxInitiated / (double) countRdvEffectue) * 1000.0) / 10.0;
-        Double txToBailRate = countTxInitiated == 0 ? 0.0 : Math.round((countBauxComplet / (double) countTxInitiated) * 1000.0) / 10.0;
+        Double rdvToTxRate = countRdvEffectue == 0 ? 0.0 : Math.min(100.0, Math.round((countTxInitiated / (double) countRdvEffectue) * 1000.0) / 10.0);
+        Double txToBailRate = countTxInitiated == 0 ? 0.0 : Math.min(100.0, Math.round((countBauxComplet / (double) countTxInitiated) * 1000.0) / 10.0);
 
         BigDecimal totalSequestreBloque = repository.sumMontantSequestreBloque();
         BigDecimal montantVerseProprietaires = repository.sumMontantVerseProprietaires(dateDebut);
@@ -229,12 +237,12 @@ public class AdminStatistiquesService {
                 .build();
     }
 
-    private ModerationStatsDTO construireModerationStats() {
+    private ModerationStatsDTO construireModerationStats(LocalDateTime dateDebut) {
         Map<String, Long> sigStatutMap = new LinkedHashMap<>();
         for (StatutSignalement s : StatutSignalement.values()) {
             sigStatutMap.put(s.name(), 0L);
         }
-        for (Object[] row : repository.countSignalementsByStatut()) {
+        for (Object[] row : repository.countSignalementsByStatut(dateDebut)) {
             if (row[0] != null) {
                 sigStatutMap.put(((StatutSignalement) row[0]).name(), (Long) row[1]);
             }
@@ -244,7 +252,7 @@ public class AdminStatistiquesService {
         for (MotifSignalement m : MotifSignalement.values()) {
             sigMotifMap.put(m.name(), 0L);
         }
-        for (Object[] row : repository.countSignalementsByMotif()) {
+        for (Object[] row : repository.countSignalementsByMotif(dateDebut)) {
             if (row[0] != null) {
                 sigMotifMap.put(((MotifSignalement) row[0]).name(), (Long) row[1]);
             }

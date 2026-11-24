@@ -8,6 +8,9 @@ import com.ecourtier.domain.annonce.entity.StatutPublication;
 import com.ecourtier.domain.annonce.entity.StatutVerification;
 import com.ecourtier.domain.annonce.entity.TypeBien;
 import com.ecourtier.domain.annonce.repository.AnnonceRepository;
+import com.ecourtier.domain.avis.entity.MotifSignalement;
+import com.ecourtier.domain.avis.entity.SignalementEntity;
+import com.ecourtier.domain.avis.entity.StatutSignalement;
 import com.ecourtier.domain.transaction.entity.StatutBail;
 import com.ecourtier.domain.transaction.entity.StatutSequestre;
 import com.ecourtier.domain.transaction.entity.TransactionEntity;
@@ -59,6 +62,12 @@ class AdminStatistiquesServiceTest {
 
     @Autowired
     private com.ecourtier.domain.ia.repository.MessageIARepository messageIARepository;
+
+    @Autowired
+    private com.ecourtier.domain.avis.repository.SignalementRepository signalementRepository;
+
+    @Autowired
+    private com.ecourtier.domain.rendezvous.repository.RendezVousRepository rendezVousRepository;
 
     @Autowired
     private org.springframework.cache.CacheManager cacheManager;
@@ -388,5 +397,150 @@ class AdminStatistiquesServiceTest {
             }
             TimeZone.setDefault(previous);
         }
+    }
+
+    @Test
+    @DisplayName("ADMIN-STAT-001 : Vérification que le filtrage temporel 7j vs 30j filtre bien les annonces et signalements")
+    void testFiltrageTemporelAnnoncesEtSignalements() {
+        if (cacheManager != null && cacheManager.getCache("adminStats") != null) {
+            cacheManager.getCache("adminStats").clear();
+        }
+
+        // Annonce récente (aujourd'hui)
+        AnnonceEntity annonceRecente = annonceRepository.save(AnnonceEntity.builder()
+                .titre("Studio Plateau Récent")
+                .description("Studio tout neuf")
+                .type(TypeBien.STUDIO)
+                .modeTransaction(ModeTransaction.LOCATION)
+                .prix(BigDecimal.valueOf(150000))
+                .superficie(30.0)
+                .nombrePieces(1)
+                .quartier("Plateau")
+                .ville("Dakar")
+                .latitude(14.67)
+                .longitude(-17.43)
+                .statutPublication(StatutPublication.DISPONIBLE)
+                .statutVerification(StatutVerification.VERIFIEE)
+                .utilisateur(testUser)
+                .dateCreation(LocalDateTime.now())
+                .dateVerification(LocalDateTime.now().minusMinutes(30))
+                .build());
+
+        // Annonce ancienne (il y a 20 jours)
+        AnnonceEntity annonceAncienne = annonceRepository.save(AnnonceEntity.builder()
+                .titre("Villa Ngor Ancienne")
+                .description("Grande villa")
+                .type(TypeBien.VILLA)
+                .modeTransaction(ModeTransaction.VENTE)
+                .prix(BigDecimal.valueOf(95000000))
+                .superficie(300.0)
+                .nombrePieces(6)
+                .quartier("Ngor")
+                .ville("Dakar")
+                .latitude(14.75)
+                .longitude(-17.52)
+                .statutPublication(StatutPublication.DISPONIBLE)
+                .statutVerification(StatutVerification.VERIFIEE)
+                .utilisateur(testUser)
+                .dateCreation(LocalDateTime.now().minusDays(20))
+                .dateVerification(LocalDateTime.now().minusDays(20))
+                .build());
+
+        // Signalement récent (il y a 2 jours)
+        signalementRepository.save(SignalementEntity.builder()
+                .annonce(annonceRecente)
+                .auteur(testUser)
+                .motif(MotifSignalement.FAUSSE_ANNONCE)
+                .statut(StatutSignalement.EN_ATTENTE)
+                .dateCreation(LocalDateTime.now().minusDays(2))
+                .build());
+
+        // Signalement ancien (il y a 25 jours)
+        signalementRepository.save(SignalementEntity.builder()
+                .annonce(annonceAncienne)
+                .auteur(testUser)
+                .motif(MotifSignalement.ARNAQUE_SUSPECTEE)
+                .statut(StatutSignalement.TRAITE)
+                .dateCreation(LocalDateTime.now().minusDays(25))
+                .build());
+
+        // Test 7 jours : seule l'annonce récente et le signalement récent doivent être comptés
+        AdminStatistiquesDTO stats7j = adminStatistiquesService.obtenirStatistiques("7j");
+        assertNotNull(stats7j);
+        assertEquals(1L, stats7j.getAnnonces().getTotalParStatutPublication().get("DISPONIBLE"));
+        assertEquals(1L, stats7j.getModeration().getSignalementsParMotif().get("FAUSSE_ANNONCE"));
+        assertEquals(0L, stats7j.getModeration().getSignalementsParMotif().get("ARNAQUE_SUSPECTEE"));
+
+        // Test 30 jours : les deux annonces et les deux signalements doivent être comptés
+        AdminStatistiquesDTO stats30j = adminStatistiquesService.obtenirStatistiques("30j");
+        assertNotNull(stats30j);
+        assertEquals(2L, stats30j.getAnnonces().getTotalParStatutPublication().get("DISPONIBLE"));
+        assertEquals(1L, stats30j.getModeration().getSignalementsParMotif().get("FAUSSE_ANNONCE"));
+        assertEquals(1L, stats30j.getModeration().getSignalementsParMotif().get("ARNAQUE_SUSPECTEE"));
+    }
+
+    @Test
+    @DisplayName("ADMIN-STAT-003 : Le taux de conversion RDV -> Transaction est borné à 100.0% max")
+    void testCapTauxConversion100Pourcent() {
+        if (cacheManager != null && cacheManager.getCache("adminStats") != null) {
+            cacheManager.getCache("adminStats").clear();
+        }
+
+        UtilisateurEntity locataire = utilisateurRepository.save(UtilisateurEntity.builder()
+                .nom("Ba")
+                .prenom("Amadou")
+                .email("amadou.ba@ecourtier.sn")
+                .motDePasse("Password123!")
+                .telephone("+221 77 888 99 00")
+                .role(Role.LOCATAIRE)
+                .actif(true)
+                .build());
+
+        AnnonceEntity annonce = annonceRepository.save(AnnonceEntity.builder()
+                .titre("Appartement Fann")
+                .description("Bel appartement")
+                .type(TypeBien.APPARTEMENT)
+                .modeTransaction(ModeTransaction.LOCATION)
+                .prix(BigDecimal.valueOf(200000))
+                .superficie(60.0)
+                .nombrePieces(2)
+                .quartier("Fann")
+                .ville("Dakar")
+                .latitude(14.69)
+                .longitude(-17.46)
+                .statutPublication(StatutPublication.DISPONIBLE)
+                .statutVerification(StatutVerification.VERIFIEE)
+                .utilisateur(testUser)
+                .dateCreation(LocalDateTime.now())
+                .build());
+
+        // 1 seul RDV effectue
+        rendezVousRepository.save(com.ecourtier.domain.rendezvous.entity.RendezVousEntity.builder()
+                .annonce(annonce)
+                .demandeur(locataire)
+                .statut(com.ecourtier.domain.rendezvous.entity.StatutRendezVous.EFFECTUE)
+                .dateHeure(LocalDateTime.now())
+                .dateCreation(LocalDateTime.now())
+                .build());
+
+        // Mais 3 transactions initiées
+        for (int i = 0; i < 3; i++) {
+            transactionRepository.save(TransactionEntity.builder()
+                    .locataire(locataire)
+                    .proprietaire(testUser)
+                    .annonce(annonce)
+                    .montantCaution(BigDecimal.valueOf(100000))
+                    .montantPremierLoyer(BigDecimal.valueOf(50000))
+                    .fraisDossier(BigDecimal.valueOf(5000))
+                    .statutSequestre(StatutSequestre.INITIALISE)
+                    .statutBail(StatutBail.NON_SIGNE)
+                    .dateCreation(LocalDateTime.now())
+                    .dossierActif(true)
+                    .build());
+        }
+
+        AdminStatistiquesDTO stats = adminStatistiquesService.obtenirStatistiques("30j");
+        assertNotNull(stats);
+        assertEquals(100.0, stats.getActiviteCommerciale().getTauxConversionRdvToTransaction());
     }
 }

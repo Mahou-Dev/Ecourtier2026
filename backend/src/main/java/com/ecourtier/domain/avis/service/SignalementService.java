@@ -16,6 +16,7 @@ import com.ecourtier.domain.utilisateur.entity.UtilisateurEntity;
 import com.ecourtier.domain.utilisateur.repository.UtilisateurRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.http.HttpStatus;
@@ -38,6 +39,7 @@ public class SignalementService {
     private final TransactionRepository transactionRepository;
 
     @Transactional
+    @CacheEvict(value = "adminStats", allEntries = true)
     public SignalementResponseDTO creerSignalement(UUID annonceId, SignalementCreateDTO dto, String userEmail) {
         UtilisateurEntity user = utilisateurRepository.findByEmail(userEmail)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Utilisateur non trouvé"));
@@ -74,6 +76,7 @@ public class SignalementService {
     }
 
     @Transactional
+    @CacheEvict(value = "adminStats", allEntries = true)
     public SignalementResponseDTO traiterSignalement(UUID signalementId, TraiterSignalementDTO dto) {
         SignalementEntity signalement = signalementRepository.findById(signalementId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Signalement introuvable"));

@@ -7,6 +7,7 @@ import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
+import org.springframework.context.annotation.Profile;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -18,6 +19,7 @@ import java.util.Map;
 @RestController
 @RequestMapping("/api/v1/admin")
 @RequiredArgsConstructor
+@Profile("!prod")
 @Tag(name = "Administration Seeding", description = "Endpoints d'initialisation des données de démo réservés à l'ADMIN")
 @SecurityRequirement(name = "bearerAuth")
 public class AdminSeedController {

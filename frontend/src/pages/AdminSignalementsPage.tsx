@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { ShieldAlert, CheckCircle, AlertTriangle, ExternalLink, RefreshCw } from 'lucide-react';
 import { Link, Navigate } from 'react-router-dom';
 import { apiFetch } from '../services/api';
@@ -14,6 +14,7 @@ import { toast } from 'sonner';
 import { getErrorMessage } from '../lib/errors';
 
 export const AdminSignalementsPage: React.FC = () => {
+  const queryClient = useQueryClient();
   const { utilisateur } = useAuthStore();
   const [statutFilter, setStatutFilter] = useState<string>('EN_ATTENTE');
   const [page, setPage] = useState<number>(0);
@@ -56,6 +57,8 @@ export const AdminSignalementsPage: React.FC = () => {
           : `Signalement mis à jour (${statut})`
       );
       refetch();
+      queryClient.invalidateQueries({ queryKey: ['admin-statistiques'] });
+      queryClient.invalidateQueries({ queryKey: ['admin-statistiques-kpi'] });
     } catch (err: unknown) {
       toast.error(getErrorMessage(err, 'Erreur lors du traitement du signalement'));
     } finally {
@@ -151,7 +154,7 @@ export const AdminSignalementsPage: React.FC = () => {
                         {sig.statut === 'EN_ATTENTE' ? 'En Attente' : sig.statut === 'TRAITE' ? 'Traité' : 'Rejeté'}
                       </Badge>
                       <span className="text-xs font-bold text-terracotta-600 bg-terracotta-50 px-2 py-0.5 rounded border border-terracotta-200">
-                        {sig.motif.replace('_', ' ')}
+                        {sig.motif.replace(/_/g, ' ')}
                       </span>
                       <span className="text-[11px] text-charcoal-400 break-all">
                         Signalé le {new Date(sig.dateCreation).toLocaleDateString('fr-FR')} par {sig.auteurEmail}

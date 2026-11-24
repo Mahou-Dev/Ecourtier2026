@@ -21,11 +21,11 @@ public interface AdminStatistiquesRepository extends JpaRepository<UtilisateurEn
     @Query("SELECT CAST(u.dateCreation AS java.time.LocalDate), COUNT(u) FROM UtilisateurEntity u WHERE u.dateCreation >= :dateDebut GROUP BY CAST(u.dateCreation AS java.time.LocalDate) ORDER BY CAST(u.dateCreation AS java.time.LocalDate) ASC")
     List<Object[]> countDailyRegistrations(@Param("dateDebut") LocalDateTime dateDebut);
 
-    @Query("SELECT a.statutPublication, COUNT(a) FROM AnnonceEntity a WHERE a.supprime = false GROUP BY a.statutPublication")
-    List<Object[]> countAnnoncesByStatutPublication();
+    @Query("SELECT a.statutPublication, COUNT(a) FROM AnnonceEntity a WHERE a.supprime = false AND a.dateCreation >= :dateDebut GROUP BY a.statutPublication")
+    List<Object[]> countAnnoncesByStatutPublication(@Param("dateDebut") LocalDateTime dateDebut);
 
-    @Query("SELECT a.statutVerification, COUNT(a) FROM AnnonceEntity a WHERE a.supprime = false GROUP BY a.statutVerification")
-    List<Object[]> countAnnoncesByStatutVerification();
+    @Query("SELECT a.statutVerification, COUNT(a) FROM AnnonceEntity a WHERE a.supprime = false AND a.dateCreation >= :dateDebut GROUP BY a.statutVerification")
+    List<Object[]> countAnnoncesByStatutVerification(@Param("dateDebut") LocalDateTime dateDebut);
 
     @Query("SELECT a.ville, a.quartier, COUNT(a) FROM AnnonceEntity a WHERE a.supprime = false GROUP BY a.ville, a.quartier ORDER BY COUNT(a) DESC")
     List<Object[]> findTopVilleQuartier(Pageable pageable);
@@ -33,8 +33,8 @@ public interface AdminStatistiquesRepository extends JpaRepository<UtilisateurEn
     @Query("SELECT a.type, AVG(a.prix) FROM AnnonceEntity a WHERE a.supprime = false GROUP BY a.type")
     List<Object[]> findAveragePriceByTypeBien();
 
-    @Query("SELECT a.dateCreation, a.dateVerification FROM AnnonceEntity a WHERE a.dateVerification IS NOT NULL AND a.supprime = false")
-    List<Object[]> findVerificationDecisionTimes();
+    @Query("SELECT a.dateCreation, a.dateVerification FROM AnnonceEntity a WHERE a.dateVerification IS NOT NULL AND a.dateCreation IS NOT NULL AND a.supprime = false AND a.dateVerification >= :dateDebut")
+    List<Object[]> findVerificationDecisionTimes(@Param("dateDebut") LocalDateTime dateDebut);
 
     @Query("SELECT r.statut, COUNT(r) FROM RendezVousEntity r WHERE r.dateCreation >= :dateDebut GROUP BY r.statut")
     List<Object[]> countRendezVousByStatut(@Param("dateDebut") LocalDateTime dateDebut);
@@ -57,11 +57,11 @@ public interface AdminStatistiquesRepository extends JpaRepository<UtilisateurEn
     @Query("SELECT COALESCE(SUM(COALESCE(t.fraisDossier, 0)), 0) FROM TransactionEntity t WHERE t.statutSequestre = com.ecourtier.domain.transaction.entity.StatutSequestre.LIBERE AND t.dateLiberation >= :dateDebut")
     BigDecimal sumFraisDossierConserves(@Param("dateDebut") LocalDateTime dateDebut);
 
-    @Query("SELECT s.statut, COUNT(s) FROM SignalementEntity s GROUP BY s.statut")
-    List<Object[]> countSignalementsByStatut();
+    @Query("SELECT s.statut, COUNT(s) FROM SignalementEntity s WHERE s.dateCreation >= :dateDebut GROUP BY s.statut")
+    List<Object[]> countSignalementsByStatut(@Param("dateDebut") LocalDateTime dateDebut);
 
-    @Query("SELECT s.motif, COUNT(s) FROM SignalementEntity s GROUP BY s.motif")
-    List<Object[]> countSignalementsByMotif();
+    @Query("SELECT s.motif, COUNT(s) FROM SignalementEntity s WHERE s.dateCreation >= :dateDebut GROUP BY s.motif")
+    List<Object[]> countSignalementsByMotif(@Param("dateDebut") LocalDateTime dateDebut);
 
     @Query("SELECT COALESCE(AVG(a.note), 0.0) FROM AvisEntity a")
     Double findNoteMoyenneGlobale();

@@ -1,6 +1,7 @@
 package com.ecourtier.domain.annonce.service;
 
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.cache.annotation.CacheEvict;
 
 import java.time.Clock;
 import java.time.LocalDateTime;
@@ -654,6 +655,7 @@ public class AnnonceService {
     }
 
     @Transactional
+    @CacheEvict(value = "adminStats", allEntries = true)
     public AnnonceResponseDTO deciderVerificationAnnonce(UUID id, VerificationDecisionDTO decision) {
         AnnonceEntity annonce = annonceRepository.findByIdAndSupprimeFalse(id)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Annonce introuvable"));
@@ -717,6 +719,7 @@ public class AnnonceService {
     }
 
     @Transactional
+    @CacheEvict(value = "adminStats", allEntries = true)
     public AnnonceResponseDTO changerStatutPublicationAdmin(UUID id, AnnonceStatutUpdateDTO request, String adminEmail) {
         if (request == null || request.getVersion() == null) {
             throw new ResponseStatusException(

@@ -12,6 +12,7 @@ import com.ecourtier.domain.utilisateur.repository.UtilisateurSpecification;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
+import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.data.jpa.domain.Specification;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.crypto.password.PasswordEncoder;
@@ -62,6 +63,7 @@ public class UtilisateurManagementService {
     }
 
     @Transactional
+    @CacheEvict(value = "adminStats", allEntries = true)
     public AdminCreateUtilisateurResponseDTO creerUtilisateurParAdmin(AdminCreateUtilisateurRequestDTO request) {
         String emailClean = request.getEmail().toLowerCase().trim();
         if (utilisateurRepository.existsByEmail(emailClean)) {
@@ -99,6 +101,7 @@ public class UtilisateurManagementService {
     }
 
     @Transactional
+    @CacheEvict(value = "adminStats", allEntries = true)
     public UtilisateurResponseDTO changerRole(UUID targetId, Role nouveauRole, String adminEmail) {
         UtilisateurEntity target = utilisateurRepository.findById(targetId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Utilisateur introuvable"));
@@ -138,6 +141,7 @@ public class UtilisateurManagementService {
     }
 
     @Transactional
+    @CacheEvict(value = "adminStats", allEntries = true)
     public UtilisateurResponseDTO changerStatut(UUID targetId, boolean actif, String adminEmail) {
         UtilisateurEntity target = utilisateurRepository.findById(targetId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Utilisateur introuvable"));
